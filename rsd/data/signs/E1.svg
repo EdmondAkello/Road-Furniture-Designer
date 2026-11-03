@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 114.73 99.77" width="114.73" height="99.77">
+<path d="M113.23,92.02C113.23,95.47 110.43,98.27 106.98,98.27L7.75,98.27C4.30,98.27 1.50,95.47 1.50,92.02L1.50,7.75C1.50,4.30 4.30,1.50 7.75,1.50L106.98,1.50C110.43,1.50 113.23,4.30 113.23,7.75L113.23,92.02" fill="#feca33" stroke="#1d1d1b" stroke-width="0.71"/>
+<path d="M109.99,92.02C109.99,93.68 108.64,95.02 106.98,95.02L7.75,95.02C6.09,95.02 4.75,93.68 4.75,92.02L4.75,7.75C4.75,6.09 6.09,4.75 7.75,4.75L106.98,4.75C108.64,4.75 109.99,6.09 109.99,7.75L109.99,92.02" fill="#feca33" stroke="#1d1d1b" stroke-width="2.84"/>
+<text x="23.54" y="31.97" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="24.89" fill="#1d1d1b">Truck</text>
+<text x="13.16" y="56.86" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="24.89" fill="#1d1d1b">Escape</text>
+<text x="22.17" y="81.75" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="24.89" fill="#1d1d1b">Ramp</text>
+</svg>

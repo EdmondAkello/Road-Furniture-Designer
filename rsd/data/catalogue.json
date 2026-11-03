@@ -1,0 +1,4307 @@
+{
+ "catalogue_version": "RDM6.2-2025.2",
+ "standard": {
+  "name": "Road Design Manual Vol. 6 Part 2: Traffic Signs (RDM 6.2)",
+  "edition": "2025",
+  "publisher": "Ministry of Roads and Transport, Kenya",
+  "note": "Codes, names and artwork extracted from the manual's figures. Sizes: 600/750/900 mm (RDM 2.9), 1200 mm on expressways; auto size from design speed per Tables 3.1, 3.3, 4.1."
+ },
+ "shapes": {
+  "triangle": {
+   "boq_label": "Triangular warning sign"
+  },
+  "inv_triangle": {
+   "boq_label": "Inverted triangular sign"
+  },
+  "circle": {
+   "boq_label": "Circular regulatory sign"
+  },
+  "octagon": {
+   "boq_label": "Octagonal (Stop) sign"
+  },
+  "rectangle": {
+   "boq_label": "Rectangular sign / plate"
+  }
+ },
+ "signs": [
+  {
+   "code": "R1",
+   "name": "Stop",
+   "category": "Regulatory",
+   "shape": "octagon",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "stop_giveway",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.1",
+   "page": 18
+  },
+  {
+   "code": "R2",
+   "name": "GIVE WAY",
+   "category": "Regulatory",
+   "shape": "inv_triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "stop_giveway",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.4",
+   "page": 20
+  },
+  {
+   "code": "M1",
+   "name": "Left Turn",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.6",
+   "page": 21
+  },
+  {
+   "code": "M2",
+   "name": "Straight Ahead",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.7",
+   "page": 21
+  },
+  {
+   "code": "M3",
+   "name": "Right Turn",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.8",
+   "page": 21
+  },
+  {
+   "code": "M4",
+   "name": "Straight Ahead or Turn Left",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.9",
+   "page": 22
+  },
+  {
+   "code": "M5",
+   "name": "Keep Left",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.10",
+   "page": 22
+  },
+  {
+   "code": "M6",
+   "name": "Keep Right",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.11",
+   "page": 22
+  },
+  {
+   "code": "M7",
+   "name": "Turn Left Ahead",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.12",
+   "page": 22
+  },
+  {
+   "code": "M8",
+   "name": "Turn Right Ahead",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.13",
+   "page": 22
+  },
+  {
+   "code": "M9",
+   "name": "Pass Either Side",
+   "category": "Mandatory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.14",
+   "page": 22
+  },
+  {
+   "code": "P1",
+   "name": "No Entry",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.15",
+   "page": 22
+  },
+  {
+   "code": "P2",
+   "name": "No Right Turn",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.16",
+   "page": 22
+  },
+  {
+   "code": "P3",
+   "name": "No Left Turn",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.17",
+   "page": 22
+  },
+  {
+   "code": "P4",
+   "name": "No U Turn",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.18",
+   "page": 22
+  },
+  {
+   "code": "P5",
+   "name": "Built Up Area, Speed Limit 50 km/h",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.19",
+   "page": 23
+  },
+  {
+   "code": "P6",
+   "name": "Special Area, Speed Limit 70 km/h",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.20",
+   "page": 23
+  },
+  {
+   "code": "P7",
+   "name": "Special Area, Speed Limit 80 km/h",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.21",
+   "page": 23
+  },
+  {
+   "code": "P8",
+   "name": "Expressway, Speed Limit 120 km/h",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.22",
+   "page": 23
+  },
+  {
+   "code": "P9",
+   "name": "End of Maximum Speed Limit (other than General Speed Limit)",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.23",
+   "page": 23
+  },
+  {
+   "code": "P10",
+   "name": "End of Minimum Speed Limit",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.24",
+   "page": 23
+  },
+  {
+   "code": "P11",
+   "name": "Parking Permitted",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.25",
+   "page": 24
+  },
+  {
+   "code": "P12",
+   "name": "Restriction Plate",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "3.26",
+   "page": 24,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "P13",
+   "name": "Parking Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.27",
+   "page": 24
+  },
+  {
+   "code": "P14",
+   "name": "No Stopping Sign",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.28",
+   "page": 24
+  },
+  {
+   "code": "P15",
+   "name": "Disc Parking Plate",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.29",
+   "page": 24
+  },
+  {
+   "code": "P16",
+   "name": "Taxi Stand",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.30",
+   "page": 24
+  },
+  {
+   "code": "P17",
+   "name": "Commencement of Cycle Track",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.31",
+   "page": 25
+  },
+  {
+   "code": "P18",
+   "name": "End of Cycle Track",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.32",
+   "page": 25
+  },
+  {
+   "code": "P19",
+   "name": "Commencement of Cycleway",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.33",
+   "page": 25
+  },
+  {
+   "code": "P20",
+   "name": "Shared Pedestrian / Cycle Track",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.34",
+   "page": 25
+  },
+  {
+   "code": "P21",
+   "name": "School Warden\u2019s Stop Sign",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.35",
+   "page": 26
+  },
+  {
+   "code": "P23",
+   "name": "Weight Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.37",
+   "page": 27
+  },
+  {
+   "code": "P24",
+   "name": "Vehicle Weight Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.38",
+   "page": 27
+  },
+  {
+   "code": "P25",
+   "name": "Axle Weight Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.39",
+   "page": 27
+  },
+  {
+   "code": "P26",
+   "name": "Advance Sign Indicating Weight Restriction Ahead",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.40",
+   "page": 27
+  },
+  {
+   "code": "P27",
+   "name": "Indicating Route Subject to Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.41",
+   "page": 27
+  },
+  {
+   "code": "P28",
+   "name": "Sign Indicating Route Subject to Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.42",
+   "page": 27
+  },
+  {
+   "code": "P29",
+   "name": "Height Restriction",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.43",
+   "page": 27
+  },
+  {
+   "code": "P30",
+   "name": "Parking Restriction for Heavy Vehicles",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.44",
+   "page": 27
+  },
+  {
+   "code": "P31",
+   "name": "End of Restriction",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.45",
+   "page": 27
+  },
+  {
+   "code": "P32",
+   "name": "No Overtaking",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "3.46",
+   "page": 28
+  },
+  {
+   "code": "P33",
+   "name": "Advance Sign for With-Flow Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.47",
+   "page": 28
+  },
+  {
+   "code": "P34",
+   "name": "With-Flow Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.48",
+   "page": 28
+  },
+  {
+   "code": "P35",
+   "name": "Information Plate",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "3.49",
+   "page": 28,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "P36",
+   "name": "Advance Sign for Offside Bus Lane",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.50",
+   "page": 29
+  },
+  {
+   "code": "P37",
+   "name": "Offside Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.51",
+   "page": 29
+  },
+  {
+   "code": "P38",
+   "name": "Information Plate",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "3.52",
+   "page": 29,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "P39",
+   "name": "Contra Flow Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.53",
+   "page": 29
+  },
+  {
+   "code": "P40",
+   "name": "Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.56",
+   "page": 30
+  },
+  {
+   "code": "P41",
+   "name": "Bus Lane",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.57",
+   "page": 30
+  },
+  {
+   "code": "P42",
+   "name": "Bus Lane, Look Left",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.58",
+   "page": 30
+  },
+  {
+   "code": "P43",
+   "name": "Bus Lane, Look Left",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.59",
+   "page": 30
+  },
+  {
+   "code": "P44",
+   "name": "Buses Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.60",
+   "page": 31
+  },
+  {
+   "code": "P45",
+   "name": "Cars Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.61",
+   "page": 31
+  },
+  {
+   "code": "P46",
+   "name": "Trucks Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.62",
+   "page": 31
+  },
+  {
+   "code": "P47",
+   "name": "Tractors Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.63",
+   "page": 31
+  },
+  {
+   "code": "P48",
+   "name": "Motorcycles Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.64",
+   "page": 31
+  },
+  {
+   "code": "P49",
+   "name": "Cycles Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.65",
+   "page": 31
+  },
+  {
+   "code": "P50",
+   "name": "Horns Prohibited",
+   "category": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "3.66",
+   "page": 31
+  },
+  {
+   "code": "P51",
+   "name": "Do Not Block Intersection",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.67",
+   "page": 31
+  },
+  {
+   "code": "W1",
+   "name": "Crossroads",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.2",
+   "page": 33
+  },
+  {
+   "code": "W2",
+   "name": "Side Road",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.3",
+   "page": 33
+  },
+  {
+   "code": "W3",
+   "name": "T Junction",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.4",
+   "page": 33
+  },
+  {
+   "code": "W4",
+   "name": "Y Junction",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.5",
+   "page": 33
+  },
+  {
+   "code": "W5",
+   "name": "Staggered Crossroads",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.6",
+   "page": 33
+  },
+  {
+   "code": "W6",
+   "name": "Crossroads",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.7",
+   "page": 33
+  },
+  {
+   "code": "W7",
+   "name": "Side Road",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.8",
+   "page": 33
+  },
+  {
+   "code": "W8",
+   "name": "T Junction",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.9",
+   "page": 33
+  },
+  {
+   "code": "W9",
+   "name": "Staggered Crossroads",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.10",
+   "page": 33
+  },
+  {
+   "code": "W10",
+   "name": "Y Junction",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.11",
+   "page": 33
+  },
+  {
+   "code": "W11",
+   "name": "Crossroads",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.12",
+   "page": 33
+  },
+  {
+   "code": "W12",
+   "name": "T Junction",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.13",
+   "page": 33
+  },
+  {
+   "code": "W13",
+   "name": "Crossroads with Dual Carriageway",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.14",
+   "page": 33
+  },
+  {
+   "code": "W14",
+   "name": "T Junction with Dual Carriageway",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.15",
+   "page": 33
+  },
+  {
+   "code": "W15",
+   "name": "Merging Traffic",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.16",
+   "page": 33
+  },
+  {
+   "code": "W16",
+   "name": "Merging / Diverging Traffic",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.17",
+   "page": 33
+  },
+  {
+   "code": "W17",
+   "name": "Roundabout Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.18",
+   "page": 34
+  },
+  {
+   "code": "W18",
+   "name": "Mini Roundabout Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.19",
+   "page": 34
+  },
+  {
+   "code": "W19",
+   "name": "Sharp Turn Ahead (Left / Right)",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.20",
+   "page": 35
+  },
+  {
+   "code": "W20",
+   "name": "Sharp Bend Ahead (Left / Right)",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.21",
+   "page": 35
+  },
+  {
+   "code": "W21",
+   "name": "Series of Sharp Curves Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.22",
+   "page": 35
+  },
+  {
+   "code": "W22",
+   "name": "Series of Bends Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.23",
+   "page": 35
+  },
+  {
+   "code": "W23",
+   "name": "Distance Plates",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "4.24",
+   "page": 35,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "W24-a",
+   "name": "Chevrons (single)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": true,
+   "figure": "4.25",
+   "page": 36
+  },
+  {
+   "code": "W24-b",
+   "name": "Chevrons (single, large)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": true,
+   "figure": "4.25",
+   "page": 36
+  },
+  {
+   "code": "W24-c",
+   "name": "Chevrons (double)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": true,
+   "figure": "4.25",
+   "page": 36
+  },
+  {
+   "code": "W24-d",
+   "name": "Chevrons (triple)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": true,
+   "figure": "4.25",
+   "page": 36
+  },
+  {
+   "code": "W25",
+   "name": "Road Narrows on One Side",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.26",
+   "page": 37
+  },
+  {
+   "code": "W26",
+   "name": "Road Narrows on Both Sides",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.27",
+   "page": 37
+  },
+  {
+   "code": "W27",
+   "name": "Road Divides",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.28",
+   "page": 37
+  },
+  {
+   "code": "W28",
+   "name": "End of Divided Carriageway",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.29",
+   "page": 37
+  },
+  {
+   "code": "W29",
+   "name": "Two Way Traffic",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.30",
+   "page": 37
+  },
+  {
+   "code": "W30",
+   "name": "Steep Descent Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "4.32",
+   "page": 38
+  },
+  {
+   "code": "W31",
+   "name": "Steep Ascent Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "4.33",
+   "page": 38
+  },
+  {
+   "code": "W32",
+   "name": "Restricted Headroom",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": "label",
+   "mirror": false,
+   "figure": "4.34",
+   "page": 38
+  },
+  {
+   "code": "W33",
+   "name": "'Goal Post' Marking at Hazard",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.35",
+   "page": 38
+  },
+  {
+   "code": "W34",
+   "name": "Overhead Electric Cables",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.36",
+   "page": 39
+  },
+  {
+   "code": "W35",
+   "name": "Safe Height Plate",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "4.37",
+   "page": 39,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "W36",
+   "name": "Level Crossing Ahead, Unguarded by Gates or Lifting Barriers",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.38",
+   "page": 39
+  },
+  {
+   "code": "W37",
+   "name": "Level Crossing Ahead, Guarded by Gates or Lifting Barriers",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.39",
+   "page": 39
+  },
+  {
+   "code": "W38",
+   "name": "Level Crossing Ahead with Lights and Barriers",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.40",
+   "page": 39
+  },
+  {
+   "code": "W39",
+   "name": "Stop When Red Lights Show",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.41",
+   "page": 40
+  },
+  {
+   "code": "W40",
+   "name": "Slow Automatic Level Crossing",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "4.42",
+   "page": 40
+  },
+  {
+   "code": "W41",
+   "name": "Sharp Rise Ahead e.g., Hump-Back Bridge",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.44",
+   "page": 40
+  },
+  {
+   "code": "W42",
+   "name": "Sharp Dip Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.45",
+   "page": 40
+  },
+  {
+   "code": "W43",
+   "name": "Series of Bumps and Dips Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.46",
+   "page": 40
+  },
+  {
+   "code": "W44",
+   "name": "Slippery Road Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.47",
+   "page": 41
+  },
+  {
+   "code": "W45",
+   "name": "Unprotected Canal, River or Quay Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.48",
+   "page": 41
+  },
+  {
+   "code": "W46",
+   "name": "Traffic Signals Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.49",
+   "page": 41
+  },
+  {
+   "code": "W47",
+   "name": "School Ahead",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "4.50",
+   "page": 41,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "W48",
+   "name": "School Children Crossing Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.51",
+   "page": 41
+  },
+  {
+   "code": "W49",
+   "name": "Children Crossing (in residential areas)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "4.52",
+   "page": 41,
+   "plate_style": [
+    "white",
+    "black"
+   ]
+  },
+  {
+   "code": "W50",
+   "name": "Accompanied Horses or Ponies",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.53",
+   "page": 42
+  },
+  {
+   "code": "W51",
+   "name": "Cattle or Farm Animals",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.54",
+   "page": 42
+  },
+  {
+   "code": "W52",
+   "name": "Sheep",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.55",
+   "page": 42
+  },
+  {
+   "code": "W53",
+   "name": "Wild Animals",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.56",
+   "page": 42
+  },
+  {
+   "code": "W54",
+   "name": "Crosswinds",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "4.57",
+   "page": 43
+  },
+  {
+   "code": "W55",
+   "name": "Pedestrian Crossing Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.58",
+   "page": 43
+  },
+  {
+   "code": "W56",
+   "name": "Tunnel Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.59",
+   "page": 43
+  },
+  {
+   "code": "W57",
+   "name": "Falling Rocks",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.60",
+   "page": 43
+  },
+  {
+   "code": "W58",
+   "name": "Low Flying Aircraft",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.61",
+   "page": 44
+  },
+  {
+   "code": "W59",
+   "name": "Keep Left",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.62",
+   "page": 44
+  },
+  {
+   "code": "W60",
+   "name": "Road Widens",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.65",
+   "page": 46
+  },
+  {
+   "code": "W61",
+   "name": "Narrow Bridge Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.66",
+   "page": 46
+  },
+  {
+   "code": "W62",
+   "name": "Gap in the Median",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.67",
+   "page": 46
+  },
+  {
+   "code": "W63",
+   "name": "Built Up Area",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.68",
+   "page": 46
+  },
+  {
+   "code": "W64",
+   "name": "Speed Breaker",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.69",
+   "page": 46
+  },
+  {
+   "code": "W65",
+   "name": "Rumble Strip",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.70",
+   "page": 46
+  },
+  {
+   "code": "W66",
+   "name": "Ferry",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.71",
+   "page": 46
+  },
+  {
+   "code": "W67",
+   "name": "Queue Ahead",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.72",
+   "page": 46
+  },
+  {
+   "code": "W68",
+   "name": "Object Hazard (Left)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.73",
+   "page": 46
+  },
+  {
+   "code": "W69",
+   "name": "Object Hazard (Right)",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.74",
+   "page": 46
+  },
+  {
+   "code": "W70",
+   "name": "Two Way Hazard Marker",
+   "category": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "4.75",
+   "page": 46
+  },
+  {
+   "code": "W71",
+   "name": "Old/ Disabled People Crossing",
+   "category": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "4.76",
+   "page": 46
+  },
+  {
+   "code": "I1-A",
+   "name": "Design of Standard Stack Type Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.8",
+   "page": 53,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
+   "icon": "generated sample face (manual figure is a design drawing: see I1-A_design.svg)"
+  },
+  {
+   "code": "I1-B",
+   "name": "Alternative Design of Stack Type Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.9",
+   "page": 54,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
+   "icon": "generated sample face (manual figure is a design drawing: see I1-B_design.svg)"
+  },
+  {
+   "code": "I2-a",
+   "name": "Design of Route Direction Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.11",
+   "page": 55,
+   "default_class": "A",
+   "sample_legend": "< Nakuru A104 18",
+   "icon": "generated sample face (manual figure is a design drawing: see I2-a_design.svg)"
+  },
+  {
+   "code": "I3-a",
+   "name": "Design of Roundabout Map Type Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.14",
+   "page": 57,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
+   "icon": "generated sample face (manual figure is a design drawing: see I3-a_design.svg)"
+  },
+  {
+   "code": "I3-b",
+   "name": "Design of Roundabout Map Type Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.15",
+   "page": 58,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
+   "icon": "generated sample face (manual figure is a design drawing: see I3-b_design.svg)"
+  },
+  {
+   "code": "I3-c",
+   "name": "Design of Roundabout Map Type Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.16",
+   "page": 58,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
+   "icon": "generated sample face (manual figure is a design drawing: see I3-c_design.svg)"
+  },
+  {
+   "code": "I4-a",
+   "name": "Design of Lane Destination Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.17",
+   "page": 59,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104\n> Eldoret A104",
+   "icon": "generated sample face (manual figure is a design drawing: see I4-a_design.svg)"
+  },
+  {
+   "code": "I4-b",
+   "name": "Design of Lane Destination Sign (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.18",
+   "page": 60,
+   "default_class": "A",
+   "sample_legend": "^ Nakuru A104\n> Eldoret A104",
+   "icon": "generated sample face (manual figure is a design drawing: see I4-b_design.svg)"
+  },
+  {
+   "code": "I5-b",
+   "name": "Design of Directional Sign for Class C",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.20",
+   "page": 62,
+   "default_class": "C",
+   "sample_legend": "< Elburgon C56 12\n> Molo C56 20",
+   "icon": "generated sample face (manual figure is a design drawing: see I5-b_design.svg)"
+  },
+  {
+   "code": "I5-c",
+   "name": "Design of Directional Sign for Class C Showing Distance",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.21",
+   "page": 62,
+   "default_class": "C",
+   "sample_legend": "< Elburgon C56 12\n> Molo C56 20",
+   "icon": "generated sample face (manual figure is a design drawing: see I5-c_design.svg)"
+  },
+  {
+   "code": "I5-d",
+   "name": "Design of Direction Sign for Class C Road (Two Destination)",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.22",
+   "page": 63,
+   "default_class": "C",
+   "sample_legend": "< Elburgon C56 12\n> Molo C56 20",
+   "icon": "generated sample face (manual figure is a design drawing: see I5-d_design.svg)"
+  },
+  {
+   "code": "I5-e",
+   "name": "Design of Direction Sign for Class C Road",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.23",
+   "page": 63,
+   "default_class": "C",
+   "sample_legend": "< Elburgon C56 12\n> Molo C56 20",
+   "icon": "generated sample face (manual figure is a design drawing: see I5-e_design.svg)"
+  },
+  {
+   "code": "I6-a",
+   "name": "Design of Route Confirmatory Sign with One Destination (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.24",
+   "page": 65,
+   "default_class": "A",
+   "sample_legend": "Nakuru 18\nNairobi 175",
+   "icon": "generated sample face (manual figure is a design drawing: see I6-a_design.svg)"
+  },
+  {
+   "code": "I6-b",
+   "name": "Design of Route Confirmatory Sign with Three Destinations (",
+   "category": "Directional",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "5.25",
+   "page": 65,
+   "default_class": "A",
+   "sample_legend": "Nakuru 18\nNairobi 175",
+   "icon": "generated sample face (manual figure is a design drawing: see I6-b_design.svg)"
+  },
+  {
+   "code": "I7",
+   "name": "Town or Village",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "6.1",
+   "page": 66,
+   "plate_style": [
+    "green",
+    "white"
+   ]
+  },
+  {
+   "code": "I8",
+   "name": "Alternative Route for High Vehicle",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.2",
+   "page": 66
+  },
+  {
+   "code": "I9",
+   "name": "Car Park with Facilities for Disabled",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.3",
+   "page": 66
+  },
+  {
+   "code": "I10",
+   "name": "Tourist Facility",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.4",
+   "page": 66
+  },
+  {
+   "code": "E1",
+   "name": "Escape Ramp",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.5",
+   "page": 66
+  },
+  {
+   "code": "I10B",
+   "name": "County Boundary",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "6.7",
+   "page": 67,
+   "plate_style": [
+    "white",
+    "black"
+   ],
+   "note": "Manual numbers both Tourist Facility and County Boundary as I10",
+   "icon": "generated sample face (manual figure is a design drawing: see I10B_design.svg)"
+  },
+  {
+   "code": "I11",
+   "name": "Advance Sign for Low Clearance",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.8",
+   "page": 68
+  },
+  {
+   "code": "I12",
+   "name": "Slow Lane",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.9",
+   "page": 68
+  },
+  {
+   "code": "I13",
+   "name": "No Through Way",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.10",
+   "page": 68
+  },
+  {
+   "code": "I14",
+   "name": "Lay-by Ahead",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.11",
+   "page": 69
+  },
+  {
+   "code": "I15",
+   "name": "Lay-by",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.12",
+   "page": 69
+  },
+  {
+   "code": "I16",
+   "name": "Car Park",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.13",
+   "page": 69,
+   "icon": "generated sample face (manual figure is a design drawing: see I16_design.svg)"
+  },
+  {
+   "code": "I17",
+   "name": "Disabled Car Park",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.14",
+   "page": 69,
+   "icon": "generated sample face (manual figure is a design drawing: see I17_design.svg)"
+  },
+  {
+   "code": "I18",
+   "name": "Hospital Ahead",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.15",
+   "page": 70
+  },
+  {
+   "code": "I19",
+   "name": "Hospital",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.16",
+   "page": 70
+  },
+  {
+   "code": "I20",
+   "name": "Airport Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.17",
+   "page": 70
+  },
+  {
+   "code": "I20-D",
+   "name": "Directional Sign Incorporating Airport Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "6.18",
+   "page": 70,
+   "note": "Directional example incorporating the symbol",
+   "default_class": "A",
+   "sample_legend": "< Nakuru A104 18",
+   "icon": "generated sample face (manual figure is a design drawing: see I20-D_design.svg)"
+  },
+  {
+   "code": "I21",
+   "name": "Ferry Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.19",
+   "page": 71
+  },
+  {
+   "code": "I21-D",
+   "name": "Directional Sign Incorporating Ferry Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "6.20",
+   "page": 71,
+   "note": "Directional example incorporating the symbol",
+   "default_class": "A",
+   "sample_legend": "< Nakuru A104 18",
+   "icon": "generated sample face (manual figure is a design drawing: see I21-D_design.svg)"
+  },
+  {
+   "code": "I22",
+   "name": "Industrial Estate Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.21",
+   "page": 71
+  },
+  {
+   "code": "I22-D",
+   "name": "Directional Sign Incorporating Industrial Estate Symbol",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "6.22",
+   "page": 71,
+   "note": "Directional example incorporating the symbol",
+   "default_class": "A",
+   "sample_legend": "< Nakuru A104 18",
+   "icon": "generated sample face (manual figure is a design drawing: see I22-D_design.svg)"
+  },
+  {
+   "code": "I23",
+   "name": "Eating Place",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "6.23",
+   "page": 72
+  },
+  {
+   "code": "I24",
+   "name": "Light Refreshments",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.24",
+   "page": 72
+  },
+  {
+   "code": "I25",
+   "name": "Resting Place",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.25",
+   "page": 72
+  },
+  {
+   "code": "I26",
+   "name": "Toilet",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.26",
+   "page": 72
+  },
+  {
+   "code": "I27",
+   "name": "Fuel Pump",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.27",
+   "page": 72
+  },
+  {
+   "code": "I28",
+   "name": "Pedestrian Over Bridge",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.28",
+   "page": 72
+  },
+  {
+   "code": "I29",
+   "name": "Pedestrian Subway",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.29",
+   "page": 72
+  },
+  {
+   "code": "I30",
+   "name": "Picnic Site",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.30",
+   "page": 72
+  },
+  {
+   "code": "I31",
+   "name": "Camp Site",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.31",
+   "page": 72
+  },
+  {
+   "code": "I32",
+   "name": "Escape Ramp Sign at Ramp",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.32",
+   "page": 73
+  },
+  {
+   "code": "I33",
+   "name": "Direction of Ramp",
+   "category": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "6.33",
+   "page": 73
+  },
+  {
+   "code": "PD1",
+   "name": "International Symbol of Accessibility",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "7.1",
+   "page": 74,
+   "note": "Caption reads P1 (clashes with No Entry); PD1 used"
+  },
+  {
+   "code": "PD2",
+   "name": "Parking Information",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "7.2",
+   "page": 74
+  },
+  {
+   "code": "PD3",
+   "name": "Parking Areas",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "7.3",
+   "page": 75
+  },
+  {
+   "code": "PD4",
+   "name": "Ramped Entrance",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "7.4",
+   "page": 75
+  },
+  {
+   "code": "PD5",
+   "name": "Telephone Facilities",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "7.5",
+   "page": 75
+  },
+  {
+   "code": "PD6",
+   "name": "Toilet Facilities",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "7.6",
+   "page": 75
+  },
+  {
+   "code": "PD7",
+   "name": "Wayfinding",
+   "category": "Disabled Persons",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "directional",
+   "mirror": false,
+   "figure": "7.7",
+   "page": 75
+  },
+  {
+   "code": "IM1",
+   "name": "Advance Direction",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.1",
+   "page": 78,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM1_design.svg)"
+  },
+  {
+   "code": "IM2",
+   "name": "Direction Sign",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.2",
+   "page": 78,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM2_design.svg)"
+  },
+  {
+   "code": "IM3",
+   "name": "Route Confirmation",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.3",
+   "page": 79,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM3_design.svg)"
+  },
+  {
+   "code": "IM4",
+   "name": "End of Expressway",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.4",
+   "page": 79
+  },
+  {
+   "code": "IM4S",
+   "name": "Expressway Symbol",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.5",
+   "page": 80,
+   "note": "Manual numbers both End of Expressway and Expressway Symbol as IM4",
+   "icon": "generated sample face (manual figure is a design drawing: see IM4S_design.svg)"
+  },
+  {
+   "code": "IM5",
+   "name": "Sign Incorporating Expressway Patch",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.6",
+   "page": 81,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM5_design.svg)"
+  },
+  {
+   "code": "IM6",
+   "name": "Sign Incorporating Expressway Patch",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.7",
+   "page": 81,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM6_design.svg)"
+  },
+  {
+   "code": "IM8",
+   "name": "Signing from a Terminal Roundabout",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.9",
+   "page": 82,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM8_design.svg)"
+  },
+  {
+   "code": "IM10",
+   "name": "Expressway Status Sign on National Route",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.10",
+   "page": 83,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM10_design.svg)"
+  },
+  {
+   "code": "IM11",
+   "name": "Direction Sign from National or Regional Road",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.11",
+   "page": 84,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM11_design.svg)"
+  },
+  {
+   "code": "IM12",
+   "name": "Expressway Ahead",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.12",
+   "page": 84
+  },
+  {
+   "code": "IM13",
+   "name": "Entry to Expressway",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.13",
+   "page": 84,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM13_design.svg)"
+  },
+  {
+   "code": "IM19",
+   "name": "Direction Sign for Expressway Exit Slip Road",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.19",
+   "page": 86,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM19_design.svg)"
+  },
+  {
+   "code": "IM21",
+   "name": "Route Confirmation Sign for Placement Beyond Entry Slip Road",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.22",
+   "page": 87,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM21_design.svg)"
+  },
+  {
+   "code": "IM22",
+   "name": "Countdown Marker Arrangement for Both Sides",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.23",
+   "page": 87,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM22_design.svg)"
+  },
+  {
+   "code": "IM23",
+   "name": "Sign Arrangement for Entry to Roads of Different Classification at Grade",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.24",
+   "page": 88,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM23_design.svg)"
+  },
+  {
+   "code": "IM24",
+   "name": "End of Expressway 1km",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "label",
+   "mirror": false,
+   "figure": "8.25",
+   "page": 88
+  },
+  {
+   "code": "IM25",
+   "name": "End of Expressway 500m",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "label",
+   "mirror": false,
+   "figure": "8.26",
+   "page": 88
+  },
+  {
+   "code": "IM26",
+   "name": "End of Expressway",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.27",
+   "page": 88
+  },
+  {
+   "code": "IM27",
+   "name": "Non Lane-Drop Signing \u2013 sign on the bottom",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": "directional",
+   "mirror": false,
+   "figure": "8.28",
+   "page": 89,
+   "default_class": "EXP",
+   "sample_legend": "^ Nairobi A2 25\n> Thika A2 12",
+   "icon": "generated sample face (manual figure is a design drawing: see IM27_design.svg)"
+  },
+  {
+   "code": "RW1",
+   "name": "Roadworks Ahead",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.1",
+   "page": 93
+  },
+  {
+   "code": "RW2",
+   "name": "Uneven Surface",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.2",
+   "page": 93
+  },
+  {
+   "code": "RW3",
+   "name": "Slippery Road Ahead",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.3",
+   "page": 93
+  },
+  {
+   "code": "RW4",
+   "name": "Road Narrows (Left/Right)",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "10.4",
+   "page": 93
+  },
+  {
+   "code": "RW5",
+   "name": "Road Narrows",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.5",
+   "page": 93
+  },
+  {
+   "code": "RW6",
+   "name": "Manual Traffic Control Ahead",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.6",
+   "page": 94
+  },
+  {
+   "code": "RW7",
+   "name": "Traffic Signals Ahead",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.7",
+   "page": 94
+  },
+  {
+   "code": "RW8",
+   "name": "Two-Way Traffic Ahead",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.8",
+   "page": 94
+  },
+  {
+   "code": "RW9",
+   "name": "Left Lane Closed for Two Lanes in One Direction",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.9",
+   "page": 94
+  },
+  {
+   "code": "RW10",
+   "name": "Left Lane Closed for Three lanes in One Direction",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.10",
+   "page": 94
+  },
+  {
+   "code": "RW11",
+   "name": "Centre Lane Closed for Three-lanes in One Direction",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.11",
+   "page": 95
+  },
+  {
+   "code": "RW12",
+   "name": "Right Lane Closed for Three-lanes in One Direction",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.12",
+   "page": 95
+  },
+  {
+   "code": "RW13",
+   "name": "Left Lane Closed Two Right Lanes Diverted",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.13",
+   "page": 95
+  },
+  {
+   "code": "RW14",
+   "name": "Left Through Centre Lane, Closed Right Lane Diverted",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.14",
+   "page": 95
+  },
+  {
+   "code": "RW15",
+   "name": "Major Road Works Ahead",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "label",
+   "mirror": false,
+   "figure": "10.15",
+   "page": 95
+  },
+  {
+   "code": "RW16",
+   "name": "No Through Road",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.16",
+   "page": 95
+  },
+  {
+   "code": "RW17",
+   "name": "Road Closed",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.17",
+   "page": 95
+  },
+  {
+   "code": "RW21",
+   "name": "Keep Left",
+   "category": "Road Works",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.23",
+   "page": 99
+  },
+  {
+   "code": "RW22",
+   "name": "Keep Right",
+   "category": "Road Works",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.24",
+   "page": 99
+  },
+  {
+   "code": "RW23",
+   "name": "Pass On Either Side",
+   "category": "Road Works",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.25",
+   "page": 99
+  },
+  {
+   "code": "RW24",
+   "name": "Chevron",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.26",
+   "page": 99
+  },
+  {
+   "code": "RW25",
+   "name": "Protective Pedestrian Barrier",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.27",
+   "page": 100
+  },
+  {
+   "code": "RW26",
+   "name": "Crossing Not in Use",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.28",
+   "page": 100
+  },
+  {
+   "code": "RW27",
+   "name": "Pedestrians Keep Right",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.29",
+   "page": 100
+  },
+  {
+   "code": "RW28",
+   "name": "Pedestrians Look Left",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.30",
+   "page": 100
+  },
+  {
+   "code": "RW29",
+   "name": "Stop/Go",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.31",
+   "page": 101
+  },
+  {
+   "code": "RW30",
+   "name": "Diversion (\u2018m\u2019) Ahead",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": "plate",
+   "mirror": false,
+   "figure": "10.32",
+   "page": 101,
+   "plate_style": [
+    "yellow",
+    "black"
+   ]
+  },
+  {
+   "code": "RW31",
+   "name": "Diversion Right",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.33",
+   "page": 101
+  },
+  {
+   "code": "RW32",
+   "name": "Diversion Left",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.34",
+   "page": 101
+  },
+  {
+   "code": "RW33",
+   "name": "Diverted Traffic Straight Ahead",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.35",
+   "page": 102
+  },
+  {
+   "code": "RW34",
+   "name": "Diverted Traffic Right",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.36",
+   "page": 102
+  },
+  {
+   "code": "RW35",
+   "name": "End of Diversion",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.37",
+   "page": 102
+  },
+  {
+   "code": "RW36",
+   "name": "Crossover to Left",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "10.38",
+   "page": 102
+  },
+  {
+   "code": "RW37",
+   "name": "Crossover to Right",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": true,
+   "figure": "10.39",
+   "page": 102
+  },
+  {
+   "code": "RW38",
+   "name": "Divided Road Ahead",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.40",
+   "page": 102
+  },
+  {
+   "code": "RW39",
+   "name": "End of Divided Road",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.41",
+   "page": 102
+  },
+  {
+   "code": "RW40",
+   "name": "No Overtaking",
+   "category": "Road Works",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "figure": "10.42",
+   "page": 102
+  }
+ ],
+ "posts": {
+  "POST-SGL": {
+   "description": "Single sign post",
+   "unit": "No."
+  },
+  "POST-DBL": {
+   "description": "Double sign posts (large signs)",
+   "unit": "No."
+  },
+  "GANTRY": {
+   "description": "Overhead gantry / cantilever",
+   "unit": "No."
+  }
+ },
+ "foundations": {
+  "FDN-STD": {
+   "description": "Foundation to single post"
+  },
+  "FDN-LRG": {
+   "description": "Foundation to large sign / double posts"
+  },
+  "FDN-GANTRY": {
+   "description": "Gantry foundation"
+  }
+ },
+ "defaults": {
+  "post": "POST-SGL",
+  "foundation": "FDN-STD"
+ }
+}

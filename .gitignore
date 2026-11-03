@@ -1,0 +1,15 @@
+# build outputs: tools/build_plugin.py copies the core and the vendored libraries into the plugin
+qgis_plugin/roadsign_designer/rsd/
+qgis_plugin/roadsign_designer/ext_libs/
+*.zip
+__pycache__/
+*.pyc
+.pytest_cache/
+demo/out/
+# guide build folder (figures are regenerated)
+guide_build/
+# project data stays out of the repo
+*.gpkg
+*.gpkg-shm
+*.gpkg-wal
+*_faces/

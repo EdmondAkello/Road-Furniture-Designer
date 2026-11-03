@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 335 122" width="335" height="122">
+<rect x="1.5" y="1.5" width="332" height="119" rx="8" fill="#0b7a3b" stroke="#ffffff" stroke-width="3"/>
+<polygon points="22.0,15.0 34.0,25.8 25.6,25.8 25.6,39.0 18.4,39.0 18.4,25.8 10.0,25.8" fill="#ffffff"/>
+<text x="44" y="34" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="25" fill="#ffffff">Nakuru</text>
+<text x="164" y="34" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffd200">A104</text>
+<text x="291" y="34" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffffff">18</text>
+<polygon points="10.0,61.0 20.8,49.0 20.8,57.4 34.0,57.4 34.0,64.6 20.8,64.6 20.8,73.0" fill="#ffffff"/>
+<text x="44" y="68" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="25" fill="#ffffff">Molo</text>
+<text x="164" y="68" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffd200">B4</text>
+<text x="291" y="68" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffffff">40</text>
+<text x="44" y="102" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="25" fill="#ffffff">Eldoret</text>
+<text x="164" y="102" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffd200">A104</text>
+<text x="291" y="102" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22" fill="#ffffff">140</text>
+<polygon points="325.0,95.0 314.2,83.0 314.2,91.4 301.0,91.4 301.0,98.6 314.2,98.6 314.2,107.0" fill="#ffffff"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 109.86 74.86" width="109.86" height="74.86">
+<path d="M108.36,67.72C108.36,70.84 105.84,73.36 102.72,73.36L7.14,73.36C4.02,73.36 1.50,70.84 1.50,67.72L1.50,7.14C1.50,4.02 4.02,1.50 7.14,1.50L102.72,1.50C105.84,1.50 108.36,4.02 108.36,7.14L108.36,67.72" fill="#feca33" stroke="#1d1d1b" stroke-width="0.64"/>
+<path d="M105.43,67.72C105.43,69.22 104.22,70.43 102.72,70.43L7.14,70.43C5.64,70.43 4.43,69.22 4.43,67.72L4.43,7.14C4.43,5.64 5.64,4.43 7.14,4.43L102.72,4.43C104.22,4.43 105.43,5.64 105.43,7.14L105.43,67.72" fill="#feca33" stroke="#1d1d1b" stroke-width="2.56"/>
+<text x="26.50" y="33.45" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22.44" fill="#1d1d1b">Road</text>
+<text x="17.14" y="55.88" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="22.44" fill="#1d1d1b">Closed</text>
+</svg>
