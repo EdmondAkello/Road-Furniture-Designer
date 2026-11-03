@@ -34,7 +34,7 @@ Place traffic signs by clicking along a road alignment in QGIS. For every sign, 
 - IM4 is used twice, so the expressway symbol becomes IM4S.
 - The directional examples "incorporating the X symbol" become I20-D, I21-D and I22-D.
 
-The Ministry's standard drawings WSCM/84/2/01 (Jan 2024) use a **different numbering** (W1 = Sharp left turn there, Crossroads in RDM 6.2). RSD uses RDM 6.2 codes.
+The Ministry's standard drawings WSCM/84/2/01 (Jan 2024) use a **different numbering** (W1 = Sharp left turn there, Crossroads in RDM 6.2). RSD uses RDM 6.2 codes on drawings and schedules (agreed with HH, Nov 2026).
 
 **Sizes.** RDM 2.9 allows 600, 750 or 900 mm, and 1200 mm on expressways. For Stop and Give Way (Tables 3.1 and 3.3), warning signs (Table 4.1) and circular regulatory signs, choose **Auto**. The size then follows the design speed at the sign's chainage, taken from the Civil 3D SpeedStation data in the LandXML, and is recomputed if the sign is moved. The design speed stands in for the manual's 85th-percentile approach speed. Typing a size by hand turns Auto off for that sign. Plates and information signs are "custom" (designed size).
 
@@ -266,5 +266,4 @@ Build the plugin zip: `python tools/build_plugin.py roadsign_designer.zip`
 ## Next
 
 - First Civil 3D run of the Dynamo scripts.
-- Decide the coding scheme on drawings (RDM 6.2 or WSCM/84/2/01) and, if needed, add a cross-reference column.
 - Junction signing (advance direction / direction signs per RDM Table A1-1) once junction locations are available (a point layer or the LandXML's intersecting alignments).
