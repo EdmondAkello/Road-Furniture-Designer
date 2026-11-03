@@ -128,3 +128,4 @@ a { color: var(--accent); }
 figure.dock { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
 figure.dock img { width: 100%; }
 figure.dock figcaption { grid-column: 1 / -1; }
+.note li b:first-child, .tip li b:first-child, .warn li b:first-child { display: inline; font-size: inherit; letter-spacing: 0; text-transform: none; margin: 0; }

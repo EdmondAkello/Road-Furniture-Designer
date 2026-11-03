@@ -14,11 +14,23 @@ from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceSignTool
-from .rsd.alignment import format_station, parse_landxml
+from .rsd.alignment import alignment_names, format_station, parse_landxml
 from .rsd.legend import SCHEMES, summary as legend_summary
 from .store import SVG_DIR, SignStore
 
 SETTINGS_KEY = "roadsign_designer/last_project"
+
+
+class _busy:
+    """Wait cursor while a LandXML is read, so a short pause never looks like a hang."""
+    def __enter__(self):
+        from qgis.PyQt.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor if hasattr(Qt, "CursorShape") else Qt.WaitCursor)
+
+    def __exit__(self, *a):
+        from qgis.PyQt.QtWidgets import QApplication
+        QApplication.restoreOverrideCursor()
+        return False
 
 
 class RsdDock(QDockWidget):
@@ -240,12 +252,16 @@ class RsdDock(QDockWidget):
                                                                             MSG_LEVELS.get(l, MSG_INFO), 5))
         al = store.al
         sp = ", ".join(f"{v:.0f} km/h from {format_station(al.display_station(s), 0)}" for s, v in al.speeds) \
-            or "none in LandXML (sizes chosen manually)"
+            or "<span style='color:#c0392b'>none in LandXML (80 km/h assumed; check the Civil 3D design criteria)</span>"
         self.lbl_project.setText(
             f"<b>{os.path.basename(store.gpkg)}</b><br>Alignment {al.name}: "
             f"{al.sta_start:.0f}–{al.sta_end:.0f} m<br>Design speed: {sp}"
-            + (f"<br>Road edges: {', '.join(al.edges.codes())}" if al.edges else "")
-            + (f"<br>Vertical profile: {len(al.profile.curves)} curves" if al.profile else "")
+            + (f"<br>Road edges: {', '.join(al.edges.codes())}" if al.edges
+               else "<br>Road edges: <span style='color:#c0392b'>none in LandXML (offsets from the centreline)</span>")
+            + (f"<br>Vertical profile: {len(al.profile.curves)} curves" if al.profile
+               else "<br>Vertical profile: <span style='color:#c0392b'>none in LandXML (no grade or sight checks)</span>")
+            + (f"<br>Superelevation: {len(al.superelevation)} curves" if getattr(al, "superelevation", None)
+               else "<br>Superelevation: <span style='color:#c0392b'>none in LandXML (4 % assumed)</span>")
             + f"<br>Catalogue {store.cat.version}")
         self._fill_palette()
         self.cmb_ref.clear()
@@ -422,7 +438,7 @@ class RsdDock(QDockWidget):
         if not lx:
             return
         try:
-            names = [a.name for a in parse_landxml(lx)]
+            names = list(dict.fromkeys(alignment_names(lx)))     # byte scan of start tags: instant
         except Exception as ex:
             QMessageBox.critical(self, "RoadSign Designer", f"Could not read LandXML:\n{ex}")
             return
@@ -455,7 +471,8 @@ class RsdDock(QDockWidget):
         if not gp:
             return
         try:
-            st = SignStore.create(gp, lx, name, crs, QgsProject.instance().title())
+            with _busy():
+                st = SignStore.create(gp, lx, name, crs, QgsProject.instance().title())
         except Exception as ex:
             QMessageBox.critical(self, "RoadSign Designer", str(ex))
             return
@@ -470,7 +487,8 @@ class RsdDock(QDockWidget):
 
     def open_path(self, gp):
         try:
-            st = SignStore.open(gp)
+            with _busy():
+                st = SignStore.open(gp)
         except Exception as ex:
             QMessageBox.critical(self, "RoadSign Designer", str(ex))
             return
@@ -521,8 +539,9 @@ class RsdDock(QDockWidget):
         d = ReportData(self.store, self.auto_config(), title="Road Signage" + (f" – {proj}" if proj else ""),
                        plan_scale=plan_scale)
         stem = os.path.splitext(p)[0]
-        n = write_pdf(p, d, sheet_len=1000.0)
-        pngs = write_pngs(stem + "_sheets", d, sheet_len=1000.0)
+        with _busy():
+            n = write_pdf(p, d, sheet_len=1000.0)
+            pngs = write_pngs(stem + "_sheets", d, sheet_len=1000.0)
         try:
             write_xlsx(stem + ".xlsx", d)
         except ImportError as ex:
@@ -557,7 +576,8 @@ class RsdDock(QDockWidget):
             return
         plan_scale = float(sc.split(":")[1])
         try:
-            sl = self.store.export_civil3d(p, os.path.splitext(p)[0] + ".dxf", plan_scale=plan_scale)
+            with _busy():
+                sl = self.store.export_civil3d(p, os.path.splitext(p)[0] + ".dxf", plan_scale=plan_scale)
         except ImportError as ex:
             return self._need_libs(ex)
         except ValueError as ex:

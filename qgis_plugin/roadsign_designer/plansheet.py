@@ -102,10 +102,24 @@ def draw_plan(p, d, rect: QRectF, s0, s1, th, scale, page_w, font, colours, key_
         u, v = to_uv(x, y)
         return QPointF(rect.center().x() + (u - um) / vp.mpu, rect.center().y() - (v - vm) / vp.mpu)
 
+    # world box around this viewport: only geometry inside it is transformed and drawn
+    rad = 0.5 * (vp.width_m ** 2 + vp.height_m ** 2) ** 0.5 + 20.0
+    mx, my = al.point_at(s0 + (s1 - s0) / 2)[:2]
+    wb = (mx - rad, my - rad, mx + rad, my + rad)
+    inside = lambda q: wb[0] <= q[0] <= wb[2] and wb[1] <= q[1] <= wb[3]
+
     def poly(pts):
-        path = QPainterPath(P(*pts[0]))
-        for q in pts[1:]:
-            path.lineTo(P(*q))
+        """Path of the parts of a world polyline that fall inside the viewport's box."""
+        path = QPainterPath()
+        pen_down = False
+        for q in pts:
+            if inside(q):
+                if pen_down:
+                    path.lineTo(P(*q))
+                else:
+                    path.moveTo(P(*q)); pen_down = True
+            else:
+                pen_down = False
         return path
 
     p.save()

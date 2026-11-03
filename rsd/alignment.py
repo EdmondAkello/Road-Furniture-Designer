@@ -13,6 +13,8 @@ Pure Python (stdlib only) so it can run in QGIS, CPython, or Dynamo's CPython3.
 from __future__ import annotations
 
 import math
+import os
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
@@ -209,11 +211,10 @@ class Alignment:
                 f"Station {internal:.3f} outside alignment '{self.name}' "
                 f"({self.sta_start:.3f}–{self.sta_end:.3f})")
         d = min(max(d, 0.0), self.length)
-        i = len(self.elements) - 1
-        for j, c in enumerate(self._cum):
-            if c + self.elements[j].length >= d:
-                i = j
-                break
+        import bisect
+        i = min(max(bisect.bisect_right(self._cum, d) - 1, 0), len(self.elements) - 1)
+        while i > 0 and d <= self._cum[i] and self._cum[i - 1] + self.elements[i - 1].length >= d:
+            i -= 1                                    # on a joint: keep the earlier element, as before
         return self.elements[i], d - self._cum[i]
 
     def point_at(self, internal: float, offset: float = 0.0) -> Tuple[float, float, float]:
@@ -236,18 +237,57 @@ class Alignment:
             self._dense = pts
         return self._dense
 
-    def station_offset(self, x: float, y: float) -> StationOffset:
-        pts = self._densify()
+    GRID = 25.0     # m: cell size of the segment index used by station_offset
+
+    def _grid_index(self):
+        """Dense segments bucketed by grid cell, so a point only tests the segments near it."""
+        g = getattr(self, "_grid", None)
+        if g is None:
+            pts = self._densify()
+            g, c = {}, self.GRID
+            for i, ((_, p0), (_, p1)) in enumerate(zip(pts, pts[1:])):
+                for ix in range(int(math.floor(min(p0[0], p1[0]) / c)), int(math.floor(max(p0[0], p1[0]) / c)) + 1):
+                    for iy in range(int(math.floor(min(p0[1], p1[1]) / c)), int(math.floor(max(p0[1], p1[1]) / c)) + 1):
+                        g.setdefault((ix, iy), []).append(i)
+            self._grid = g
+        return g
+
+    def _nearest_on_dense(self, x, y, seg_ids):
+        pts = self._dense
         best = None
-        for (d0, p0), (d1, p1) in zip(pts, pts[1:]):
+        for i in seg_ids:
+            (d0, p0), (d1, p1) = pts[i], pts[i + 1]
             vx, vy = p1[0] - p0[0], p1[1] - p0[1]
             L2 = vx * vx + vy * vy
             t = 0.0 if L2 == 0 else ((x - p0[0]) * vx + (y - p0[1]) * vy) / L2
             tc = min(max(t, 0.0), 1.0)
             qx, qy = p0[0] + tc * vx, p0[1] + tc * vy
             dist = math.hypot(x - qx, y - qy)
-            if best is None or dist < best[0]:
-                best = (dist, d0 + tc * (d1 - d0), t)
+            if best is None or dist < best[0] or (dist == best[0] and i < best[3]):
+                best = (dist, d0 + tc * (d1 - d0), t, i)
+        return best
+
+    def station_offset(self, x: float, y: float) -> StationOffset:
+        pts = self._densify()
+        grid, c = self._grid_index(), self.GRID
+        cx0, cy0 = int(math.floor(x / c)), int(math.floor(y / c))
+        best, r, seen = None, 0, set()
+        while r <= 40:                                   # rings of cells around the point (up to 1 km)
+            ids = []
+            for ix in range(cx0 - r, cx0 + r + 1):
+                for iy in (range(cy0 - r, cy0 + r + 1) if abs(ix - cx0) == r else (cy0 - r, cy0 + r)):
+                    for i in grid.get((ix, iy), ()):
+                        if i not in seen:
+                            seen.add(i); ids.append(i)
+            if ids:
+                b = self._nearest_on_dense(x, y, ids)
+                if best is None or b[0] < best[0] or (b[0] == best[0] and b[3] < best[3]):
+                    best = b
+            if best is not None and best[0] <= r * c:     # nothing outside this ring can be closer
+                break
+            r += 1
+        if best is None or best[0] > r * c:              # far from the road: test everything
+            best = self._nearest_on_dense(x, y, range(len(pts) - 1))
         d = best[1]
         # Newton refinement on the true geometry: (P - C(d)) . t(d) = 0
         for _ in range(8):
@@ -363,19 +403,143 @@ def _ground(al_el):
     return []
 
 
+# ---- fast paths for large exports (after the LandXML plugin's catalog: byte scans, cached by size and mtime)
+_PARSE_CACHE = {}
+_BLOCK_OPEN = re.compile(rb"<((?:[A-Za-z_][\w.-]*:)?)(Surfaces|CrossSects)\b[^>]*?(/?)>")
+_SEC_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?CrossSect\b([^>]*)>"
+                     rb"""|<(?:[A-Za-z_][\w.-]*:)?CrossSectPnt\b[^>]*?\bcode\s*=\s*["']([^"']*)["'][^>]*>([^<]*)<""")
+_STA_RE = re.compile(rb"""\bsta\s*=\s*["']([^"']+)["']""")
+_CODE_RE = re.compile(rb"""\bcode\s*=\s*["']([^"']*)["']""")
+_ALIGN_NAME = re.compile(rb"""<(?:[A-Za-z_][\w.-]*:)?Alignment\b[^>]*?\bname\s*=\s*["']([^"']*)["']""")
+
+
+def _file_key(path, *extra):
+    st = os.stat(path)
+    return (os.path.abspath(path), st.st_size, st.st_mtime_ns) + extra
+
+
+def alignment_names(path) -> List[str]:
+    """Names of the alignments in a LandXML file, from a byte scan of start tags (no XML tree)."""
+    import html
+    import mmap
+    key = _file_key(path, "names")
+    if key in _PARSE_CACHE:
+        return list(_PARSE_CACHE[key])
+    with open(path, "rb") as fh, mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as data:
+        names = [html.unescape(m.group(1).decode("utf-8", "replace")) for m in _ALIGN_NAME.finditer(data)]
+    _PARSE_CACHE[key] = names
+    return list(names)
+
+
+def _scan_sections(acc, buf, keep_code) -> None:
+    """Corridor sections by regex over the raw bytes: same result as collect_section, far faster than a tree.
+    Only coded points matter, so the pattern matches CrossSectPnt elements that carry a code."""
+    seen, sta = {}, None
+    keep = {}
+    for m in _SEC_RE.finditer(buf):
+        g1 = m.group(1)
+        if g1 is not None:                               # <CrossSect ...>
+            if sta is not None:
+                for k, o in seen.items():
+                    acc.setdefault(k, []).append((sta, o))
+            seen = {}
+            a = _STA_RE.search(g1)
+            try:
+                sta = float(a.group(1)) if a else None
+            except ValueError:
+                sta = None
+            continue
+        raw = m.group(2)
+        code = keep.get(raw)
+        if code is None:
+            c = raw.decode("utf-8", "replace")
+            code = keep[raw] = c if keep_code(c) else ""
+        if not code:
+            continue
+        sp = m.group(3).split(None, 1)
+        try:
+            off = float(sp[0])
+        except (IndexError, ValueError):
+            continue
+        if -1e-6 < off < 1e-6:
+            continue
+        k = (code, "L" if off < 0 else "R")
+        o = -off if off < 0 else off
+        if o > seen.get(k, 0.0):
+            seen[k] = o
+    if sta is not None:
+        for k, o in seen.items():
+            acc.setdefault(k, []).append((sta, o))
+
+
+def _block_opens(data):
+    """Opening tags of the Surfaces / CrossSects blocks. Unprefixed tags (what Civil 3D writes) are found
+    with plain byte searches, which run at memory speed; namespaced files fall back to a regex scan."""
+    hits = []
+    for tag in (b"<Surfaces", b"<CrossSects"):
+        i = data.find(tag)
+        while i >= 0:
+            m = _BLOCK_OPEN.match(data, i)
+            if m:
+                hits.append(m)
+            i = data.find(tag, i + 1)
+    if hits:
+        return sorted(hits, key=lambda m: m.start())
+    return list(_BLOCK_OPEN.finditer(data))
+
+
+def _slim_source(path):
+    """The file's bytes with the TIN surfaces dropped and each corridor block replaced by a placeholder.
+
+    Returns (bytes, [section block bytes]). The placeholder <RSDSections ref="k"/> keeps the block's
+    position inside its Alignment, so its sections are read for the right alignment."""
+    import mmap
+    with open(path, "rb") as fh, mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as data:
+        parts, blocks, pos = [], [], 0
+        for m in _block_opens(data):
+            if m.start() < pos:
+                continue
+            prefix, name, selfclose = m.group(1), m.group(2), m.group(3)
+            if selfclose:
+                continue
+            end_tag = b"</" + prefix + name
+            j = data.find(end_tag, m.end())
+            if j < 0:
+                break
+            k = data.find(b">", j)
+            parts.append(data[pos:m.start()])
+            if name == b"CrossSects":
+                parts.append(b'<RSDSections ref="%d"/>' % len(blocks))
+                blocks.append(data[m.end():j])
+            pos = k + 1
+        parts.append(data[pos:])
+    return b"".join(parts), blocks
+
+
 def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
     """Parse all horizontal alignments in a LandXML file (path or XML string).
 
-    Streams the file, so large exports with TIN surfaces and thousands of
-    corridor sections load quickly. Also reads, when present: station
-    equations, design speeds (SpeedStation features or Roadway/Speeds), the
-    design vertical profile (ProfAlign) and corridor edges (CrossSect codes).
+    For files: TIN surfaces are skipped and corridor sections are read by a byte scan, so a 60 MB
+    export loads in a fraction of a second; the result is cached by file size and modification time.
+    Also reads, when present: station equations, design speeds (SpeedStation features or
+    Roadway/Speeds), the design vertical profile (ProfAlign) and corridor edges (CrossSect codes).
     """
     import io
-    from .corridor import Edges, collect_section
+    from .corridor import Edges, collect_section, keep_code
     src = path_or_text
+    blocks = None
+    key = None
     if isinstance(path_or_text, str) and path_or_text.lstrip().startswith("<"):
         src = io.BytesIO(path_or_text.encode("utf-8"))
+    elif isinstance(path_or_text, (str, os.PathLike)) and os.path.isfile(path_or_text):
+        key = _file_key(path_or_text, bool(corridor))
+        if key in _PARSE_CACHE:
+            return list(_PARSE_CACHE[key])
+        try:
+            slim, blocks = _slim_source(path_or_text)
+            src = io.BytesIO(slim)
+        except (OSError, ValueError):
+            blocks = None
     out, roadway_speeds = [], {}
     edge_acc = None
     for ev, el in ET.iterparse(src, events=("start", "end")):
@@ -383,6 +547,11 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
         if ev == "start":
             if t == "Alignment":
                 edge_acc = {}
+            continue
+        if t == "RSDSections" and blocks is not None:
+            if corridor and edge_acc is not None:
+                _scan_sections(edge_acc, blocks[int(el.get("ref"))], keep_code)
+            el.clear()
             continue
         if t == "CrossSect" and edge_acc is not None:
             if corridor:
@@ -435,6 +604,10 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
     for al in out:
         if not al.speeds and al.name in roadway_speeds:
             al.speeds = sorted(roadway_speeds[al.name])
+    if key is not None:
+        if len(_PARSE_CACHE) > 12:
+            _PARSE_CACHE.clear()
+        _PARSE_CACHE[key] = list(out)
     return out
 
 

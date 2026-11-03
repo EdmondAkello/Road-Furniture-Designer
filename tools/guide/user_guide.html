@@ -88,6 +88,16 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li>The auto-placement rules follow RDM 6.2, but the sight-distance and side-friction values are AASHTO 2011 defaults until they are checked against RDM Part 1.3 (section 21).</li>
 </ul>
 
+<div class="warn"><b>Results depend on the Civil 3D model</b>RoadSign Designer only knows what the LandXML tells it. Its chainages, proposals, checks and report are as good as the design work in Civil 3D and the export settings, so before relying on the output make sure that:
+<ul style="margin:1.5mm 0 0">
+  <li><b>Design speeds</b> are defined along the alignment (design criteria / speed stations), including any changes in speed zone. Where none are exported the tool assumes 80 km/h throughout.</li>
+  <li><b>Superelevation</b> is calculated and applied to the alignment. Where it is missing, curve speeds use 4 %.</li>
+  <li><b>The design profile</b> (finished road level) is attached to the alignment and is the final one. Without it there are no grade, crest, sag or no-overtaking checks.</li>
+  <li><b>The corridor</b> is built with coded points (ETW, EPS, Hinge, Ditch, Daylight) and its cross-sections are sampled along the whole road. Without them signs are offset from the centreline and the corridor checks are skipped.</li>
+  <li><b>The drawing's coordinate system</b> is set, so the LandXML carries it to QGIS and the DXF.</li>
+  <li><b>The LandXML export</b> includes the alignment with its profiles, the design speeds and superelevation, and the corridor cross-sections. Check the dock's summary after opening a project: it lists the design speeds, road edges, vertical curves and superelevation found, and shows in red anything missing and the default used instead.</li>
+</ul></div>
+
 <h2 id="overview"><span class="sec">2</span>What RoadSign Designer does</h2>
 <p>Placing traffic signs in Civil 3D and then counting them for the schedules is slow, manual work. RoadSign Designer moves both jobs into QGIS, next to the road alignment:</p>
 <div class="flow">
@@ -420,6 +430,8 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
     <tr><td>Export says to fix errors first</td><td>A check is at error level (for example a post inside the travelled way). Fix it on the Inventory tab's list.</td></tr>
     <tr><td>No road edges or "Offset from" list empty</td><td>The LandXML has no coded corridor sections. Export the corridor sections from Civil 3D, or use offsets from the centreline.</td></tr>
     <tr><td>Signs pasted in the wrong place</td><td>The project drawing is in another coordinate system, in millimetres, or in a user UCS. Check the RSD CHECK POINT against the alignment.</td></tr>
+    <tr><td>Every sign sized for 80 km/h, or no curve warnings where expected</td><td>No design speeds or superelevation in the LandXML. Define the design criteria and speed zones in Civil 3D and export again.</td></tr>
+    <tr><td>No grade or no-overtaking findings</td><td>The design profile is not attached to the alignment in the export.</td></tr>
     <tr><td>Export libraries missing</td><td>The plugin's <code>ext_libs</code> folder is missing. Reinstall from the ZIP.</td></tr>
     <tr><td>Old project lacks newer fields</td><td>Fields are added automatically on open. If the GeoPackage is read-only, copy it somewhere writable.</td></tr>
   </tbody>

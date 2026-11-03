@@ -1,4 +1,4 @@
-# RoadSign Designer (RSD), v0.6.1
+# RoadSign Designer (RSD), v0.6.2
 
 Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
 
@@ -9,6 +9,14 @@ Place traffic signs by clicking along a road alignment in QGIS. For every sign, 
                                                      ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
  (Dynamo route: parked)
 ```
+
+**Input quality.** The results are only as good as the Civil 3D model and the LandXML export. Before relying on them, check four things in Civil 3D, then confirm the LandXML export includes them all. Without them the tool falls back to defaults:
+- **Design speeds and speed zones** defined along the alignment; otherwise 80 km/h is assumed throughout.
+- **Superelevation** applied to the alignment; otherwise curve speeds use 4 %.
+- **Final design profile** attached to the alignment; otherwise there are no grade, crest, sag or no-overtaking checks.
+- **Corridor with coded points and cross-sections** sampled along the whole road; otherwise signs are offset from the centreline.
+
+The dock's project summary shows which of these were found.
 
 **Status:**
 - **Core:** 37 tests passing.
