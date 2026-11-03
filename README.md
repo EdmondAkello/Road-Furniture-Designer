@@ -1,18 +1,19 @@
 # RoadSign Designer (RSD), v0.6
 
-Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D through a placement package plus Dynamo scripts, and edits made in the drawing come back to QGIS.
+Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
 
 ```
- QGIS: pick sign ─► click on map ─► rsd_signs (GeoPackage) ─► live inventory (dock)
-                                         │                 ─► Inventory export (Excel tables + CSV) ─► QTO / Bill
-                                         │                 ─► Civil 3D package (JSON + DXF) ─► Dynamo: rsd_place ─► blocks
-                                         ◄──────────────────── Dynamo: rsd_readback ◄── moves/rotations in Civil 3D
+ QGIS: pick sign / auto-place ─► rsd_signs (GeoPackage) ─► live inventory and checks (dock)
+                                                     ─► Inventory (Excel Tables + CSV) ─► QTO / Bill
+                                                     ─► Road signage report (PDF / PNG / Excel)
+                                                     ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
+ (Dynamo route: parked)
 ```
 
 **Status:**
 - **Core:** 37 tests passing.
 - **QGIS plugin:** 27 headless tests passing on QGIS 3.34. Also checked on the Nessuit–Salgaa preliminary design LandXML (Arc 1960 / UTM 36S, 4 alignments, 26 spirals) and on Olkaria LOT 3 (UTM 37S, 59 MB with TIN surfaces and 3,569 corridor sections; loads in about 1.3 s).
-- **Dynamo scripts:** not yet run in Civil 3D (see "First run in Civil 3D").
+- **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
 
 ## Sign catalogue (RDM 6.2, 2025)
@@ -132,13 +133,13 @@ On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:250
 - **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size.
 - **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers.
 
-In Dynamo, set the symbol scale to the value shown after export, and point the block source (IN[4]) at the exported DXF so these legend blocks come across too.
+(Dynamo, when it is picked up again: symbol scale = the value shown after export, block source IN[4] = the exported DXF.)
 
 ## Georeferenced DXF: copy signs straight into a Civil 3D drawing
 
 The exported DXF uses the LandXML's own world coordinates: easting and northing in metres, with no local origin, shift, scale or rotation. New projects default to the LandXML's coordinate system (e.g. EPSG:21037 Arc 1960 / UTM 37S), so the sign layer, the DXF and the Civil 3D drawing all agree. The DXF header records units (metres), angle convention (counter-clockwise from east), CRS, source LandXML and alignment (custom header variables `RSD_*`).
 
-To bring the signs into the project DWG without Dynamo:
+To bring the signs into the project DWG:
 1. Open `*_placement.dxf` in Civil 3D.
 2. Select the signs: `QSELECT` → Layer = `RSD-SIGN`, or isolate that layer.
 3. Copy them with `COPYBASE`, using base point `0,0,0`.
@@ -194,6 +195,8 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
 The GeoPackage is the master record. Save the QGIS project and the plugin reopens the sign project with it.
 
 ## Civil 3D (2026+)
+
+The working route is the georeferenced DXF (above). The Dynamo route below is **parked**: the scripts are kept for later and have not been run in Civil 3D.
 
 - **Block library:** `rsd/data/RSD_SignBlocks.dxf` holds the RDM artwork as colour hatches, including `_M` mirrored blocks. Open it in Civil 3D and save it as DWG (or run `python -m rsd library RSD_SignBlocks.dxf` for a copy). Raster-only figures in the manual (a few information signs) become a labelled outline block.
 - **Blocks:** each block is named `RSD_<code>`. The insertion point is the post, and local +Y points toward the traffic the sign faces. Each block carries attributes `SIGN_CODE`, `LEGEND`, `DESCRIPTION`, `SIZE`, `CHAINAGE`, `OFFSET`, `SIDE`, `FACING`, `POST_REF`, `FACE_UUID` and `INSTALL_UUID`. Its identity is also stored in XDATA (app `RSD`), and that copy is authoritative.
@@ -265,5 +268,6 @@ Build the plugin zip: `python tools/build_plugin.py roadsign_designer.zip`
 
 ## Next
 
-- First Civil 3D run of the Dynamo scripts.
+- First paste of the DXF into a project drawing (PASTEORIG).
+- Dynamo route: parked.
 - Junction signing (advance direction / direction signs per RDM Table A1-1) once junction locations are available (a point layer or the LandXML's intersecting alignments).

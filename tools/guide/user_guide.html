@@ -23,7 +23,7 @@
       <b>Developed for</b><span>Howard Humphreys (East Africa) Ltd, Roads and Transportation Department</span>
       <b>Status</b><span>Experimental, in development</span>
       <b>QGIS</b><span>3.44 LTR (tests run headless on 3.34)</span>
-      <b>Civil 3D</b><span>2026 and later, through Dynamo (Python Script nodes) or plain DXF copy and paste</span>
+      <b>Civil 3D</b><span>2026 and later, by copy and paste from a georeferenced DXF</span>
       <b>Standard</b><span>Road Design Manual Part 6.2, Traffic Signs (Ministry of Roads and Transport, 2025)</span>
       <b>Demo data</b><span>Olkaria LOT 3 design alignment (Civil 3D LandXML, Arc 1960 / UTM 37S)</span>
       <b>Edition</b><span>{{DATE}}</span>
@@ -55,7 +55,7 @@
   <a href="#report"><span>14</span>Road signage report</a>
   <a href="#dxf"><span>15</span>DXF for Civil 3D drawings</a>
   <a href="#georef"><span>16</span>Copy and paste at the true coordinates</a>
-  <a href="#dynamo"><span>17</span>The Dynamo route</a>
+  <a href="#dynamo"><span>17</span>Dynamo link (parked)</a>
   <div class="part-title">Part 5 · Technical manual</div>
   <a href="#data"><span>18</span>Data model</a>
   <a href="#landxml"><span>19</span>What is read from the LandXML</a>
@@ -84,7 +84,6 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 </ul>
 <p>What has <b>not</b> been checked yet:</p>
 <ul>
-  <li>The Dynamo scripts have not been run in Civil 3D (licences were not available during development).</li>
   <li>The copy-and-paste route has been verified on the DXF itself, not yet inside a project DWG.</li>
   <li>The auto-placement rules follow RDM 6.2, but the sight-distance and side-friction values are AASHTO 2011 defaults until they are checked against RDM Part 1.3 (section 21).</li>
 </ul>
@@ -96,7 +95,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <div><b>2 · Place</b>Click signs on the map, or let the engine propose them from RDM 6.2.</div>
   <div><b>3 · Inventory</b>Chainage, offset, side, facing and post, kept live as signs move.</div>
   <div><b>4 · Report</b>Plan and long-section sheets, schedule and findings (PDF, PNG, Excel).</div>
-  <div><b>5 · Civil 3D</b>Georeferenced DXF to paste, or the Dynamo package and read-back.</div>
+  <div><b>5 · Civil 3D</b>Georeferenced DXF, pasted into the project drawing at the true coordinates.</div>
 </div>
 <p>Each sign is a point in a GeoPackage. Its chainage, offset, side, facing, size, grade and clearance from the road edge are worked out from the alignment and recomputed whenever the sign is moved. The inventory and the checks update as you work.</p>
 <p>Scope:</p>
@@ -104,7 +103,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li><b>Placement first.</b> The tool does not extract signs from existing drawings, because many drawings show signs as images rather than blocks.</li>
   <li><b>Inventory, not a Bill.</b> Outputs are counts and chainages (Excel Tables and CSV) that feed the separate QTO and Bill process. There are no rates.</li>
   <li><b>QGIS front end.</b> Signs are placed on a map, not typed into a spreadsheet.</li>
-  <li><b>Civil 3D 2026+ through Dynamo or DXF.</b> No compiled .NET add-in.</li>
+  <li><b>Civil 3D 2026+ through a georeferenced DXF.</b> No compiled .NET add-in.</li>
 </ul>
 
 <h2 id="install"><span class="sec">3</span>Installing the plugin</h2>
@@ -308,15 +307,8 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 <p>Alternatively, <code>INSERT</code> or <code>XREF</code> the whole DXF at <code>0,0,0</code>, scale 1, rotation 0. The project drawing must be in metres, use the same coordinate system and be in the World UCS.</p>
 <div class="tip"><b>Check point</b>The layer <code>RSD-REF-NOTES</code> holds a cross at the start of the alignment labelled with its easting and northing. Paste it once to confirm it falls on the Civil 3D alignment, then delete it.</div>
 
-<h2 id="dynamo"><span class="sec">17</span>The Dynamo route</h2>
-<p>The Dynamo scripts place native blocks from the package and read changes back. They have not yet been run in Civil 3D.</p>
-<ol class="steps">
-  <li>In Civil 3D, <b>Manage → Visual Programming → Dynamo</b>, new graph. Add a <b>Python Script</b> node (CPython3 or PythonNet3) with inputs up to IN[4] and paste <code>dynamo/rsd_place.py</code>.</li>
-  <li>Inputs: the placement JSON (IN[0]); alignment name, blank for the one in the package (IN[1]); symbol scale, 25 at 1:2500 (IN[2]); Run (IN[3]); block source, the exported DXF or a library DWG (IN[4]).</li>
-  <li>Run with Run = False and read the report: new and updated counts, missing blocks, and CHECK lines where the drawing's alignment and the LandXML differ by more than 20 mm.</li>
-  <li>Set Run = True. Re-running is safe: signs are matched by UUID, existing blocks updated, new ones added, nothing deleted.</li>
-  <li>For changes made in the drawing, run <code>dynamo/rsd_readback.py</code> and import its JSON from the Inventory tab (<b>Import Civil 3D read-back</b>). Moves and rotations come back to the GeoPackage, matched by UUID.</li>
-</ol>
+<h2 id="dynamo"><span class="sec">17</span>Dynamo link (parked)</h2>
+<p>Dynamo scripts that place native blocks from the placement package and read moves back into QGIS are kept in the repository (<code>dynamo/</code>), but this route is parked for now. Use the georeferenced DXF (section 16) to bring signs into Civil 3D.</p>
 
 <!-- ============================== PART 5 ============================== -->
 <h1 class="part"><span class="num">Part 5</span>Technical manual</h1>
@@ -412,7 +404,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 
 <h2 id="limits"><span class="sec">25</span>Limitations and roadmap</h2>
 <ul>
-  <li><b>Civil 3D.</b> The Dynamo scripts and the PASTEORIG route still need a first run in a project drawing.</li>
+  <li><b>Civil 3D.</b> The PASTEORIG route still needs a first run in a project drawing. The Dynamo link is parked.</li>
   <li><b>HH drawing conventions.</b> Symbol sizes now match the 25 m blocks in current HH drawings at 1:2500. Block names, layers and annotation style should be matched to HH's once a DXF export of a current drawing is available.</li>
   <li><b>Quantities.</b> Post and foundation types for the QTO are still to be agreed. Sign numbering follows RDM 6.2.</li>
   <li><b>Corridor restriction.</b> Implemented as RDM's 0.6–3.0 m band inside the ditch or daylight line. A road-reserve boundary is not used yet.</li>
