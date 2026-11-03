@@ -25,9 +25,14 @@ ATTRS = ["SIGN_CODE", "LEGEND", "DESCRIPTION", "SIZE", "CHAINAGE", "OFFSET", "SI
 VISIBLE = {"SIGN_CODE", "LEGEND"}
 
 
+LEGEND_STYLE = "RSD_LEGEND"
+
+
 def _layers(doc):
     if APPID not in doc.appids:
         doc.appids.new(APPID)
+    if LEGEND_STYLE not in doc.styles:            # legend text in Arial so its width matches the plate
+        doc.styles.add(LEGEND_STYLE, font="arial.ttf")
     for lay, col in (("RSD-SIGN", 1), ("RSD-SIGN-TEXT", 7), ("RSD-SIGN-LEADER", 7), ("RSD-ALIGN", 4),
                      ("RSD-ALIGN-OTHER", 3), ("RSD-REF-NOTES", 8)):
         if lay not in doc.layers:
@@ -151,7 +156,7 @@ def make_legend_block(doc, name, sd, text, road_class="A"):
     blk.add_line((-0.35, 0.12), (0.35, 0.12))
     blk.add_line((0, 0), (0, 0.12))
     th = 0.32                                  # text height (sign units): 2.5 mm printed at 8 mm/unit
-    cw = th * 0.8          # generous: CAD fonts (Arial/txt) run ~0.7-0.8 h per character
+    cw = th * 0.85         # Arial capitals and digits run ~0.6-0.75 h; leaves a margin for other fonts
     if sd.legend == "directional":
         sc = SCHEMES.get(road_class or "A", SCHEMES["A"])
         bg, fg, rc = _HEX(sc["bg"]), _HEX(sc["fg"]), _HEX(sc["route"])
@@ -194,13 +199,13 @@ def make_legend_block(doc, name, sd, text, road_class="A"):
         if arrow in ("ahead", "left"):
             arrow_poly(arrow, x)
         x += arrow_w
-        t = blk.add_text(place, height=th, dxfattribs={"insert": (x, yb)}); t.rgb = fg
+        t = blk.add_text(place, height=th, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = fg
         x += name_w + 0.15
         if route:
-            t = blk.add_text(route, height=th * 0.9, dxfattribs={"insert": (x, yb)}); t.rgb = rc
+            t = blk.add_text(route, height=th * 0.9, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = rc
         x += route_w
         if dist:
-            t = blk.add_text(dist, height=th * 0.9, dxfattribs={"insert": (x, yb)}); t.rgb = fg
+            t = blk.add_text(dist, height=th * 0.9, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = fg
         if arrow == "right":
             arrow_poly("right", x0 + w - pad - th)
     for i, tag in enumerate(ATTRS):

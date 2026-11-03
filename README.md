@@ -1,4 +1,4 @@
-# RoadSign Designer (RSD), v0.6
+# RoadSign Designer (RSD), v0.6.1
 
 Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
 
@@ -13,6 +13,7 @@ Place traffic signs by clicking along a road alignment in QGIS. For every sign, 
 **Status:**
 - **Core:** 37 tests passing.
 - **QGIS plugin:** 27 headless tests passing on QGIS 3.34. Also checked on the Nessuit–Salgaa preliminary design LandXML (Arc 1960 / UTM 36S, 4 alignments, 26 spirals) and on Olkaria LOT 3 (UTM 37S, 59 MB with TIN surfaces and 3,569 corridor sections; loads in about 1.3 s).
+- **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing on Olkaria LOT 3.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
 
@@ -130,7 +131,7 @@ On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:250
 - **Symbols** print at 10 mm, matching HH plan drawings: 25 m in model space at 1:2500, 10 m at 1:1000.
 - **Callouts.** Each sign is one block inserted at its post (true coordinates). The block holds a post marker, a leader and the sign face upright beside the road, clear of the carriageway and of the neighbouring signs, with the code underneath. A sign and its plate stack; back-to-back faces sit side by side.
 - **Text** (codes, legends, chainages) prints at 1.8 mm. Chainage labels read the right way up on either side.
-- **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size.
+- **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size. Legend text uses the `RSD_LEGEND` style (Arial) so it fits its plate.
 - **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers.
 
 (Dynamo, when it is picked up again: symbol scale = the value shown after export, block source IN[4] = the exported DXF.)
@@ -268,6 +269,5 @@ Build the plugin zip: `python tools/build_plugin.py roadsign_designer.zip`
 
 ## Next
 
-- First paste of the DXF into a project drawing (PASTEORIG).
 - Dynamo route: parked.
 - Junction signing (advance direction / direction signs per RDM Table A1-1) once junction locations are available (a point layer or the LandXML's intersecting alignments).

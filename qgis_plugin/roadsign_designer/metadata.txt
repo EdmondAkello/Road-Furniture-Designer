@@ -2,7 +2,7 @@
 name=RoadSign Designer
 qgisMinimumVersion=3.28
 description=Place traffic signs along a LandXML road alignment; live chainage/offset, sign inventory, and Civil 3D exchange.
-version=0.6.0
+version=0.6.1
 author=Edmond Akello
 email=akelloedmond@gmail.com
 about=Click to place signs; chainage, offset, side and facing are derived from the alignment and kept up to date when signs move. Live inventory, Excel/CSV inventory export for QTO, and a placement package + Dynamo scripts for Civil 3D 2026+.
