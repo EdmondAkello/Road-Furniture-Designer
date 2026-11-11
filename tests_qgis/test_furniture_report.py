@@ -190,3 +190,36 @@ def test_junction_templates_in_a_project(tmp_path):
     # removing a junction removes all its pieces
     assert st.junctions.remove(js[1]["id"]) > 0
     assert [j["kit"] for j in st.junctions.junctions()] == ["A-2"]
+
+
+def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
+    import math
+    from road_furniture_designer.maptool import PlaceRunTool
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    st, xml = _fill_road(tmp_path)
+    # our road ends on a main road we only know by a clicked direction
+    s_end = st.al.sta_end
+    x0, y0, h = st.al.point_at(s_end)
+    pl = st.junctions.placement_minor(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
+    n, finds, nsigns = st.add_junction(pl, "B")
+    assert n == 6 and nsigns == 1
+    r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
+    assert [f["sign_code"] for f in r2] == ["R2"] and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
+    j = st.junctions.junctions()[0]
+    assert j["role"] == "minor" and abs(j["sta"] - s_end) < 0.5
+    # re-running auto-placement keeps the junction's sign
+    st.auto_propose()
+    assert [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
+    # editing the scale rebuilds against the same main road
+    st.junctions.set_scale(pl.junction_id, 1.1)
+    assert st.junctions.junctions()[0]["role"] == "minor"
+    assert st.remove_junction(pl.junction_id) > 1
+    assert not st.junctions.junctions() and not [f for f in st.signs.getFeatures() if (f["rule"] or "").startswith("junction:")]
+    # a zebra from the Linear tab: one click, centred, across the carriageway
+    tool = PlaceRunTool(QgsMapCanvas(), lambda: st, lambda: {"mode": "run", "code": "BM02", "side": None})
+    x, y, _ = st.al.point_at(500.0)
+    fid = tool.click(QgsPointXY(x, y))
+    f = st.lines.layer.getFeature(fid)
+    assert f["item_code"] == "BM02" and abs(f["sta_to"] - f["sta_from"] - 3.0) < 1e-6
+    assert f.geometry().constGet().numGeometries() >= 6          # the bars, not one outline

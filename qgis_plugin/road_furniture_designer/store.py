@@ -102,7 +102,7 @@ class SignStore(QObject):
         self.lines = LineStore(gpkg, self.al, crs=self.signs.crs())
         self.lines.changed.connect(self.changed.emit)
         from .junctionstore import JunctionStore
-        self.junctions = JunctionStore(gpkg, self.al, crs=self.signs.crs())
+        self.junctions = JunctionStore(gpkg, self.al, crs=self.signs.crs(), others=self.other_alignments)
         self.junctions.changed.connect(self.changed.emit)
 
     @staticmethod
@@ -678,7 +678,7 @@ class SignStore(QObject):
         """Run the RDM rules and add the results as proposed signs (previous proposals replaced)."""
         from .rfd.autoplace import AutoConfig, propose, space_out
         cfg = cfg or AutoConfig()
-        self.remove_proposals(keep_prefix=("feature:", "speed:"))   # features and speed zones keep their signs
+        self.remove_proposals(keep_prefix=("feature:", "speed:", "junction:"))   # features, speed zones and junctions keep their signs
         props, findings = propose(self.al, cfg)
         existing = [(f["station_int"], f["side"], f["facing"], f["sign_code"]) for f in self.signs.getFeatures()]
         props = space_out(props, existing, self.al.speed_at)
@@ -842,6 +842,37 @@ class SignStore(QObject):
                 f = QgsFeature(ml.fields()); f.setAttributes([None, k, v] if ml.fields().count() == 3 else [k, v])
                 ml.addFeature(f)
         ml.commitChanges()
+
+    def add_junction(self, pl, kit, piece="", guides=True):
+        """Place junction pieces; where our road is the minor road, also propose its R2 Give Way.
+        Returns (pieces, findings, signs proposed)."""
+        from .rfd import junctions as J
+        n, finds = self.junctions.add(pl, kit, piece, guides)
+        signs = 0
+        if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
+            for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
+                x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
+                try:
+                    self.add_sign(x, y, sg["code"], facing=sg["facing"], restrict=True, status="proposed",
+                                  rule=f"junction:{pl.junction_id}",
+                                  reason="Give Way on the minor approach (RDM 6.2, RDM 6.1 5.3)")
+                    signs += 1
+                except ValueError:
+                    pass
+        return n, finds, signs
+
+    def remove_junction(self, junction_id):
+        """Remove a junction's pieces and the signs proposed with it."""
+        rule = f"junction:{junction_id}"
+        ids = [f.id() for f in self.signs.getFeatures() if f["rule"] == rule]
+        if ids:
+            if self.signs.isEditable():
+                self.signs.deleteFeatures(ids)
+            else:
+                self.signs.dataProvider().deleteFeatures(ids)
+                self.signs.reload()
+            self.signs.triggerRepaint()
+        return self.junctions.remove(junction_id) + len(ids)
 
     def other_alignments(self):
         """The LandXML's other alignments (side roads, link roads) for reference in drawings and sheets."""

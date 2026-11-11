@@ -26,6 +26,7 @@ FIELDS = [
     ("piece", QVariant.String), ("corner", QVariant.String), ("code", QVariant.String),
     ("sta", QVariant.Double), ("bearing_deg", QVariant.Double), ("scale", QVariant.Double),
     ("edge_m", QVariant.Double), ("params", QVariant.String),
+    ("role", QVariant.String), ("main_ref", QVariant.String), ("our_sta", QVariant.Double),
     ("status", QVariant.String), ("rule", QVariant.String), ("remarks", QVariant.String),
     # derived
     ("kind", QVariant.String), ("description", QVariant.String), ("ch", QVariant.String),
@@ -52,9 +53,11 @@ def _fields():
 class JunctionStore(QObject):
     changed = pyqtSignal()
 
-    def __init__(self, gpkg, al, crs=None):
+    def __init__(self, gpkg, al, crs=None, others=None):
         super().__init__()
         self.gpkg, self.al = gpkg, al
+        self._others_fn = others or (lambda: [])
+        self._others = None
         self.templates = J.load_templates()
         self.layer = QgsVectorLayer(f"{gpkg}|layername={LAYER}", "RFD junctions", "ogr")
         if not self.layer.isValid():
@@ -77,10 +80,21 @@ class JunctionStore(QObject):
             sig.connect(self.changed.emit)
 
     # ------------------------------------------------------------------ build
+    def others(self):
+        """Other alignments of the LandXML (read once)."""
+        if self._others is None:
+            self._others = list(self._others_fn() or [])
+        return self._others
+
+    def main_of(self, pl: J.Placement):
+        return J.main_alignment(self.al, pl, self.others())
+
     def _features(self, pl: J.Placement, kit: str, piece: str, corner: str, params: dict, puuid: str,
                   status="approved", remarks=""):
-        pc = J.build_piece(self.al, pl, piece, corner, params, self.templates)
-        F = pl.frame(self.al)
+        main = self.main_of(pl)
+        pc = J.build_piece(main, pl, piece, corner, params, self.templates)
+        F = pl.frame(main)
+        our = pl.our_station if pl.role == "minor" else pl.station
         by_code = {}
         for part in pc.parts:
             by_code.setdefault(part.code, []).append(part)
@@ -95,9 +109,10 @@ class JunctionStore(QObject):
                     "corner": corner, "code": code, "sta": round(pl.station, 3),
                     "bearing_deg": round(math.degrees(pl.bearing), 4), "scale": pl.scale,
                     "edge_m": pl.edge, "params": json.dumps(params or {}), "status": status,
+                    "role": pl.role, "main_ref": pl.main_ref, "our_sta": round(our, 3),
                     "rule": f"junction:{pl.junction_id}", "remarks": remarks, "kind": pc.kind,
                     "description": f"{pc.name}: {codes[code]['name']}",
-                    "ch": format_station(self.al.display_station(pl.station), 1), "side": F.side,
+                    "ch": format_station(self.al.display_station(our), 1), "side": F.side,
                     "crossing_deg": round(F.crossing_angle, 1),
                     # piece quantities go on its first feature only, so sums over the layer are right
                     "kerb_m": pc.quantities.get("kerb_m") if code == "KERB" else None,
@@ -141,10 +156,18 @@ class JunctionStore(QObject):
             feats += self._features(pl, kit, it["piece"], it.get("corner", ""), it.get("params") or {},
                                     _uuid.uuid4().hex)
         self._write(feats)
-        return len(items), J.findings(self.al, pl)
+        return len(items), J.findings(self.main_of(pl), pl)
 
     def place(self, x0, y0, x1, y1, kit, piece="", scale=1.0, guides=True):
         return self.add(J.place(self.al, x0, y0, x1, y1, scale=scale), kit, piece, guides)
+
+    def placement_minor(self, x0, y0, x1=None, y1=None, major="", scale=1.0):
+        """Our road joins another road: the main road is the alignment named `major`, or the clicked direction."""
+        m = next((a for a in self.others() if a.name == major), None) if major else None
+        if major and m is None:
+            raise ValueError(f"No alignment {major!r} in the LandXML")
+        pl, _ = J.place_minor(self.al, x0, y0, x1, y1, major=m, scale=scale)
+        return pl
 
     # ------------------------------------------------------------------ edit / rebuild
     def _group(self, puuid):
@@ -156,13 +179,14 @@ class JunctionStore(QObject):
             return False
         f0 = group[0]
         v = {n: f0[n] for n in ("sta", "bearing_deg", "scale", "edge_m", "kit", "piece", "corner", "params",
-                                "status", "remarks", "junction_id")}
+                                "status", "remarks", "junction_id", "role", "main_ref", "our_sta")}
         v.update(override or {})
 
         def num(x, d=None):
             return d if x is None or (hasattr(x, "isNull") and x.isNull()) else float(x)
         pl = J.Placement(num(v["sta"]), math.radians(num(v["bearing_deg"])), num(v["scale"], 1.0),
-                         num(v["edge_m"]), junction_id=v["junction_id"])
+                         num(v["edge_m"]), junction_id=v["junction_id"], role=v["role"] or "main",
+                         main_ref=v["main_ref"] or "", our_station=num(v["our_sta"]))
         try:
             feats = self._features(pl, v["kit"], v["piece"], v["corner"] or "", json.loads(v["params"] or "{}"),
                                    puuid, v["status"] or "approved", v["remarks"] or "")
@@ -221,7 +245,9 @@ class JunctionStore(QObject):
         out = {}
         for f in self.layer.getFeatures():
             j = out.setdefault(f["junction_id"], {
-                "id": f["junction_id"], "kit": f["kit"], "sta": f["sta"], "ch": f["ch"], "side": f["side"],
+                "id": f["junction_id"], "kit": f["kit"], "ch": f["ch"], "side": f["side"],
+                "sta": f["our_sta"] if f["role"] == "minor" and f["our_sta"] is not None else f["sta"],
+                "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
                 "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "paint": {}})
             j["pieces"].add(f["piece"])
@@ -243,7 +269,8 @@ class JunctionStore(QObject):
             if g is None or g.isEmpty():
                 continue
             lines = g.asMultiPolyline() if g.isMultipart() else [g.asPolyline()]
-            out.append((f["code"], f["sta"], [[(p.x(), p.y()) for p in ln] for ln in lines]))
+            sta = f["our_sta"] if f["role"] == "minor" and f["our_sta"] is not None else f["sta"]
+            out.append((f["code"], sta, [[(p.x(), p.y()) for p in ln] for ln in lines]))
         return out
 
     def style(self):

@@ -375,13 +375,18 @@ def _draw_runs(p, d, lo, hi, poly, P, vp):
         it = cat[r.code]
         prop = r.status == "proposed"
         col = QColor(RUN_COL.get(it.colour, "#4f5a69"))
+        if it.transverse:
+            from .rfd.linear import CALMING_FILL, pattern
+            calm = r.code in CALMING_FILL
+            fill = QColor("#be4628") if calm else QColor(col)
+            fill.setAlpha(170 if calm else 230)
+            p.setPen(QPen(QColor("#ff8c00") if prop else QColor("#3c1408" if calm else "#3c3c3c"), 0.6))
+            p.setBrush(fill)
+            for ring in pattern(d.al, r, it.bars, it.bar_width) or geometry(d.al, r):
+                p.drawPolygon(QPolygonF([P(*q) for q in ring]))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            continue
         for part in geometry(d.al, r, step=max(2.0, 1.5 * vp.mpu)):
-            if it.transverse:
-                ring = QPolygonF([P(*q) for q in part])
-                fill = QColor(col); fill.setAlpha(70)
-                p.setPen(QPen(QColor("#ff8c00") if prop else col, 1.0)); p.setBrush(fill); p.drawPolygon(ring)
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                continue
             path = poly(part)
             if prop:                                   # proposed, not accepted: faint orange halo under the line
                 p.setPen(QPen(halo, 5.0)); p.drawPath(path)

@@ -261,6 +261,21 @@ class PlaceRunTool(QgsMapToolEmitPoint):
             self.placed.emit(f"{d.summary or s['kind']} at {format_station(st.al.display_station(sta), 1)}: "
                              f"{len(d.runs)} items, {len(d.signs)} signs" + (" - " + "; ".join(notes) if notes else ""))
             return d
+        it = st.lines.cat[s["code"]] if s.get("code") in st.lines.cat else None
+        if it is not None and it.transverse:                      # zebra, bar set, hump ...: one click, centred
+            from .rfd.features import FeatureConfig, carriageway_width
+            from .rfd.linear import CLICK_LENGTH, Run
+            L = CLICK_LENGTH.get(it.code, 2.0)
+            w, _src = carriageway_width(st.al, FeatureConfig(), sta)
+            try:
+                fid = st.lines.add_run(Run(it.code, sta - L / 2, sta + L / 2, side="C", width=w))
+            except ValueError as ex:
+                self.failed.emit(str(ex))
+                return None
+            f = st.lines.layer.getFeature(fid)
+            self.placed.emit(f"{it.code} at {f['ch_from']}-{f['ch_to']}, {w:.1f} m across")
+            st.lines.layer.triggerRepaint()
+            return fid
         if rel is None:
             self.failed.emit(f"No {s.get('edge_ref')} edge at this chainage")
             return None
@@ -330,17 +345,27 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         x, y, _ = st.al.point_at(so.station)
         return so.station, x, y
 
+    def _placement(self, lp):
+        from .rfd import junctions as J
+        st, s = self._store(), self._settings()
+        if s.get("role") == "minor":
+            pl = st.junctions.placement_minor(self.p0[1], self.p0[2], lp.x(), lp.y(), major=s.get("major") or "",
+                                              scale=s.get("scale", 1.0))
+        else:
+            pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
+        return pl, st.junctions.main_of(pl)
+
     def _pieces(self, lp):
         from .rfd import junctions as J
         st, s = self._store(), self._settings()
-        pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
+        pl, main = self._placement(lp)
         if s.get("piece"):
             kit_items = [it for it in st.junctions.templates["kits"].get(s["kit"], []) if it["piece"] == s["piece"]]
             it = kit_items[0] if kit_items else {"piece": s["piece"], "corner": "left_turn"}
-            pcs = [J.build_piece(st.al, pl, it["piece"], it.get("corner", ""), it.get("params"),
+            pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""), it.get("params"),
                                  st.junctions.templates)]
         else:
-            pcs = J.build_kit(st.al, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True))
+            pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True))
         return pl, pcs
 
     def canvasMoveEvent(self, e):
@@ -368,9 +393,13 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         lines = [[xf.transform(QgsPointXY(x, y)) for x, y in (part.pts + ([part.pts[0]] if part.closed else []))]
                  for pc in pcs for part in pc.parts]
         self.band.setToGeometry(QgsGeometry.fromMultiPolylineXY(lines), None)
-        F = pl.frame(st.al)
-        self.hover.emit(f"Crossing angle {F.crossing_angle:.0f} deg, minor road on the "
-                        f"{'left' if F.side == 'L' else 'right'} - click to place")
+        F = pl.frame(st.junctions.main_of(pl))
+        if pl.role == "minor":
+            self.hover.emit(f"Our road joins {('alignment ' + pl.main_ref[4:]) if pl.main_ref.startswith('alg:') else 'the main road'}"
+                            f" at {F.crossing_angle:.0f} deg - click to place")
+        else:
+            self.hover.emit(f"Crossing angle {F.crossing_angle:.0f} deg, minor road on the "
+                            f"{'left' if F.side == 'L' else 'right'} - click to place")
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Escape:
@@ -403,19 +432,22 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 self.failed.emit("Beyond the alignment ends")
                 return None
             self.p0 = sn
-            self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - "
-                             f"now click a point up the minor road")
+            nxt = ("now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
+                   else "click again to place" if s.get("role") == "minor"
+                   else "now click a point up the minor road")
+            self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - {nxt}")
             return None
         try:
-            from .rfd import junctions as J
-            pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
-            n, finds = st.junctions.add(pl, s["kit"], s.get("piece") or "", s.get("guides", True))
+            pl, _ = self._placement(lp)
+            n, finds, nsigns = st.add_junction(pl, s["kit"], s.get("piece") or "", s.get("guides", True))
         except ValueError as ex:
             self.failed.emit(str(ex))
             return None
         self.cancel()
         what = s.get("piece") or f"type {s['kit']} kit"
-        self.placed.emit(f"{what}: {n} piece(s) at Ch {format_station(st.al.display_station(pl.station), 1)}"
+        our = pl.our_station if pl.role == "minor" else pl.station
+        self.placed.emit(f"{what}: {n} piece(s) at Ch {format_station(st.al.display_station(our), 1)}"
+                         + (f", {nsigns} sign(s) proposed" if nsigns else "")
                          + ("".join(f" - {lvl}: {t}" for lvl, t in finds)))
         return pl.junction_id
 

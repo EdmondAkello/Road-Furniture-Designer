@@ -144,6 +144,8 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
 
 ## Drawing linear furniture by hand
 
+Crossings, bar sets, hump markings and humps (transverse items) go in with **one click**, centred on the click and across the carriageway (from the ETW edges, else 7 m). The map, plan sheets and DXF draw them as they are painted: zebra bars of 500 mm with 500 mm gaps, the six bars of a bar set, BM04 triangles on the hump ramps, and humps, tables and bumps as a filled brick-red footprint. The **Calming** tab places a crossing or hump with its signs and bar markings in one click as well.
+
 Every proposed run can be edited, and any run can be drawn by hand. This covers dual carriageways, slip roads, median edge lines, unusual corridors, and anything else the rules don't propose. On the Linear tab, pick the item and press **Draw on map**:
 - Click the start, then click the end. The chainages come from the clicks.
 - The side and offset come from the first click. With "Offset from" set to a corridor edge, the offset is measured from that edge and the run follows the edge where the road widens. Otherwise it is measured from the centreline.
@@ -191,6 +193,8 @@ RFD does not design junctions. The islands and markings of the standard drawings
 Every kit also has the GIVE WAY line across the approach lane (TM07), the triangular GIVE WAY marking 2.5 m back (BM07) and 30 m of continuous centre line on the minor road (LM24), to RDM 6.1 5.3. The sheet titled "types B, C & D" labels no panel D (two panels read "Type B - Modified", drawn alike), so there is one B-Mod template and no D.
 
 **Placing.** Pick the type and the kit or a piece, press **Place on map**, click the junction point on the main road (it snaps to the centreline), then move up the minor road: the pieces follow with the crossing angle shown, and a second click places them. Pieces on the main road follow its curvature; corner islands shear with the skew. Kenya drives on the left, so the approach lane, the left-turn corner and the ghost island tail fall on the right sides for a minor road on either side. **Scale** enlarges or shrinks the pieces about the junction point, before placing or for a selected junction.
+
+**Our road joining another road.** Choose **Our road joins another road** and click our road where it meets the main road. Then either click a point along the main road (a straight main road in that direction), or pick the main road from the LandXML's other alignments, and the main-road pieces follow its curves. The give way line, triangle and centre line go on our approach, and an **R2 Give Way** sign is proposed on its left. It stays when auto-placement is re-run and is removed with the junction.
 
 **Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
 

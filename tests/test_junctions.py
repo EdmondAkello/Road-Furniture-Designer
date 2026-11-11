@@ -132,3 +132,33 @@ def test_junction_checks_in_the_furniture_report():
     out = FR.junction_checks(al, js)
     assert [(c.level, c.start) for c in out] == [("check", 200), ("issue", 300)]
     assert all(c.kind == "junction_skew" for c in out)
+
+
+def test_our_road_joins_a_main_road():
+    ours = Alignment.from_polyline("OURS", [(200, 300), (200, 3.0)])            # runs south onto the main road
+    major = Alignment.from_polyline("MAJOR", [(0, 0), (400, 0)])
+    pl, main = J.place_minor(ours, 200, 2.0, major=major)
+    assert pl.role == "minor" and pl.main_ref == "alg:MAJOR" and pl.our_station == pytest.approx(297.0)
+    assert J.main_alignment(ours, pl, [major]) is major
+    F = pl.frame(main)
+    assert F.side == "L" and math.degrees(pl.bearing) == pytest.approx(90)    # minor road leaves northwards
+    # the kit is drawn on the main road: the ghost island lies along it, the splitter up our road
+    pcs = {p.piece: p for p in J.build_kit(main, pl, "A-1", templates=T)}
+    assert all(abs(y) < 2.0 for p in pcs["ghost_island"].parts for _, y in p.pts)
+    assert all(198.4 < x < 201.6 and y > 3.5 for p in pcs["splitter_a1"].parts for x, y in p.pts)
+    # R2 Give Way on our approach: on the left of the southbound traffic (east, our L), behind the give way line
+    sg = J.minor_signs(ours, pl, main)
+    assert sg == [{"code": "R2", "station": pytest.approx(297.0 - 6.0), "side": "L", "facing": "Forward"}]
+    # our chainage running the other way: the sign mirrors
+    rev = Alignment.from_polyline("REV", [(200, 3.0), (200, 300)])
+    pr, mr = J.place_minor(rev, 200, 2.0, major=major)
+    assert J.minor_signs(rev, pr, mr) == [{"code": "R2", "station": pytest.approx(6.0), "side": "R",
+                                          "facing": "Backward"}]
+    # no main road alignment: a clicked direction gives a straight one
+    pc, mc = J.place_minor(ours, 200, 2.0, 380, 2.0)
+    assert pc.main_ref.startswith("line:") and J.main_alignment(ours, pc).name == "MAJOR"
+    assert pc.frame(mc).crossing_angle == pytest.approx(90, abs=0.5)
+    with pytest.raises(ValueError):
+        J.main_alignment(ours, pl, [])                                           # alignment gone from the LandXML
+    with pytest.raises(ValueError):
+        J.place_minor(ours, 200, 2.0)                                            # neither alignment nor click
