@@ -138,18 +138,20 @@ def draw_plan(p, d, rect: QRectF, s0, s1, th, scale, page_w, font, colours, key_
     for o in d.others:
         pts = [o.point_at(o.sta_start + o.length * k / max(2, int(o.length / 3)))[:2]
                for k in range(max(2, int(o.length / 3)) + 1)]
-        inside = [q for q in pts if rect.adjusted(-50, -50, 50, 50).contains(P(*q))]
-        if not inside:
+        vis = [q for q in pts if rect.adjusted(-50, -50, 50, 50).contains(P(*q))]
+        if not vis:
             continue
         p.setPen(QPen(QColor("#2e8b57"), 1.2, Qt.PenStyle.DashDotLine)); p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(poly(pts))
-        q = inside[len(inside) // 2]
+        q = vis[len(vis) // 2]
         p.setPen(QColor("#2e8b57")); p.drawText(P(*q) + QPointF(6, -6), o.name)
     # corridor edges of the signed alignment
     for code, side, pts in d.edges:
         col, w, style = EDGE_STYLE.get(code, ("#b9c0cc", 0.7, Qt.PenStyle.SolidLine))
         p.setPen(QPen(QColor(col), w, style)); p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(poly(pts))
+    # linear furniture: markings, studs, barriers, calming items and crossings
+    _draw_runs(p, d, lo, hi, poly, P, vp)
     # centreline
     p.setPen(QPen(QColor("#1f5fbf"), 1.2, Qt.PenStyle.DashDotLine))
     p.drawPath(poly(sample(lo, hi)))
@@ -333,3 +335,40 @@ def _sign_list(p, signs, r, font):
         p.setPen(QColor("#6b7686"))
         p.drawText(QRectF(r.left() + 8, r.bottom() - 14, r.width() - 16, 12), int(Qt.AlignmentFlag.AlignRight),
                    f"+{len(rows) - len(shown)} more - see the sign schedule")
+
+
+RUN_COL = {"white": "#4f5a69", "yellow": "#d9a400"}
+
+
+def _draw_runs(p, d, lo, hi, poly, P, vp):
+    """Runs of rsd_lines inside the sheet's chainage range (proposed ones in orange)."""
+    runs, cat = getattr(d, "runs", None), getattr(d, "lcat", None)
+    if not runs or cat is None:
+        return
+    from .rfd.linear import geometry
+    order = {"Transverse marking": 0, "Traffic calming": 0, "Marking": 1, "Road stud": 2, "Barrier": 3}
+    mine = [r for r in runs if r.code in cat and r.sta_end >= lo and r.sta_start <= hi]
+    halo = QColor("#ff8c00"); halo.setAlpha(80)
+    for r in sorted(mine, key=lambda r: order.get(cat[r.code].category, 1)):
+        it = cat[r.code]
+        prop = r.status == "proposed"
+        col = QColor(RUN_COL.get(it.colour, "#4f5a69"))
+        for part in geometry(d.al, r, step=max(2.0, 1.5 * vp.mpu)):
+            if it.transverse:
+                ring = QPolygonF([P(*q) for q in part])
+                fill = QColor(col); fill.setAlpha(70)
+                p.setPen(QPen(QColor("#ff8c00") if prop else col, 1.0)); p.setBrush(fill); p.drawPolygon(ring)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                continue
+            path = poly(part)
+            if prop:                                   # proposed, not accepted: faint orange halo under the line
+                p.setPen(QPen(halo, 5.0)); p.drawPath(path)
+            if it.category == "Barrier":
+                p.setPen(QPen(QColor("#2b2f36"), 2.2)); p.drawPath(path)
+            elif it.category == "Road stud":
+                p.setPen(QPen(col, 1.6, Qt.PenStyle.DotLine)); p.drawPath(path)
+            else:
+                d0 = it.dims(d.al.speed_at((r.sta_start + r.sta_end) / 2))
+                broken = bool(d0.get("mark") and d0.get("gap")) and not it.composite
+                p.setPen(QPen(col, 1.3, Qt.PenStyle.DashLine if broken else Qt.PenStyle.SolidLine))
+                p.drawPath(path)

@@ -68,6 +68,42 @@ GENERATED_PLATES = {"I10B": ("Nakuru County", ("white", "black")), "I16": ("P", 
                     "I17": ("P  Disabled", ("blue", "white")), "IM4S": ("EXPRESSWAY", ("blue", "white"))}
 
 
+# Signs the manual describes without a figure or code of their own, built from the artwork of an
+# identical extracted sign: code -> (artwork source, entry fields)
+DERIVED = {
+    "END": ("RW41", {
+        "name": "Supplementary plate 'END' (end of restriction)", "category": "Prohibitory", "shape": "rectangle",
+        "figure": "3.46", "page": 28,
+        "note": "RDM 6.2 3.11 (no overtaking, P32) and 3.6 (clearway, P14): the end of the restriction is the same "
+                "sign with a supplementary plate reading END, on the same post. The manual gives the plate no code; "
+                "the artwork is the identical END plate of Figure 10.43 (RW41)."}),
+}
+
+
+def add_derived(signs):
+    """Catalogue entries, icons and CAD blocks for DERIVED signs."""
+    import shutil
+    import ezdxf
+    sd = os.path.join(DATA, "signs")
+    dxf_path = os.path.join(DATA, "RSD_SignBlocks.dxf")
+    doc = ezdxf.readfile(dxf_path)
+    have = {e["code"] for e in signs}
+    for code, (src, fields) in DERIVED.items():
+        if code in have or src not in have:
+            continue
+        shutil.copyfile(os.path.join(sd, src + ".svg"), os.path.join(sd, code + ".svg"))
+        name = "RSD_" + code
+        if name not in doc.blocks:
+            blk = doc.blocks.new(name)
+            for e in doc.blocks.get("RSD_" + src):
+                blk.add_entity(e.copy())
+        e = {"code": code, "sizes": ["custom"], "default_size": "custom", "size_rule": None, "legend": None,
+             "mirror": False}
+        e.update(fields)
+        signs.append(e)
+    doc.saveas(dxf_path)
+
+
 def default_class(code):
     if code.startswith("IM"):
         return "EXP"
@@ -128,6 +164,7 @@ def main():
             e["note"] = s["note"]
         signs.append(e)
     print("regenerated icons:", regenerate_icons(signs))
+    add_derived(signs)
     cat = {
         "catalogue_version": "RDM6.2-2025.2",
         "standard": {

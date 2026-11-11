@@ -5,7 +5,7 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 ```
  QGIS: pick sign / auto-place ─► rsd_signs (GeoPackage) ─► live inventory and checks (dock)
                                                      ─► Inventory (Excel Tables + CSV) ─► QTO / Bill
-                                                     ─► Road signage report (PDF / PNG / Excel)
+                                                     ─► Road furniture report (PDF / PNG / Excel)
                                                      ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
  (Dynamo route: parked)
 ```
@@ -19,11 +19,11 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 198 tests passing, including 60 randomly generated roads (plus 40 with random embankments for the barrier rules and 30 with random traffic calming features) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
-- **QGIS plugin:** 36 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
+- **Core:** 280 tests passing, including 60 randomly generated roads (plus 40 with random embankments for the barrier rules, 30 with random traffic calming features, 30 with random speed limit zones and 30 run through the furniture report checks) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
+- **QGIS plugin:** 40 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
-- **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
+- **Catalogue:** RDM 6.2 (2025). 251 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
 
 ## Sign catalogue (RDM 6.2, 2025)
 
@@ -37,6 +37,10 @@ The dock's project summary shows which of these were found.
 **Coverage:** R, M, P, W, I, E, PD, IM and RW signs.
 - W24 chevrons are split into W24-a (single), W24-b (single, large), W24-c (double) and W24-d (triple).
 - Signs the manual shows one way round but which are used both ways (bends, side roads, chevrons and so on) have a **mirrored** version (`_M` icon and block).
+- A few figures whose list-of-figures entry the parser cannot read are added explicitly (`LOF_EXTRA`): P22 Pedestrianised Street, IM16–IM18 countdown markers, RW41 End of Construction.
+- **END** is the supplementary plate "END" that ends a restriction with its own sign: P32 + END ends a no-overtaking zone (RDM 6.2 3.11), P14 + END a clearway (3.6). The manual gives the plate no code; its artwork is the identical END plate of Figure 10.43 (RW41). `build_catalogue.py` derives it (`DERIVED`).
+- Still without artwork (design drawings or layouts only): I1-C, I2-b, I5-a, IM7, IM14, IM15, IM20, IM28.
+- RDM 6.2 has no pedestrian-crossing information sign and no bus-stop sign; crossings are signed with W55 and the zebra marking.
 
 **Numbering clashes in the manual itself.** These are resolved as follows and noted in the catalogue:
 - Fig 7.1 is captioned P1, which clashes with No Entry, so it becomes PD1.
@@ -83,7 +87,7 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 | Curve series | warned curves within 150 m of each other | W22 / W21 plus a W23 distance plate ("FOR 350 M") | RDM 6.2 4.5 |
 | Chevrons | curve speed ≥ 20 km/h below design | W24-a on the outside of the curve, back to back for both directions, spaced per Table 4.2 | RDM 6.2 4.6.1 |
 | Steep grades | descent > 5 %, ascent > 10 % | W30 / W31 with the actual grade as the legend | RDM 6.2 4.6.4 |
-| No overtaking | crest sight distance < passing sight distance | P32 plus a W23 distance plate at the start, and P32 "END", for each direction | RDM 6.2 3.11 |
+| No overtaking | crest sight distance < passing sight distance | P32 plus a W23 distance plate at the start; P32 with the END plate at the end; for each direction | RDM 6.2 3.11 |
 
 **Placement rules:**
 - Posts go 1.0 m beyond the paved-shoulder edge (adjustable; RDM 2.4 allows 0.6–3.0 m).
@@ -143,6 +147,15 @@ You decide where humps and crossings go; RFD details them to the manuals. Pick a
 
 Quantities are counted per item, with painted areas for bars and zebras. Everything a feature creates is listed and removed together, and the sign rules on the Auto tab leave feature signs alone. Bus bays, lay-bys, vulnerable-section zigzags, stop lines and kerb details are left to the designer.
 
+## Speed limit zones (Speed limits tab)
+
+The posted limit is your decision (built-up and special areas); RFD signs it to RDM 6.2 3.5. Pick the limit (P5 50, P6 70, P7 80 or P8 120 km/h; 100 km/h is the general limit and has no sign), type the zone's chainages and press **Add zone**. For each direction RFD proposes:
+- the limit sign where traffic enters the zone
+- a repeater at the middle, or at the interval you set
+- **P9** (end of speed limit) where traffic leaves the zone. Where the zone adjoins another one, that zone's limit sign marks the change instead.
+
+It flags a limit above the design speed, a very short zone, and a zone that runs off the alignment end (sign its start or end on the road beyond). **Propose from design speed** adds zones where the LandXML design speed is 50, 70 or 80 km/h; check each one before accepting. A zone and its signs are listed and removed together, and the Auto tab's sign rules leave them alone.
+
 ## Corridor restriction
 
 When the LandXML has corridor edges, **Keep inside the corridor** (Place tab, on by default) snaps every sign into RDM 2.4's band, 0.6–3.0 m beyond the reference edge. A sign is never placed past the corridor's outer limit (ditch or daylight). If the corridor stops at the shoulder, no outer limit applies.
@@ -153,12 +166,12 @@ The Checks list flags:
 - signs on the shoulder or in the travelled way
 - signs closer together than 0.6 × V
 
-## Road signage report
+## Road furniture report
 
-**Inventory → Road signage report** asks for the plan scale (Auto, 1:500 to 1:5000, or no plan sheets) and the title-block names (Prepared by, Checked by, Approved by; kept with the project). It writes, next to each other:
-- **PDF:** A3 landscape, every page in the same drawing frame: the plan layout sheets, one long-section sheet per kilometre, then the sign schedule and the findings.
-- **PNG:** one image per plan and long-section sheet (`plan_NN_<chainage>.png`, `section_<chainage>.png`).
-- **Excel workbook:** Signs (including proposals and the reason for each), Findings, Horizontal curves (R, e, f, curve speed against design speed), Vertical curves (K, A, SSD) and Basis.
+**Inventory → Road furniture report** asks for the plan scale (Auto, 1:500 to 1:5000, or no plan sheets) and the title-block names (Prepared by, Checked by, Approved by; kept with the project). It writes, next to each other:
+- **PDF:** A3 landscape, every page in the same drawing frame: the plan layout sheets, one long-section sheet per kilometre, the sign schedule and the geometry findings, then the road furniture pages: the strip diagram, the markings, barrier and traffic calming schedules, the linear quantities and the furniture checks.
+- **PNG:** one image per plan, long-section and strip sheet (`plan_NN_<chainage>.png`, `section_<chainage>.png`, `strip_<chainage>.png`).
+- **Excel workbook:** Signs (including proposals and the reason for each), Findings, Horizontal curves (R, e, f, curve speed against design speed), Vertical curves (K, A, SSD), Markings, Barriers, Features, Furniture quantities, Furniture checks and Basis.
 
 **Frame and title block.** Border, title and logo top right, and a title block with Project, Alignment, Drawing, Scale, Prepared / Checked / Approved by, Date and Sheet. No logo is drawn by default; to add one, set the QGIS setting `RoadFurnitureDesigner/report_logo` to an image file.
 
@@ -166,6 +179,7 @@ The Checks list flags:
 - the corridor edges (ETW, EPS, hinge, ditches, daylight) and the centreline with chainages
 - the LandXML's other alignments (side and link roads), named
 - every sign upright beside the road at 10 mm, with a leader to its post; a sign and its plate stack, back-to-back faces sit side by side, and symbols are moved clear of one another
+- the markings, road studs, barriers, humps, bar sets and crossings in their line style and colour (proposed ones with an orange halo)
 - match lines with the neighbouring sheet numbers, a north arrow and a scale bar
 - underneath: the sheet's sign list and a key plan with the sheet highlighted.
 
@@ -178,6 +192,16 @@ The Checks list flags:
 - the grades between PVIs.
 
 Grade signs (W30/W31) and other signs whose artwork carries a value show the real value (e.g. 11 %), in the report and in the DXF.
+
+**Strip diagram.** A straight-line diagram, 1 km per strip and three strips per page: signs for each direction, barriers, edge lines, the centre line (continuous, broken, or the combined line with the continuous line on the side it binds), road studs, calming features and crossings, speed limit zones, and the no-overtaking zones from the passing sight distance, so the signs and markings can be checked against them by eye.
+
+**Furniture checks.** RFD works the following out again from the geometry when the report is made, with the project's settings, and compares it with what is in the project (Issue, Check or Info):
+- every no-overtaking zone has a centre line that prohibits overtaking for that direction (the PSD governs)
+- every barrier span the fill warrant asks for (with its run-out) has a barrier; barriers without a fill warrant are listed (fine for obstacles and structures RFD does not check); discretionary fills, clear-zone and verge notes
+- signs the geometry asks for are in the project, signs facing the same traffic are 0.6 V apart, and proposals not yet accepted
+- **every sign that opens a restriction is closed further on for the same traffic, and plates go with their signs** (`rfd/data/sign_pairs.json`, open: add files in `RFD_SIGN_PAIRS_PATH`): P32 → P32 + END and a W23 plate at the start; P5–P8 → P9 or the next limit; P14 → P14 + END; P17 → P18; P30 → P31; W27 → W28; IM12/IM13 → IM4/IM26; W21/W22 with a W23 plate; RW40 → RW40 + RW41; RW38 → RW39; RW30–RW34 → RW35. These apply to signs placed by hand as well as RFD's own.
+- sag curves inside bends that limit the speed, and warned bends within the SSD beyond a crest
+- calming features and crossings visible from the SSD; speed limits above the design speed.
 
 The pages are drawn with QPainter, the same way the LandXML Road & Terrain plugin draws its exports.
 
@@ -308,11 +332,13 @@ rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
   legend.py               legend parsing, directional faces (RDM colour schemes), plates
   corridor.py, profile.py road edges from corridor codes, corridor clamp; vertical profile (grade, crests, sags, K)
   autoplace.py            RDM 6.2 rules -> proposed signs; geometry findings (curve speed, grades, sight distance)
+  speedzones.py           speed limit zones (RDM 6.2 3.5): limit signs, repeaters, P9
+  furniture_report.py     report schedules, strip lanes and the furniture checks (sign pairs: data/sign_pairs.json)
   inventory.py            Excel Tables + CSV for QTO
   plan_layout.py          where sign symbols go on a plan (callouts clear of the road and each other)
   package.py, dxf_out.py  Civil 3D package, placed DXF (georeferenced, callouts), block library, DXF read-back
   signlist.py, reconcile.py, cli.py   Excel route
-qgis_plugin/road_furniture_designer/   plugin (store.py, maptool.py, dock.py, report.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
+qgis_plugin/road_furniture_designer/   plugin (store.py, maptool.py, dock.py, report.py, furniture_pages.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
 vendor/ext_libs/          bundled pure-Python export libraries
 dynamo/                   rsd_place.py, rsd_readback.py
 tools/                    extract_rdm_signs.py, build_catalogue.py, build_plugin.py

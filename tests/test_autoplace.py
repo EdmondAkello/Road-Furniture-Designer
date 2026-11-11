@@ -67,7 +67,10 @@ def test_steep_grade_and_no_overtaking():
     assert all(p.legend == "8%" for p in w30)
     assert any(f.kind == "no_overtaking" for f in findings)
     p32 = [p for p in props if p.code == "P32"]
-    assert any(p.legend == "END" for p in p32) and any(p.code == "W23" for p in props)
+    assert any(p.code == "W23" for p in props)
+    ends = [p for p in props if p.code == "END"]                   # RDM 6.2 3.11: P32 + supplementary END plate
+    assert ends and all(any(q.code == "P32" and q.group == e.group and q.station == e.station for q in p32)
+                        for e in ends)
     assert any(f.kind == "crest_ssd" for f in findings)                  # K = 80/16 = 5, far too sharp
 
 
