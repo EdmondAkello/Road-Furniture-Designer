@@ -176,11 +176,14 @@ class ReportData:
         lines = getattr(store, "lines", None)
         self.lcat = lines.cat if lines is not None else None
         self.runs = lines.runs(include_proposed=True) if lines is not None else []
+        jn = getattr(store, "junctions", None)
+        self.junction_parts = jn.parts() if jn is not None else []
+        self.junction_list = jn.junctions() if jn is not None else []
         self.fr = None
         if furniture and self.lcat is not None:
             from .rfd import furniture_report as FR
             self.fr = FR.build(self.al, self.runs, self.lcat, self.signs, self.cfg, barrier_cfg, feature_cfg,
-                               vfindings=self.findings, curves=self.curves)
+                               vfindings=self.findings, curves=self.curves, junctions=self.junction_list)
 
     def renderer(self, path):
         r = self._svg.get(path)
@@ -679,6 +682,23 @@ def _furniture_sheets(wb, d, sheet):
                      g["id"]])
     sheet(ws, "RFD_Features", ["Chainage", "Chainage (m)", "Kind", "Main item", "Detail", "Items", "Signs",
                                "Checks", "Status", "Feature ID"], rows, [10, 11, 16, 10, 70, 30, 12, 70, 10, 10])
+    jl = getattr(d, "junction_list", None) or []
+    if jl:
+        from .rfd.junctions import load_templates
+        codes = load_templates()["codes"]
+        rows = []
+        for j in jl:
+            base = [j["ch"], round(al.display_station(j["sta"]), 3), j["kit"], j["side"], j["crossing_deg"], j["scale"]]
+            if j["kerb_m"]:
+                rows.append(base + ["KERB", codes["KERB"]["name"], round(j["kerb_m"], 2), "m",
+                                    round(j["island_m2"], 2), j["status"], j["id"]])
+            for c, (ln, area) in sorted(j["paint"].items()):
+                rows.append(base + [c, codes[c]["name"], round(ln, 2), "m", round(area, 3), j["status"], j["id"]])
+        ws = wb.create_sheet("Junctions")
+        sheet(ws, "RFD_Junctions", ["Chainage", "Chainage (m)", "Type", "Minor road side", "Crossing angle (deg)",
+                                    "Scale", "Item", "Description", "Length", "Unit",
+                                    "Area (m2; island or painted)", "Status", "Junction ID"],
+              rows, [10, 11, 7, 8, 10, 7, 7, 60, 9, 6, 12, 10, 12])
     ws = wb.create_sheet("Furniture quantities")
     sheet(ws, "RFD_Furniture_Quantities", ["Category", "Item", "Description", "Pattern", "Unit", "Quantity"],
           [list(q) for q in fr.quantities], [16, 10, 44, 30, 6, 10])

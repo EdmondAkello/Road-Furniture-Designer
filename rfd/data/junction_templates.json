@@ -1,0 +1,479 @@
+{
+ "source": "Standard geometry drawings RDM/1/3/2/01 (Junction type A) and RDM/1/3/2/02 (Junction types B, C & D), Jan 2024; markings to RDM 6.1 (2025) Chapters 5 and 7",
+ "note": "Islands and markings for the user to place at a junction. Shapes follow the drawn dimensions where the sheets give them and are indicative elsewhere (the sheets are marked 1:500 but are not to scale). The control radii, entry widths W1/W2 and kerb lines come from the junction design, not from these templates: place a piece, then scale it, or move it, to fit. Kenya drives on the left: the approach lane of the minor road is on the right of a person looking up the minor road from the main road.",
+ "types": {
+  "A-1": {
+   "name": "Junction type A-1 with two islands",
+   "drawing": "RDM/1/3/2/01"
+  },
+  "A-2": {
+   "name": "Junction type A-2 with additional island",
+   "drawing": "RDM/1/3/2/01"
+  },
+  "B": {
+   "name": "Junction type B",
+   "drawing": "RDM/1/3/2/02"
+  },
+  "B-Mod": {
+   "name": "Junction type B, modified (ghost island on the main road)",
+   "drawing": "RDM/1/3/2/02",
+   "remark": "The sheet is titled types B, C and D but labels no panel D: two panels read 'Type B - Modified'. Both are drawn alike and are one template here."
+  },
+  "C": {
+   "name": "Junction type C",
+   "drawing": "RDM/1/3/2/02"
+  }
+ },
+ "codes": {
+  "HM07": {
+   "name": "Diagonal hatching, 2 m (yellow)",
+   "width": 0.15,
+   "colour": "yellow"
+  },
+  "HM14": {
+   "name": "Hatched area border, solid 150 mm (yellow)",
+   "width": 0.15,
+   "colour": "yellow"
+  },
+  "HM04": {
+   "name": "Chevron / diagonal hatching, 2 m (white)",
+   "width": 0.15,
+   "colour": "white"
+  },
+  "LM27": {
+   "name": "Hatched area border, continuous 150 mm (white)",
+   "width": 0.15,
+   "colour": "white"
+  },
+  "TM07": {
+   "name": "GIVE WAY line, 600 / 300 mm, 400 mm wide",
+   "width": 0.4,
+   "colour": "white",
+   "dash": [
+    0.6,
+    0.3
+   ]
+  },
+  "BM07": {
+   "name": "Triangular GIVE WAY marking, 3.75 x 1.1 m",
+   "width": 0.2,
+   "colour": "white"
+  },
+  "LM24": {
+   "name": "Continuous centre line, 100 mm (barrier line on the minor road)",
+   "width": 0.1,
+   "colour": "yellow"
+  },
+  "KERB": {
+   "name": "Raised island, kerbed (kerb faces marked black / white 500 mm, RDM 6.1 12)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "GUIDE": {
+   "name": "Construction guide (not marked on the road)",
+   "width": 0.0,
+   "colour": "grey"
+  }
+ },
+ "pieces": {
+  "ghost_island": {
+   "name": "Ghost island tail on the main road (hatched, yellow)",
+   "types": [
+    "A-1"
+   ],
+   "frame": "main",
+   "kind": "marking",
+   "params": {
+    "nose": 5.5,
+    "full": 54.0,
+    "taper": 63.0,
+    "width": 3.0,
+    "y": 0.0
+   },
+   "remark": "Beyond the junction for the traffic turning right into the minor road; the right-turn lane length and the main-road widening come from the junction design (RDM 1.3 Fig 9.37)."
+  },
+  "ghost_lead": {
+   "name": "Hatched strip ahead of the right-turn lane (yellow)",
+   "types": [
+    "B-Mod"
+   ],
+   "frame": "main",
+   "kind": "marking",
+   "params": {
+    "start": -8.0,
+    "length": 40.0,
+    "width": 1.5,
+    "y": 0.0
+   }
+  },
+  "ghost_wedge": {
+   "name": "Hatched wedge beyond the junction (yellow)",
+   "types": [
+    "B-Mod"
+   ],
+   "frame": "main",
+   "kind": "marking",
+   "params": {
+    "start": 15.0,
+    "rise": 20.0,
+    "full": 15.0,
+    "width": 3.5,
+    "y": 0.0
+   }
+  },
+  "splitter_a1": {
+   "name": "Splitter island, type A-1 (raised 7.5 x 3.0 m, R 1.5, hatched tail)",
+   "types": [
+    "A-1"
+   ],
+   "frame": "minor",
+   "kind": "island",
+   "params": {
+    "start": 3.0,
+    "raised": 7.5,
+    "width": 3.0,
+    "tail": 19.5
+   }
+  },
+  "splitter_a2": {
+   "name": "Splitter island, type A-2 (raised teardrop, hatched tail, about 25 m)",
+   "types": [
+    "A-2"
+   ],
+   "frame": "minor",
+   "kind": "island",
+   "params": {
+    "start": 4.0,
+    "widest": 9.0,
+    "raised_to": 18.0,
+    "end": 29.0,
+    "width": 4.0,
+    "head": 1.5
+   }
+  },
+  "splitter_teardrop": {
+   "name": "Splitter island, types B / C (teardrop 10 + 10 m, R 0.75)",
+   "types": [
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "island",
+   "params": {
+    "start": 2.0,
+    "widest": 9.0,
+    "raised_to": 19.0,
+    "end": 22.0,
+    "width": 3.4,
+    "head": 0.75
+   }
+  },
+  "corner_island": {
+   "name": "Corner island (raised triangle)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B"
+   ],
+   "frame": "corner",
+   "kind": "island",
+   "params": {
+    "pts": [
+     [
+      8.0,
+      0.5
+     ],
+     [
+      19.0,
+      0.5
+     ],
+     [
+      8.5,
+      8.5
+     ]
+    ],
+    "sag": 1.0
+   }
+  },
+  "corner_hatch": {
+   "name": "Hatched lead-in to the corner island (white)",
+   "types": [
+    "A-1"
+   ],
+   "frame": "corner",
+   "kind": "marking",
+   "params": {
+    "pts": [
+     [
+      30.0,
+      0.3
+     ],
+     [
+      19.0,
+      0.5
+     ],
+     [
+      13.8,
+      4.4
+     ]
+    ]
+   }
+  },
+  "give_way_line": {
+   "name": "GIVE WAY line across the approach lane (TM07)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "marking",
+   "params": {
+    "at": 0.5,
+    "lane": 3.5,
+    "inner": 0.0
+   },
+   "remark": "Across the approach lane from 'inner' (the splitter island's edge) to the kerb."
+  },
+  "give_way_triangle": {
+   "name": "Triangular GIVE WAY marking (BM07)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "marking",
+   "params": {
+    "at": 0.5,
+    "lane": 3.5,
+    "gap": 2.5,
+    "length": 3.75,
+    "base": 1.1,
+    "inner": 0.0
+   }
+  },
+  "minor_centre_line": {
+   "name": "Continuous centre line on the minor road, 30 m (LM24)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "marking",
+   "params": {
+    "start": 1.0,
+    "length": 30.0
+   }
+  },
+  "guides": {
+   "name": "Guide lines: main edge, minor centreline and edges, kerb returns, Rc turning arcs",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "guide",
+   "kind": "guide",
+   "params": {
+    "minor_width": 7.0,
+    "return_radius": 15.0,
+    "rc": 15.0,
+    "reach": 40.0,
+    "nose": 2.0
+   },
+   "remark": "Construction only: no quantities. Kerb returns are single-radius fillets (RDM 1.3 Fig 9.25 uses R1:R2:R3 = 2:1:3 three-centred curves, R2 8-12 m); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1)."
+  }
+ },
+ "kits": {
+  "A-1": [
+   {
+    "piece": "guides",
+    "params": {
+     "nose": 3.0,
+     "return_radius": 30.0
+    }
+   },
+   {
+    "piece": "ghost_island"
+   },
+   {
+    "piece": "splitter_a1"
+   },
+   {
+    "piece": "corner_island",
+    "corner": "left_turn"
+   },
+   {
+    "piece": "corner_hatch",
+    "corner": "left_turn"
+   },
+   {
+    "piece": "give_way_line",
+    "params": {
+     "inner": 1.5
+    }
+   },
+   {
+    "piece": "give_way_triangle",
+    "params": {
+     "inner": 1.5
+    }
+   },
+   {
+    "piece": "minor_centre_line",
+    "params": {
+     "start": 30.0
+    }
+   }
+  ],
+  "A-2": [
+   {
+    "piece": "guides",
+    "params": {
+     "nose": 4.0,
+     "return_radius": 30.0
+    }
+   },
+   {
+    "piece": "splitter_a2"
+   },
+   {
+    "piece": "corner_island",
+    "corner": "left_turn"
+   },
+   {
+    "piece": "corner_island",
+    "corner": "other"
+   },
+   {
+    "piece": "give_way_line",
+    "params": {
+     "inner": 2.0
+    }
+   },
+   {
+    "piece": "give_way_triangle",
+    "params": {
+     "inner": 2.0
+    }
+   },
+   {
+    "piece": "minor_centre_line",
+    "params": {
+     "start": 29.0
+    }
+   }
+  ],
+  "B": [
+   {
+    "piece": "guides",
+    "params": {
+     "nose": 2.0,
+     "return_radius": 25.0
+    }
+   },
+   {
+    "piece": "splitter_teardrop"
+   },
+   {
+    "piece": "corner_island",
+    "corner": "left_turn"
+   },
+   {
+    "piece": "give_way_line",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "give_way_triangle",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "minor_centre_line",
+    "params": {
+     "start": 22.0
+    }
+   }
+  ],
+  "B-Mod": [
+   {
+    "piece": "guides",
+    "params": {
+     "nose": 2.0,
+     "return_radius": 15.0
+    }
+   },
+   {
+    "piece": "ghost_lead"
+   },
+   {
+    "piece": "ghost_wedge"
+   },
+   {
+    "piece": "splitter_teardrop"
+   },
+   {
+    "piece": "give_way_line",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "give_way_triangle",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "minor_centre_line",
+    "params": {
+     "start": 22.0
+    }
+   }
+  ],
+  "C": [
+   {
+    "piece": "guides",
+    "params": {
+     "nose": 2.0,
+     "return_radius": 15.0
+    }
+   },
+   {
+    "piece": "splitter_teardrop"
+   },
+   {
+    "piece": "give_way_line",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "give_way_triangle",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
+    "piece": "minor_centre_line",
+    "params": {
+     "start": 22.0
+    }
+   }
+  ]
+ }
+}

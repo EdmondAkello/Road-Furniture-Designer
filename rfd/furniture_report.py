@@ -75,6 +75,7 @@ KIND_TEXT = {
     "sign_plate": "Plate missing",
     "speed_note": "Speed limit note",
     "sign_supplementary": "Signs outside RDM 6.2",
+    "junction_skew": "Junction crossing angle",
 }
 
 
@@ -487,6 +488,26 @@ def supplementary_checks(al, signs) -> List[Check]:
                   f"{', '.join(codes)}; confirm the road authority accepts them", "info", {"codes": codes})]
 
 
+def junction_checks(al, junctions) -> List[Check]:
+    """Junctions placed from the templates: crossing angle to RDM 1.3 9.2.3.
+
+    junctions: dicts with sta, crossing_deg, kit, side (JunctionStore.junctions())."""
+    from .junctions import SKEW_MINIMUM, SKEW_PREFERRED
+    out = []
+    for j in junctions:
+        a, sta = j.get("crossing_deg"), j.get("sta")
+        if a is None or sta is None:
+            continue
+        where = f"type {j.get('kit', '')} junction at {_ch(al, sta)}, minor road on the {'left' if j.get('side') == 'L' else 'right'}"
+        if a < SKEW_MINIMUM:
+            out.append(Check("junction_skew", sta, sta, "Both", f"{where}: crossing angle {a:.0f} deg is below the "
+                             f"absolute minimum of {SKEW_MINIMUM:.0f} deg (RDM 1.3 9.2.3)", "issue", {"angle": a}))
+        elif a < SKEW_PREFERRED[0]:
+            out.append(Check("junction_skew", sta, sta, "Both", f"{where}: crossing angle {a:.0f} deg; 75-120 deg "
+                             f"preferred, a skew under 75 deg to be justified (RDM 1.3 9.2.3)", "check", {"angle": a}))
+    return out
+
+
 # --------------------------------------------------------------------------- strip diagram
 @dataclass
 class Lane:
@@ -558,7 +579,7 @@ class FurnitureReport:
 
 
 def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, wanted=None,
-          vfindings=None, curves=None) -> FurnitureReport:
+          vfindings=None, curves=None, junctions=None) -> FurnitureReport:
     """barrier_cfg None: barrier warrants are not rechecked (noted). wanted / vfindings / curves: the
     autoplace proposals, findings and curve groups if the caller already has them."""
     from .autoplace import analyse, curve_groups, no_overtaking_zones, propose
@@ -589,6 +610,7 @@ def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, w
     checks += speed_zone_checks(al, signs)
     checks += pairing_checks(al, signs)
     checks += supplementary_checks(al, signs)
+    checks += junction_checks(al, junctions or [])
     checks.sort(key=lambda c: ({"issue": 0, "check": 1, "info": 2}[c.level], c.start))
     real = [r for r in runs if r.code in lcat]
     return FurnitureReport(

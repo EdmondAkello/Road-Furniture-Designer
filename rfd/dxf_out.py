@@ -248,7 +248,8 @@ def _draw_alignment(msp, al, layer, tick, text_h, label_name=False):
 
 def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
               symbol_scale: float = None, tick: float = None, plan_scale: float = DEFAULT_PLAN_SCALE,
-              crs: dict = None, source: str = "", others=None, callout: bool = True, linear=None):
+              crs: dict = None, source: str = "", others=None, callout: bool = True, linear=None,
+              junctions=None):
     """Placed signs in WORLD coordinates (the LandXML's easting/northing, metres).
 
     Nothing is shifted or rescaled, so the signs can be copied into any drawing that
@@ -357,6 +358,8 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
         ref.set_xdata(APPID, [(1000, "rsd/0.1"), (1000, f.face_uuid), (1000, f.install_uuid)])
     if linear:
         write_linear(doc, msp, al, *linear)
+    if junctions:
+        write_junctions(doc, msp, junctions)
     try:
         from ezdxf import bbox
         ext = bbox.extents(msp)
@@ -477,6 +480,31 @@ def _linear_layer(doc, it) -> str:
     if lay not in doc.layers:
         doc.layers.add(lay, color=LINEAR_COLOURS.get(it.colour, 6))
     return lay
+
+
+JUNCTION_COLOURS = {"KERB": 8, "GUIDE": 9}
+
+
+def write_junctions(doc, msp, parts):
+    """Junction islands and markings: (code, station, [polyline]) on layers RSD-JN-<code>.
+
+    Kerb outlines on RSD-JN-KERB, hatching and markings by RDM 6.1 code, construction lines on
+    RSD-JN-GUIDE (freeze it for the final drawing)."""
+    from .junctions import load_templates
+    codes = load_templates()["codes"]
+    for code, sta, lines in parts:
+        lay = f"RSD-JN-{code}"
+        if lay not in doc.layers:
+            col = JUNCTION_COLOURS.get(code, LINEAR_COLOURS.get(codes.get(code, {}).get("colour"), 6))
+            doc.layers.add(lay, color=col)
+            if code == "GUIDE" and "DASHED" in doc.linetypes:
+                doc.layers.get(lay).dxf.linetype = "DASHED"
+        for pts in lines:
+            if len(pts) < 2:
+                continue
+            closed = len(pts) > 2 and pts[0] == pts[-1]
+            pl = msp.add_lwpolyline(pts[:-1] if closed else pts, close=closed, dxfattribs={"layer": lay})
+            pl.set_xdata(APPID, [(1000, "rsd-junction/0.1"), (1000, code), (1040, float(sta or 0.0))])
 
 
 def _dash_linetype(doc, mark: float, gap: float) -> str:

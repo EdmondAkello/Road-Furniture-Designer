@@ -13,7 +13,7 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
-from .maptool import PlaceSignTool
+from .maptool import PlaceJunctionTool, PlaceSignTool
 from .rfd.alignment import alignment_names, format_station, parse_landxml
 from .rfd.legend import SCHEMES, summary as legend_summary
 from .store import SVG_DIR, SignStore
@@ -373,6 +373,33 @@ class RsdDock(QDockWidget):
         self.btn_zdel = QPushButton("Remove selected zone (with its signs)")
         zl.addWidget(self.btn_zdel)
         tabs.addTab(zw, "Speed limits")
+
+        # ---------------- Junctions tab: islands and markings from the standard drawings, placed by the user
+        jw = QWidget(); jl = QVBoxLayout(jw)
+        jf = QFormLayout()
+        self.cmb_jtype = QComboBox()
+        self.cmb_jpiece = QComboBox()
+        self.spn_jscale = QDoubleSpinBox(); self.spn_jscale.setRange(0.5, 2.0); self.spn_jscale.setSingleStep(0.05)
+        self.spn_jscale.setValue(1.0)
+        self.chk_jguides = QCheckBox("Guide lines (edges, kerb returns, Rc arcs)"); self.chk_jguides.setChecked(True)
+        jf.addRow("Junction type", self.cmb_jtype)
+        jf.addRow("Place", self.cmb_jpiece)
+        jf.addRow("Scale", self.spn_jscale)
+        jf.addRow("", self.chk_jguides)
+        jl.addLayout(jf)
+        self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
+        jl.addWidget(self.btn_jplace)
+        self.lbl_jhover = QLabel("Click the junction point on the main road, then a point up the minor road.")
+        self.lbl_jhover.setWordWrap(True)
+        jl.addWidget(self.lbl_jhover)
+        self.lst_junctions = QListWidget()
+        jl.addWidget(self.lst_junctions, 1)
+        jb = QHBoxLayout()
+        self.btn_jscale = QPushButton("Apply scale to selected")
+        self.btn_jdel = QPushButton("Remove selected junction")
+        jb.addWidget(self.btn_jscale); jb.addWidget(self.btn_jdel)
+        jl.addLayout(jb)
+        tabs.addTab(jw, "Junctions")
         self.tabs = tabs
         self.setWidget(w)
 
@@ -381,6 +408,12 @@ class RsdDock(QDockWidget):
         self.run_tool.hover.connect(self._run_hover)
         self.run_tool.placed.connect(self._run_placed)
         self.run_tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t, MSG_WARNING, 5))
+        self.jn_tool = PlaceJunctionTool(iface.mapCanvas(), lambda: self.store, self.junction_settings)
+        self.jn_tool.hover.connect(self.lbl_jhover.setText)
+        self.jn_tool.placed.connect(lambda t: (self.lbl_jhover.setText(t), self.refresh()))
+        iface.mapCanvas().mapToolSet.connect(
+            lambda new, old: self.btn_jplace.setChecked(False) if old is self.jn_tool and new is not self.jn_tool else None)
+        self.jn_tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t, MSG_WARNING, 5))
         self.run_tool.deactivated.connect(lambda: (self.btn_ldraw.setChecked(False), self.btn_fplace.setChecked(False)))
         self.tool = PlaceSignTool(iface.mapCanvas(), lambda: self.store, self.settings)
         self.tool.hover.connect(self.lbl_hover.setText)
@@ -420,6 +453,12 @@ class RsdDock(QDockWidget):
         self.btn_fadd.clicked.connect(self.add_feature_at)
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
+        self.btn_jplace.toggled.connect(self._toggle_junction_tool)
+        self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
+        self.btn_jdel.clicked.connect(self.remove_junction)
+        self.btn_jscale.clicked.connect(self.rescale_junction)
+        self.lst_junctions.itemDoubleClicked.connect(self._zoom_junction)
+        self._fill_junction_types()
         self.btn_zadd.clicked.connect(self.add_speed_zone)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
@@ -564,6 +603,7 @@ class RsdDock(QDockWidget):
         self._refresh_lines()
         self._refresh_features()
         self._refresh_zones()
+        self._refresh_junctions()
         faces = sorted(self.store.signs.getFeatures(), key=lambda f: (f["station_int"] or 0, f["side"] or "", f.id()))
         self.tbl_signs.setRowCount(len(faces))
         for r, f in enumerate(faces):
@@ -744,6 +784,80 @@ class RsdDock(QDockWidget):
                                  f"({g['runs']} items, {g['signs']} signs)")
             it.setData(Qt.UserRole, gid)
             self.lst_features.addItem(it)
+
+    # ------------------------------------------------------------------ junction templates
+    def _fill_junction_types(self):
+        from .rfd.junctions import load_templates
+        self._jt = load_templates()
+        self.cmb_jtype.clear()
+        for k, t in self._jt["types"].items():
+            self.cmb_jtype.addItem(f"{k}  {t['name']}", k)
+        self._fill_junction_pieces()
+
+    def _fill_junction_pieces(self, *_):
+        k = self.cmb_jtype.currentData()
+        self.cmb_jpiece.clear()
+        if not k:
+            return
+        self.cmb_jpiece.addItem(f"Whole type {k} kit", "")
+        for pid in [it["piece"] for it in self._jt["kits"][k]]:
+            if self.cmb_jpiece.findData(pid) < 0:
+                self.cmb_jpiece.addItem(self._jt["pieces"][pid]["name"], pid)
+        rem = self._jt["types"][k].get("remark")
+        self.cmb_jtype.setToolTip(rem or self._jt["types"][k]["drawing"])
+
+    def junction_settings(self):
+        return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
+                "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked()}
+
+    def _toggle_junction_tool(self, on):
+        canvas = self.iface.mapCanvas()
+        if on:
+            if self.store is None:
+                self.btn_jplace.setChecked(False)
+                return
+            self.btn_place.setChecked(False)
+            self.btn_ldraw.setChecked(False); self.btn_fplace.setChecked(False)
+            self.jn_tool.cancel()
+            canvas.setMapTool(self.jn_tool)
+        elif canvas.mapTool() is self.jn_tool:
+            canvas.unsetMapTool(self.jn_tool)
+
+    def _refresh_junctions(self):
+        cur = self.lst_junctions.currentItem()
+        keep = cur.data(Qt.UserRole) if cur else None
+        self.lst_junctions.clear()
+        for j in self.store.junctions.junctions():
+            paint = sum(v[1] for v in j["paint"].values())
+            it = QListWidgetItem(f"{j['ch']}  type {j['kit']}  {'left' if j['side'] == 'L' else 'right'}  "
+                                 f"{j['crossing_deg']:.0f} deg  x{j['scale']:g}  "
+                                 f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)")
+            it.setData(Qt.UserRole, j["id"])
+            it.setData(Qt.UserRole + 1, j["sta"])
+            self.lst_junctions.addItem(it)
+            if j["id"] == keep:
+                self.lst_junctions.setCurrentItem(it)
+
+    def remove_junction(self):
+        it = self.lst_junctions.currentItem()
+        if self.store and it:
+            self.store.junctions.remove(it.data(Qt.UserRole))
+            self.refresh()
+
+    def rescale_junction(self):
+        it = self.lst_junctions.currentItem()
+        if self.store and it:
+            self.store.junctions.set_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.refresh()
+
+    def _zoom_junction(self, item):
+        from qgis.core import QgsCoordinateTransform, QgsPointXY, QgsRectangle
+        x, y, _ = self.store.al.point_at(item.data(Qt.UserRole + 1))
+        canvas = self.iface.mapCanvas()
+        xf = QgsCoordinateTransform(self.store.signs.crs(), canvas.mapSettings().destinationCrs(), QgsProject.instance())
+        p = xf.transform(QgsPointXY(x, y))
+        canvas.setExtent(QgsRectangle(p.x() - 60, p.y() - 60, p.x() + 60, p.y() + 60))
+        canvas.refresh()
 
     # ------------------------------------------------------------------ speed limit zones
     def add_speed_zone(self):

@@ -101,6 +101,9 @@ class SignStore(QObject):
         from .linestore import LineStore
         self.lines = LineStore(gpkg, self.al, crs=self.signs.crs())
         self.lines.changed.connect(self.changed.emit)
+        from .junctionstore import JunctionStore
+        self.junctions = JunctionStore(gpkg, self.al, crs=self.signs.crs())
+        self.junctions.changed.connect(self.changed.emit)
 
     @staticmethod
     def _migrate(layer):
@@ -235,7 +238,14 @@ class SignStore(QObject):
             self.chainage_layer = found["c"]
         if found["a"] is not None:
             self.alignment_layer = found["a"]
+        exj = existing(self.junctions.layer)
+        if exj is not None and exj is not self.junctions.layer:
+            self.junctions.bind(exj)
         grp = root.findGroup("Road Furniture Designer") or root.insertGroup(0, "Road Furniture Designer")
+        if exj is None:                # projects made before the junction layer existed
+            project.addMapLayer(self.junctions.layer, False)
+            grp.insertLayer(1, self.junctions.layer)
+            self.junctions.style()
         if ex is None:                 # projects made before the linear layer existed
             project.addMapLayer(self.lines.layer, False)
             grp.insertLayer(1, self.lines.layer)
@@ -610,6 +620,7 @@ class SignStore(QObject):
         for f in self.signs.getFeatures():
             self.recompute(f.id())
         self.lines.recompute_all()
+        self.junctions.recompute_all()
         self.changed.emit()
 
     # ------------------------------------------------------------------ inventory / exports
@@ -849,7 +860,8 @@ class SignStore(QObject):
             from .rfd.dxf_out import write_dxf
             write_dxf(dxf_path, sl, self.al, self.cat, plan_scale=plan_scale, crs=self.crs_info(),
                       source=self.landxml_path, others=self.other_alignments(),
-                      linear=(self.lines.runs(include_proposed=False), self.lines.cat))
+                      linear=(self.lines.runs(include_proposed=False), self.lines.cat),
+                      junctions=self.junctions.parts())
         return sl
 
     def import_readback(self, json_path):
