@@ -1,0 +1,60 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core-tests:
+    name: Core tests (no QGIS)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pytest
+      - name: Every module compiles
+        run: python -m compileall -q rfd qgis_plugin tools tests tests_qgis examples
+      - name: No merge-conflict markers
+        run: "! git grep -n -E '^(<<<<<<<|=======|>>>>>>>)( |$)' -- '*.py' '*.md' '*.html' '*.json' '*.txt' '*.yml'"
+      - run: python -m pytest -q -p no:cacheprovider tests
+
+  qgis-tests:
+    name: QGIS tests (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [3.44.15-trixie]
+    container: qgis/qgis:${{ matrix.image }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QGIS_PREFIX_PATH: /usr
+      PYTHONPATH: /usr/share/qgis/python:/usr/share/qgis/python/plugins
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report QGIS version
+        run: python3 -c "from qgis.core import Qgis; print(Qgis.QGIS_VERSION)"
+      - name: Install test tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3-pytest python3-pip
+          python3 -m pip install --break-system-packages -r requirements.txt
+      - name: Copy the core into the plugin
+        run: python3 tools/build_plugin.py
+      - name: Run the core and QGIS tests
+        run: python3 -m pytest -q -p no:cacheprovider tests tests_qgis
+
+  bandit:
+    name: Bandit security scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - run: bandit -q -r rfd qgis_plugin tools -x qgis_plugin/road_furniture_designer/ext_libs,qgis_plugin/road_furniture_designer/rfd

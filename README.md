@@ -1,29 +1,34 @@
-# Road Furniture Designer (RFD), v0.7.0
+# Road Furniture Designer (RFD)
 
-Place traffic signs and linear road furniture (markings, road studs, barriers) along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
+[![tests](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml/badge.svg)](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml)
+
+A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings and speed limit zones. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
+
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.8.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.8.0)](docs/user-guide/Road_Furniture_Designer_0.8.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
 
 ```
- QGIS: pick sign / auto-place ─► rsd_signs (GeoPackage) ─► live inventory and checks (dock)
-                                                     ─► Inventory (Excel Tables + CSV) ─► QTO / Bill
-                                                     ─► Road furniture report (PDF / PNG / Excel)
-                                                     ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
- (Dynamo route: parked)
+ Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones (by hand or proposed)
+                       ─► rsd_signs / rsd_lines (GeoPackage) ─► live inventory and checks (dock)
+                       ─► Inventory (Excel Tables + CSV) ─► QTO / Bill
+                       ─► Road furniture report (PDF / PNG / Excel): plans, long sections, strip diagram, schedules, checks
+                       ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
 ```
 
-**Input quality.** The results are only as good as the Civil 3D model and the LandXML export. Before relying on them, check four things in Civil 3D, then confirm the LandXML export includes them all. Without them the tool falls back to defaults:
-- **Design speeds and speed zones** defined along the alignment; otherwise 80 km/h is assumed throughout.
+For every item, the tool works out the chainage, offset, side and facing from the alignment and recomputes them whenever it moves. What the alignment decides (curve and grade warnings, no-overtaking signs and lines, edge lines, studs, embankment barriers) is proposed from the manuals; where a hump, a crossing or a speed limit goes is the designer's decision, and RFD details and signs it. Everything can also be placed or drawn by hand.
+
+**Input quality.** The results are only as good as the Civil 3D model and the LandXML export. Before relying on them, check these in Civil 3D, then confirm the LandXML export includes them. Without them the tool falls back to defaults:
+- **Design speeds** defined along the alignment; otherwise 80 km/h is assumed throughout.
 - **Superelevation** applied to the alignment; otherwise curve speeds use 4 %.
 - **Final design profile** attached to the alignment; otherwise there are no grade, crest, sag or no-overtaking checks.
-- **Corridor with coded points and cross-sections** sampled along the whole road; otherwise signs are offset from the centreline.
+- **Corridor with coded points and cross-sections**, with the existing ground, sampled along the whole road; otherwise signs are offset from the centreline, edge lines need a carriageway width, and barriers cannot be proposed.
 
 The dock's project summary shows which of these were found.
 
-**Status:**
-- **Core:** 280 tests passing, including 60 randomly generated roads (plus 40 with random embankments for the barrier rules, 30 with random traffic calming features, 30 with random speed limit zones and 30 run through the furniture report checks) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
-- **QGIS plugin:** 40 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
-- **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
-- **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
-- **Catalogue:** RDM 6.2 (2025). 251 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
+## Compatibility and validation
+
+- **Version 0.8.0 (QGIS 3.28+):** 286 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 40 headless QGIS tests pass on QGIS 3.34 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
+- **Civil 3D:** the georeferenced DXF pasted with COPYBASE 0,0 and PASTEORIG lands on the alignment in a project drawing. The Dynamo route is parked (kept in `dynamo/`, not run in Civil 3D).
+- **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and project-defined.
 
 ## Sign catalogue (RDM 6.2, 2025)
 
@@ -59,7 +64,7 @@ Directional signs, town and county signs, and text plates carry text that change
 ```
 < Nakuru A104 18        left, route A104, 18 km
 > Eldoret A104 140      right
-^ Salgaa 1              ahead (route and km are optional)
+^ Molo 1                 ahead (route and km are optional)
 ```
 
 - **Directional faces:** drawn in the RDM Table 2.6 colour scheme for the chosen class:
@@ -154,7 +159,7 @@ The posted limit is your decision (built-up and special areas); RFD signs it to 
 - a repeater at the middle, or at the interval you set
 - **P9** (end of speed limit) where traffic leaves the zone. Where the zone adjoins another one, that zone's limit sign marks the change instead.
 
-It flags a limit above the design speed, a very short zone, and a zone that runs off the alignment end (sign its start or end on the road beyond). **Propose from design speed** adds zones where the LandXML design speed is 50, 70 or 80 km/h; check each one before accepting. A zone and its signs are listed and removed together, and the Auto tab's sign rules leave them alone.
+It flags a limit above the design speed, a very short zone, and a zone that runs off the alignment end (sign its start or end on the road beyond). **Propose from design speed** adds 50 km/h (built-up area) zones where the LandXML design speed is 50 km/h; a rural 70 or 80 km/h design speed does not by itself call for a special limit. Check each zone before accepting. A zone and its signs are listed and removed together, and the Auto tab's sign rules leave them alone.
 
 ## Corridor restriction
 
@@ -257,7 +262,7 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
    1. Pick the LandXML file and the alignment.
    2. Choose the CRS of the LandXML coordinates if the QGIS project doesn't already have a projected one.
    3. Save the RFD GeoPackage.
-   The plugin adds three layers: the alignment, chainage ticks every 100 m, and the sign layer.
+   The plugin adds the sign and linear furniture layers, the alignment, chainage ticks every 100 m, the road edges and the vertical curves.
 2. **Place tab**
    1. Pick a sign from the palette (searchable) and choose its size.
    2. Size: *Auto (RDM, by design speed)* where the sign has a size rule. Tick **Mirrored** for the left/right version.
@@ -300,7 +305,7 @@ The working route is the georeferenced DXF (above). The Dynamo route below is **
 6. Mark the input nodes "Is Input" and save the graph, so the team can run it from Dynamo Player.
 7. For read-back, build a second graph the same way with `dynamo/rsd_readback.py`. It has one input, the output JSON path. Import that JSON from the QGIS Inventory tab.
 
-If the first run fails, send me the error. The two places most likely to need adjusting are how the Python engine returns `ref` arguments from `Alignment.PointLocation`, and the internal-versus-displayed station when station equations are present.
+If the first run fails, open an issue with the error. The two places most likely to need adjusting are how the Python engine returns `ref` arguments from `Alignment.PointLocation`, and the internal-versus-displayed station when station equations are present.
 
 ## Command line (optional)
 
@@ -341,15 +346,49 @@ rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
 qgis_plugin/road_furniture_designer/   plugin (store.py, maptool.py, dock.py, report.py, furniture_pages.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
 vendor/ext_libs/          bundled pure-Python export libraries
 dynamo/                   rsd_place.py, rsd_readback.py
-tools/                    extract_rdm_signs.py, build_catalogue.py, build_plugin.py
-tools/guide/              user guide and technical manual (HTML -> PDF)
-docs/user-guide/          Road_Furniture_Designer_<version>_User_Guide.pdf
+  safe_xml.py             refuses LandXML files that declare a DOCTYPE or entities, before parsing
+tools/                    extract_rdm_signs.py, build_catalogue.py, build_plugin.py, sweep_landxml.py
+tools/guide/              make_guide_road.py (synthetic demonstration road), make_figures.py, user_guide.html, build_guide.sh
+docs/user-guide/          user-guide.html, figures/, Road_Furniture_Designer_<version>_User_Guide.pdf
+docs/criteria/            how to write a criteria file
 tests/ (core), tests_qgis/ (run with QGIS Python, QT_QPA_PLATFORM=offscreen)
 ```
 
 Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
-## Next
+## Roadmap
 
+- Signs that projects use but RDM 6.2 does not define, as a separate, clearly marked catalogue group.
+- Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
+- Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
+- Junction signing (advance direction and direction signs per RDM Table A1-1) once junction locations are available.
 - Dynamo route: parked.
-- Junction signing (advance direction / direction signs per RDM Table A1-1) once junction locations are available (a point layer or the LandXML's intersecting alignments).
+
+## Install the development plugin
+
+Run `python tools/build_plugin.py` from the repository root; it copies the core (`rfd`) and the bundled libraries into `qgis_plugin/road_furniture_designer`. Copy or link that folder into your QGIS profile's `python/plugins` folder (**Settings → User Profiles → Open Active Profile Folder**), restart QGIS and enable **Road Furniture Designer**. `python tools/build_plugin.py road_furniture_designer.zip` builds an installable ZIP.
+
+To try it without project data: `python tools/guide/make_guide_road.py guide_road.xml` writes the synthetic demonstration road used for the guide (4.4 km, Arc 1960 / UTM 37S, with a profile, design speeds, superelevation and corridor sections).
+
+## Tests
+
+```sh
+pip install -r requirements.txt pytest
+python -m pytest -q tests                                  # core; no QGIS needed
+python tools/build_plugin.py
+QT_QPA_PLATFORM=offscreen python -m pytest -q tests_qgis   # with the QGIS Python
+```
+
+GitHub Actions runs the core tests, the core and QGIS tests in the official QGIS 3.44 container, and Bandit on pull requests and pushes to `main`. Only synthetic LandXML is committed; project exports stay outside the repository. Rebuild the user guide with `tools/guide/build_guide.sh <build folder>` (QGIS Python, Node with Playwright, poppler).
+
+## Contributing
+
+See [CONTRIBUTING](.github/CONTRIBUTING.md) and the [code of conduct](.github/CODE_OF_CONDUCT.md).
+
+## History and licence
+
+See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign Designer and was renamed Road Furniture Designer as its scope grew to markings, barriers and traffic calming. Licensed under the GNU General Public License version 2 or later; see [LICENSE](LICENSE). The sign artwork is drawn from the figures of the Kenya Road Design Manual Part 6.2 (Ministry of Roads and Transport, 2025).
+
+## Citation
+
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.8.0) [QGIS plugin]. https://github.com/EdmondAkello/Road-Furniture-Designer. Citation metadata is in `CITATION.cff`; a DOI will be added with the first archived release.
