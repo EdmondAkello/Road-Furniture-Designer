@@ -694,6 +694,20 @@ def _furniture_sheets(wb, d, sheet):
                                     round(j["island_m2"], 2), j["status"], j["id"]])
             for c, (ln, area) in sorted(j["paint"].items()):
                 rows.append(base + [c, codes[c]["name"], round(ln, 2), "m", round(area, 3), j["status"], j["id"]])
+        bays = [j for j in jl if j.get("bay")]
+        if bays:
+            from .rfd.junctions import bay_table
+            ws = wb.create_sheet("Bus bays")
+            rows = []
+            for j, t in zip(bays, bay_table(al, [dict(j["bay"]) for j in bays])):
+                rows.append([j["id"], t["side"], round(al.display_station(t["start"]), 3),
+                             round(al.display_station(t["full_from"]), 3), round(al.display_station(t["full_to"]), 3),
+                             round(al.display_station(t["end"]), 3), t["entry"], t["exit"], t["width"],
+                             round(j["widen_m2"], 1), round(j["kerb_m"], 1)])
+            sheet(ws, "RFD_Bus_Bays", ["Bay ID", "Side", "Widening from (m)", "Full width from (m)",
+                                       "Full width to (m)", "Widening to (m)", "Entry taper (m)", "Exit taper (m)",
+                                       "Width (m)", "Widening area (m2)", "Kerb (m)"],
+                  rows, [10, 6, 14, 14, 14, 14, 11, 11, 9, 12, 9])
         ws = wb.create_sheet("Junctions")
         sheet(ws, "RFD_Junctions", ["Chainage", "Chainage (m)", "Type", "Minor road side", "Crossing angle (deg)",
                                     "Scale", "Item", "Description", "Length", "Unit",

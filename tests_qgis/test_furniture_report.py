@@ -242,3 +242,24 @@ def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
     feats = [f for f in st.lines.layer.getFeatures() if f["item_code"] in ("BM02", "REFUGE")]
     assert len(feats) == 3 and all(not f.geometry().isEmpty() for f in feats)
     assert {s.code for s in d.signs} == {"W55"}
+
+
+def test_bus_bay_in_a_project(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.report import ReportData, write_xlsx
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    pl, B = J.place_bay(st.al, *st.al.point_at(400.0, -6.0)[:2], *st.al.point_at(425.0, -6.0)[:2])
+    n, finds, nsigns = st.add_junction(pl, "BUS", params={"bay": B})
+    assert n == 1 and nsigns == 1
+    j = st.junctions.junctions()[0]
+    assert j["bay"]["side"] == "L" and j["widen_m2"] > 150 and j["kerb_m"] > 60
+    assert [f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"] == ["WSCM-I3"]
+    st.junctions.recompute_all()                                   # rebuilt from its stored parameters
+    assert abs(st.junctions.junctions()[0]["widen_m2"] - j["widen_m2"]) < 1e-6
+    d = ReportData(st, AutoConfig())
+    write_xlsx(str(tmp_path / "b.xlsx"), d)
+    from openpyxl import load_workbook
+    rows = list(load_workbook(tmp_path / "b.xlsx")["Bus bays"].iter_rows(min_row=2, values_only=True))
+    assert len(rows) == 1 and rows[0][1] == "L" and rows[0][8] == 4.0
+    assert st.remove_junction(pl.junction_id) >= 2

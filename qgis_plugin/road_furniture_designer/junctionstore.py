@@ -32,7 +32,7 @@ FIELDS = [
     ("kind", QVariant.String), ("description", QVariant.String), ("ch", QVariant.String),
     ("side", QVariant.String), ("crossing_deg", QVariant.Double),
     ("kerb_m", QVariant.Double), ("island_m2", QVariant.Double), ("line_m", QVariant.Double),
-    ("paint_m2", QVariant.Double),
+    ("paint_m2", QVariant.Double), ("widen_m2", QVariant.Double), ("bay", QVariant.String),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
 STYLE = {   # code -> (colour, width mm, dashed)
@@ -40,6 +40,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
+    "LM05": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "SHELTER": ("120,120,120", 0.3, True),
 }
 
 
@@ -118,7 +119,10 @@ class JunctionStore(QObject):
                     "kerb_m": pc.quantities.get("kerb_m") if code == "KERB" else None,
                     "island_m2": pc.quantities.get("island_m2") if code == "KERB" else None,
                     "line_m": round(ln, 2) if code not in ("KERB", "GUIDE") else None,
-                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in ("KERB", "GUIDE") else None}
+                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in ("KERB", "GUIDE") else None,
+                    "widen_m2": pc.quantities.get("widen_m2") if code == "KERB" else None,
+                    "bay": json.dumps({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth")})
+                    if piece == "bus_bay" else None}
             for n, x in vals.items():
                 f.setAttribute(n, x)
             out.append(f)
@@ -139,7 +143,7 @@ class JunctionStore(QObject):
         self.layer.triggerRepaint()
         self.changed.emit()
 
-    def add(self, pl: J.Placement, kit: str, piece: str = "", guides: bool = True):
+    def add(self, pl: J.Placement, kit: str, piece: str = "", guides: bool = True, params: dict = None):
         """Place a whole kit (piece '') or one piece. Returns (pieces placed, findings)."""
         if piece:
             items = [{"piece": piece, "corner": "left_turn" if self.templates["pieces"][piece]["frame"] == "corner"
@@ -150,7 +154,10 @@ class JunctionStore(QObject):
                     items = [dict(it)]
                     break
         else:
-            items = [it for it in self.templates["kits"][kit] if guides or it["piece"] != "guides"]
+            items = [dict(it) for it in self.templates["kits"][kit] if guides or it["piece"] != "guides"]
+        if params:
+            for it in items:
+                it["params"] = dict(it.get("params") or {}, **params)
         feats = []
         for it in items:
             feats += self._features(pl, kit, it["piece"], it.get("corner", ""), it.get("params") or {},
@@ -249,9 +256,11 @@ class JunctionStore(QObject):
                 "sta": f["our_sta"] if f["role"] == "minor" and f["our_sta"] is not None else f["sta"],
                 "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
-                "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "paint": {}})
+                "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None})
+            if f["bay"]:
+                j["bay"] = json.loads(f["bay"])
             j["pieces"].add(f["piece"])
-            for k in ("kerb_m", "island_m2"):
+            for k in ("kerb_m", "island_m2", "widen_m2"):
                 x = f[k]
                 if x is not None and not (hasattr(x, "isNull") and x.isNull()):
                     j[k] += float(x)

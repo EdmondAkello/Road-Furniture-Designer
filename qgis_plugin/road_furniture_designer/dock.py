@@ -397,7 +397,7 @@ class RsdDock(QDockWidget):
         self.cmb_jmajor = QComboBox()
         jf.addRow("Junction", self.cmb_jrole)
         jf.addRow("Main road", self.cmb_jmajor)
-        jf.addRow("Junction type", self.cmb_jtype)
+        jf.addRow("Type", self.cmb_jtype)
         jf.addRow("Place", self.cmb_jpiece)
         jf.addRow("Scale", self.spn_jscale)
         jf.addRow("", self.chk_jguides)
@@ -414,7 +414,7 @@ class RsdDock(QDockWidget):
         self.btn_jdel = QPushButton("Remove selected junction")
         jb.addWidget(self.btn_jscale); jb.addWidget(self.btn_jdel)
         jl.addLayout(jb)
-        tabs.addTab(jw, "Junctions")
+        tabs.addTab(jw, "Junctions + bays")
         self.tabs = tabs
         self._scroll_tabs(tabs)
         lay.setContentsMargins(4, 4, 4, 4)
@@ -906,6 +906,17 @@ class RsdDock(QDockWidget):
         self.cmb_jpiece.clear()
         if not k:
             return
+        bus = k == "BUS"
+        for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale):
+            w.setEnabled(not bus)
+        self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
+        if bus:
+            self.cmb_jpiece.addItem("Bus bay with its tapers, platform and sign", "")
+            self.lbl_jhover.setText("Click where the bay starts on the side of the road it serves, then where it "
+                                    "ends. Tapers (RDM/1/3/3/01) are added before and after it in the direction "
+                                    "of travel; the Bus Stop sign is proposed.")
+            return
+        self._junction_role_changed()
         self.cmb_jpiece.addItem(f"Whole type {k} kit", "")
         for pid in [it["piece"] for it in self._jt["kits"][k]]:
             if self.cmb_jpiece.findData(pid) < 0:
@@ -954,6 +965,15 @@ class RsdDock(QDockWidget):
             paint = sum(v[1] for v in j["paint"].values())
             where = ("joins " + (j["main_ref"][4:] if j["main_ref"].startswith("alg:") else "main road")
                      if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
+            if j.get("bay"):
+                b = j["bay"]
+                it = QListWidgetItem(f"{j['ch']}  bus bay {abs(b['stations'][2] - b['stations'][1]):.0f} m  {where}  "
+                                     f"(widening {j['widen_m2']:.0f} m2, kerb {j['kerb_m']:.0f} m)")
+                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                self.lst_junctions.addItem(it)
+                if j["id"] == keep:
+                    self.lst_junctions.setCurrentItem(it)
+                continue
             it = QListWidgetItem(f"{j['ch']}  type {j['kit']}  {where}  "
                                  f"{j['crossing_deg']:.0f} deg  x{j['scale']:g}  "
                                  f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)")

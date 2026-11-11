@@ -32,7 +32,7 @@ def test_every_tab_scrolls_and_the_dock_fits_600_px():
     iface, win = _iface()
     d = RsdDock(iface, win)
     labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
-    assert labels == ["Place", "Inventory", "Auto", "Signs", "Linear", "Calming", "Speed limits", "Junctions"]
+    assert labels == ["Place", "Inventory", "Auto", "Signs", "Linear", "Calming", "Speed limits", "Junctions + bays"]
     for i in range(d.tabs.count()):
         assert isinstance(d.tabs.widget(i), QScrollArea)
         assert d.page(labels[i]) is d.tabs.widget(i).widget()

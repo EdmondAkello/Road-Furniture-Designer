@@ -76,6 +76,7 @@ KIND_TEXT = {
     "speed_note": "Speed limit note",
     "sign_supplementary": "Signs outside RDM 6.2",
     "junction_skew": "Junction crossing angle",
+    "bus_bay_spacing": "Bus bay spacing",
 }
 
 
@@ -494,7 +495,20 @@ def junction_checks(al, junctions) -> List[Check]:
     junctions: dicts with sta, crossing_deg, kit, side (JunctionStore.junctions())."""
     from .junctions import SKEW_MINIMUM, SKEW_PREFERRED
     out = []
+    bays = [j for j in junctions if j.get("bay")]
+    for i, a in enumerate(bays):                     # standard drawing note 4: opposite bays 60 m apart
+        for b in bays[i + 1:]:
+            if a["bay"]["side"] != b["bay"]["side"]:
+                ca = sum(a["bay"]["stations"][1:3]) / 2
+                cb = sum(b["bay"]["stations"][1:3]) / 2
+                if abs(ca - cb) < 60.0:
+                    out.append(Check("bus_bay_spacing", min(ca, cb), max(ca, cb), "Both",
+                                     f"bus bays serving opposite directions {abs(ca - cb):.0f} m apart centre to "
+                                     f"centre ({_ch(al, ca)} and {_ch(al, cb)}); at least 60 m (RDM/1/3/3/01 note 4)",
+                                     "check", {"distance": abs(ca - cb)}))
     for j in junctions:
+        if j.get("bay"):
+            continue
         a, sta = j.get("crossing_deg"), j.get("sta")
         if a is None or sta is None:
             continue

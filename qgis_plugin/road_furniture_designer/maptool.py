@@ -341,6 +341,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         self._store = store_getter
         self._settings = settings_getter        # {"kit", "piece", "scale", "guides"}
         self.p0 = None
+        self._params = None
         self.band = QgsRubberBand(canvas, GEOM_LINE)
         self.band.setColor(QColor(200, 60, 160, 220))
         self.band.setWidth(1)
@@ -366,6 +367,11 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
     def _placement(self, lp):
         from .rfd import junctions as J
         st, s = self._store(), self._settings()
+        if s.get("kit") == "BUS":
+            pl, B = J.place_bay(st.al, self.p0[1], self.p0[2], lp.x(), lp.y())
+            self._params = {"bay": B}
+            return pl, st.al
+        self._params = None
         if s.get("role") == "minor":
             pl = st.junctions.placement_minor(self.p0[1], self.p0[2], lp.x(), lp.y(), major=s.get("major") or "",
                                               scale=s.get("scale", 1.0))
@@ -380,8 +386,11 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         if s.get("piece"):
             kit_items = [it for it in st.junctions.templates["kits"].get(s["kit"], []) if it["piece"] == s["piece"]]
             it = kit_items[0] if kit_items else {"piece": s["piece"], "corner": "left_turn"}
-            pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""), it.get("params"),
-                                 st.junctions.templates)]
+            pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""),
+                                 dict(it.get("params") or {}, **(self._params or {})), st.junctions.templates)]
+        elif self._params:
+            pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""), dict(it.get("params") or {}, **self._params),
+                                 st.junctions.templates) for it in st.junctions.templates["kits"][s["kit"]]]
         else:
             pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True))
         return pl, pcs
@@ -412,6 +421,11 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                  for pc in pcs for part in pc.parts]
         self.band.setToGeometry(QgsGeometry.fromMultiPolylineXY(lines), None)
         F = pl.frame(st.junctions.main_of(pl))
+        if pl.role == "bay":
+            st0, s1, s2, s3 = pcs[0].params["stations"]
+            self.hover.emit(f"Bus bay {abs(s2 - s1):.0f} m on the {'left' if F.side == 'L' else 'right'}, "
+                            f"tapers {pcs[0].params['entry']:g} / {pcs[0].params['exit']:g} m - click to place")
+            return
         if pl.role == "minor":
             self.hover.emit(f"Our road joins {('alignment ' + pl.main_ref[4:]) if pl.main_ref.startswith('alg:') else 'the main road'}"
                             f" at {F.crossing_angle:.0f} deg - click to place")
@@ -450,14 +464,16 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 self.failed.emit("Beyond the alignment ends")
                 return None
             self.p0 = sn
-            nxt = ("now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
+            nxt = ("now click where the bay ends" if s.get("kit") == "BUS"
+                   else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
                    else "click again to place" if s.get("role") == "minor"
                    else "now click a point up the minor road")
             self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - {nxt}")
             return None
         try:
             pl, _ = self._placement(lp)
-            n, finds, nsigns = st.add_junction(pl, s["kit"], s.get("piece") or "", s.get("guides", True))
+            n, finds, nsigns = st.add_junction(pl, s["kit"], s.get("piece") or "", s.get("guides", True),
+                                               self._params)
         except ValueError as ex:
             self.failed.emit(str(ex))
             return None

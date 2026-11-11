@@ -20,13 +20,13 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == "guides"
+        assert items[0]["piece"] == ("bus_bay" if k == "BUS" else "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
-            assert p["frame"] in ("main", "minor", "corner", "guide")
+            assert p["frame"] in ("main", "minor", "corner", "guide", "road")
             if p["frame"] == "corner":
                 assert it["corner"] in ("left_turn", "other")
     assert "D" not in T["types"]                             # the sheet labels no panel D
@@ -39,7 +39,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in T["kits"]:
+            for k in [k for k in T["kits"] if k != "BUS"]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -162,3 +162,32 @@ def test_our_road_joins_a_main_road():
         J.main_alignment(ours, pl, [])                                           # alignment gone from the LandXML
     with pytest.raises(ValueError):
         J.place_minor(ours, 200, 2.0)                                            # neither alignment nor click
+
+
+def test_bus_bay():
+    al = straight()
+    pl, B = J.place_bay(al, 225, 4.0, 200, 4.0)             # clicked end first: still starts where traffic arrives
+    assert pl.role == "bay" and pl.station == pytest.approx(200) and B == pytest.approx(25)
+    pc = J.build_piece(al, pl, "bus_bay", params={"bay": B}, templates=T)
+    assert pc.params["side"] == "L" and pc.params["stations"] == [170, 200, 225, 243]
+    # widening: 4 m over the bay and half of it over the 30 + 18 m tapers
+    assert pc.quantities["widen_m2"] == pytest.approx(4 * 25 + 4 * (30 + 18) / 2, rel=0.01)
+    assert pc.quantities["island_m2"] == pytest.approx(25.0, rel=0.01)
+    ys = [y for p in pc.parts if p.code == "KERB" for _, y in p.pts]
+    assert min(ys) == pytest.approx(3.5) and max(ys) == pytest.approx(7.5)
+    # right side: traffic runs against the chainage, so the entry taper is at the higher end
+    pr, Br = J.place_bay(al, 200, -4.0, 230, -4.0)
+    pcr = J.build_piece(al, pr, "bus_bay", params={"bay": Br}, templates=T)
+    assert pcr.params["side"] == "R" and pcr.params["stations"] == [260, 230, 200, 182]
+    # 50 km/h: A = 25 m
+    slow = Alignment.from_polyline("V", [(0, 0), (400, 0)])
+    slow.speeds = [(0.0, 50.0)]
+    ps, Bs = J.place_bay(slow, 200, 4.0, 225, 4.0)
+    assert J.build_piece(slow, ps, "bus_bay", params={"bay": Bs}, templates=T).params["entry"] == 25
+    t = J.bay_table(al, [pc.params])[0]
+    assert (t["start"], t["full_from"], t["full_to"], t["end"], t["width"]) == (170, 200, 225, 243, 4.0)
+    # opposite bays closer than 60 m centre to centre are flagged
+    js = [{"sta": 200, "bay": pc.params}, {"sta": 230, "bay": pcr.params}]
+    assert [c.kind for c in FR.junction_checks(al, js)] == ["bus_bay_spacing"]
+    with pytest.raises(ValueError):
+        J.place_bay(al, 200, 4.0, 202, 4.0)

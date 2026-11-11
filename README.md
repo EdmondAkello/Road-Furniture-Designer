@@ -198,6 +198,13 @@ Every kit also has the GIVE WAY line across the approach lane (TM07), the triang
 
 **Our road joining another road.** Choose **Our road joins another road** and click our road where it meets the main road. Then either click a point along the main road (a straight main road in that direction), or pick the main road from the LandXML's other alignments, and the main-road pieces follow its curves. The give way line, triangle and centre line go on our approach, and an **R2 Give Way** sign is proposed on its left. It stays when auto-placement is re-run and is removed with the junction.
 
+**Bus bays** (type **BUS**, RDM/1/3/3/01). Click where the bay starts on the side it serves, then where it ends. RFD adds the tapers before and after it in the direction of travel:
+- entry taper A = 30 m (25 m where the design speed is 50 km/h or less), exit taper C = 18 m, 4.0 m deep, smooth reverse-curve tapers
+- kerb line, the raised 1.0 m loading platform (hatched), the 1 m / 1 m separation line along the carriageway edge and an indicative shelter
+- the Bus Stop sign (WSCM-I3) as a proposal
+
+The Excel sheet **Bus bays** is the widening table for Civil 3D: widening from, full width from and to, widening to, tapers and width. The checks flag bays serving opposite directions less than 60 m apart, centre to centre (drawing note 4).
+
 **Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
 
 The pieces live in the layer `rsd_junctions` (one feature per piece and marking code, rule `junction:<id>`). Editing `sta`, `bearing_deg`, `scale` or `edge_m` in the attribute table rebuilds the piece. The templates are open data in `rfd/data/junction_templates.json`. The report lists each junction with its kerb length, island area and painted length and area per code (Excel sheet **Junctions**), and checks the crossing angle against RDM 1.3 9.2.3 (75-120 deg preferred, 60 deg minimum). Plan sheets and the DXF draw them (`RSD-JN-<code>` layers). Bus bays and climbing lanes stay manual (Linear tab) for now.
