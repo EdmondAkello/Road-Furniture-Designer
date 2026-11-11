@@ -120,9 +120,9 @@ class JunctionStore(QObject):
                     "island_m2": pc.quantities.get("island_m2") if code == "KERB" else None,
                     "line_m": round(ln, 2) if code not in ("KERB", "GUIDE") else None,
                     "paint_m2": round(ln * codes[code]["width"], 3) if code not in ("KERB", "GUIDE") else None,
-                    "widen_m2": pc.quantities.get("widen_m2") if code == "KERB" else None,
-                    "bay": json.dumps({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth")})
-                    if piece == "bus_bay" else None}
+                    "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
+                    "bay": json.dumps({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")})
+                    if piece in ("bus_bay", "climbing_lane") else None}
             for n, x in vals.items():
                 f.setAttribute(n, x)
             out.append(f)

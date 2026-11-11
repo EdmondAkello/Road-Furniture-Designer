@@ -20,9 +20,9 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "CLIMB"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == ("bus_bay" if k == "BUS" else "guides")
+        assert items[0]["piece"] == {"BUS": "bus_bay", "CLIMB": "climbing_lane"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -39,7 +39,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k != "BUS"]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "CLIMB")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -191,3 +191,23 @@ def test_bus_bay():
     assert [c.kind for c in FR.junction_checks(al, js)] == ["bus_bay_spacing"]
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
+
+
+def test_climbing_lanes_from_the_profile():
+    from rfd.profile import VerticalProfile
+    assert J.grade_limit(3.0) is None and J.grade_limit(6.0) == 700 and J.grade_limit(4.5) == 850
+    al = Alignment.from_polyline("S", [(0, 0), (3000, 0)])
+    al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 100), (1700, 172, 200), (3000, 172, 0)])
+    (c,) = J.climbing_lanes(al)
+    assert (c["start"], c["end"], c["side"], c["limit"]) == (1200, 1900, "L", 700)
+    pl, L = J.place_lane(al, c["start"], c["end"], c["side"])
+    pc = J.build_piece(al, pl, "climbing_lane", params={"bay": L}, templates=T)
+    assert pc.params["stations"] == [1100, 1200, 1900, 2000] and pc.params["depth"] == 3.25
+    assert pc.quantities["widen_m2"] == pytest.approx(3.25 * 700 + 3.25 * 100, rel=0.01)
+    assert {p.code for p in pc.parts} == {"LM26", "LM03"}
+    # downhill with the chainage: the lane serves traffic running against it, on the right
+    al.profile = VerticalProfile("P", [(0, 172, 0), (1200, 100, 200), (3000, 100, 0)])
+    (d,) = J.climbing_lanes(al)
+    assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700) and d["end"] == 0
+    assert J.climbing_lanes(al, aadt=1500) == []                     # RDM 1.3 6.6.2: none under 2000 pcu
+    assert "6000" in J.climbing_lanes(al, aadt=8000)[0]["note"]

@@ -26,6 +26,10 @@
   "BUS": {
    "name": "Bus bay",
    "drawing": "RDM/1/3/3/01"
+  },
+  "CLIMB": {
+   "name": "Climbing lane",
+   "drawing": "RDM/1/3/3/02"
   }
  },
  "codes": {
@@ -96,6 +100,20 @@
    "name": "Bus shelter position (indicative)",
    "width": 0.0,
    "colour": "grey"
+  },
+  "LM26": {
+   "name": "Continuous edge line, 100 mm (white)",
+   "width": 0.1,
+   "colour": "white"
+  },
+  "LM03": {
+   "name": "Broken lane line 2 m / 6 m, 100 mm (white)",
+   "width": 0.1,
+   "colour": "white",
+   "dash": [
+    2.0,
+    6.0
+   ]
   }
  },
  "pieces": {
@@ -334,6 +352,21 @@
     "shelter": 6.0
    },
    "remark": "Entry taper A = 30 m, 25 m where the speed limit is 50 km/h or less; bay B as clicked (25 m for more than one bus); exit taper C = 18 m; 4.0 m deep; 1.0 m raised platform; flush kerbs on the tapers, raised along the bay with 2 m ramped kerbs. Bays serving opposite directions at least 60 m apart, centre to centre."
+  },
+  "climbing_lane": {
+   "name": "Climbing lane (RDM 1.3 6.6, RDM/1/3/3/02)",
+   "types": [
+    "CLIMB"
+   ],
+   "frame": "road",
+   "kind": "lane",
+   "params": {
+    "bay": 300.0,
+    "entry": 100.0,
+    "exit": 100.0,
+    "depth": null
+   },
+   "remark": "Tapers of 100 m; full width to where trucks are back within 15 km/h of their level speed, at least 200 m past the crest to merge; lane as wide as the adjacent through lane, which is reduced by 0.25 m where 3.25 m or more (RDM 1.3 6.6.3)."
   }
  },
  "kits": {
@@ -519,6 +552,11 @@
   "BUS": [
    {
     "piece": "bus_bay"
+   }
+  ],
+  "CLIMB": [
+   {
+    "piece": "climbing_lane"
    }
   ]
  }
