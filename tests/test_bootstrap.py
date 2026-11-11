@@ -204,3 +204,52 @@ def test_sliver_between_directions_is_absorbed():
     from rfd.markings import _segments
     segs = _segments(0, 1000, [[0, 50]], [[50.007, 105]])
     assert [(a, b, st) for a, b, st in segs] == [(0, 50, "F"), (50, 105, "B"), (105, 1000, "")]
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_random_barriers(seed):
+    """Random fills along random roads: every warranted section is shielded with run-out, runs are long
+    enough, no short gaps, everything inside the alignment, repeatable."""
+    from rfd import barriers as B
+    from rfd.criteria import get as get_crit
+    from tests.test_barriers import build
+    al, rng = random_road(seed)
+    al.profile = VerticalProfile("flat", [(al.sta_start, 100, 0), (al.sta_end, 100, 0)])
+    bumps = [(al.sta_start + rng.uniform(0, al.length), rng.uniform(20, 400), rng.uniform(0.5, 14),
+              rng.choice([1.5, 2.0, 3.0, 3.5, 4.0, 6.0])) for _ in range(rng.randint(0, 6))]
+
+    def prof(s):
+        for c, w, h, n in bumps:
+            if abs(s - c) <= w / 2:
+                return h, n, rng.random() < 0.3
+        return 0.4, 4.0, False
+    build(al, prof, step=rng.choice([10.0, 20.0, 25.0]), surfaces=rng.random() < 0.8)
+    crit = get_crit()
+    cfg = B.BarrierConfig(include_judgement=rng.random() < 0.5, aadt=rng.choice([None, 5000, 20000]))
+    runs, findings = B.propose_barriers(al, cfg)
+    rows, _ = B.fills(al, cfg)
+    tag = f"seed {seed}:"
+    for side in "LR":
+        mine = sorted((r for r in runs if r.side == side), key=lambda r: r.sta_start)
+        for r in mine:
+            assert al.sta_start - 1e-6 <= r.sta_start < r.sta_end <= al.sta_end + 1e-6, tag
+            assert r.length >= min(30.0, al.length) - 1e-6, f"{tag} barrier {r.length:.1f} m"
+            assert r.offset in (0.5, 0.75) and r.edge_ref == "ETW" and r.status == "proposed"
+        for a, b in zip(mine, mine[1:]):
+            assert b.sta_start - a.sta_end >= 80.0 - 1e-6, f"{tag} gap {b.sta_start - a.sta_end:.1f} m"
+        want = {"required"} | ({"judgement"} if cfg.include_judgement else set())
+        for f in rows:
+            if f.side != side or crit.barrier_warrant(f.height, f.slope_n) not in want:
+                continue
+            curves = B.curve_extents(al)
+            a0, z0 = B._to_tangent(f.station, curves, -1), B._to_tangent(f.station, curves, 1)
+            ro_a = crit.barrier_runout(al.speed_at(f.station) or 80.0)     # at least the section's own speed
+            ro_z = ro_a
+            cover = [r for r in mine if r.sta_start - 1e-6 <= f.station <= r.sta_end + 1e-6]
+            assert cover, f"{tag} warranted section {f.station:.0f} {side} not shielded"
+            r = cover[0]
+            assert (r.sta_start <= a0 - ro_a + 1e-6 or r.sta_start <= al.sta_start + 1e-6) and \
+                   (r.sta_end >= z0 + ro_z - 1e-6 or r.sta_end >= al.sta_end - 1e-6), \
+                f"{tag} section {f.station:.0f} lacks run-out"
+    again, _ = B.propose_barriers(al, cfg)
+    assert [(r.side, r.sta_start, r.sta_end) for r in runs] == [(r.side, r.sta_start, r.sta_end) for r in again]

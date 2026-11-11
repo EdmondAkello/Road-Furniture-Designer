@@ -248,6 +248,17 @@ class LineStore(QObject):
         self.layer.triggerRepaint()
         return n, findings, skipped
 
+    def auto_propose_barriers(self, cfg=None):
+        """Replace the proposed barriers with the RDM 1.3 proposals."""
+        from .rfd.barriers import BarrierConfig, propose_barriers
+        cfg = cfg or BarrierConfig()
+        self.remove_proposals("barrier")
+        runs, findings = propose_barriers(self.al, cfg)
+        n, skipped = self.add_runs(runs)
+        self.last_findings = findings
+        self.layer.triggerRepaint()
+        return n, findings, skipped
+
     # ------------------------------------------------------------------ style
     def style(self):
         cats = []

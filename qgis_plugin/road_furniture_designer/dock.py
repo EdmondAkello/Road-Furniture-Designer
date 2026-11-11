@@ -258,6 +258,20 @@ class RsdDock(QDockWidget):
         note.setWordWrap(True)
         mf.addRow(note)
         ll_.addWidget(mg)
+        bg = QGroupBox("Propose barriers (RDM 1.3 Fig 12.4)")
+        bf = QFormLayout(bg)
+        self.cmb_bground = QComboBox()
+        self.chk_bjudge = QCheckBox("Also where the warrant leaves it to judgement")
+        self.spn_baadt = QDoubleSpinBox(); self.spn_baadt.setRange(0, 500000); self.spn_baadt.setDecimals(0)
+        self.spn_baadt.setSingleStep(1000); self.spn_baadt.setSpecialValueText("Not given")
+        self.spn_baadt.setToolTip("AADT of 12,000 or more with a speed over 80 km/h gives a 0.75 m set-back "
+                                  "instead of 0.5 m (RDM 1.3 12.6.6)")
+        bf.addRow("Original ground", self.cmb_bground)
+        bf.addRow("AADT", self.spn_baadt)
+        bf.addRow("", self.chk_bjudge)
+        self.btn_bprop = QPushButton("Propose barriers")
+        bf.addRow(self.btn_bprop)
+        ll_.addWidget(bg)
         self.tbl_lines = QTableWidget(0, 6)
         self.tbl_lines.setHorizontalHeaderLabels(["Item", "From", "To", "Side", "Qty", "Status"])
         hl = self.tbl_lines.horizontalHeader()
@@ -311,6 +325,7 @@ class RsdDock(QDockWidget):
         self.cmb_lside.currentIndexChanged.connect(self._line_side_changed)
         self.btn_lreject.clicked.connect(lambda: self.store and self.store.lines.remove_proposals())
         self.btn_mprop.clicked.connect(self.propose_markings)
+        self.btn_bprop.clicked.connect(self.propose_barriers)
         self._set_enabled(False)
 
     # ------------------------------------------------------------------ state
@@ -340,6 +355,7 @@ class RsdDock(QDockWidget):
         store.add_to_project()
         store.changed.connect(self.refresh)
         self._fill_linear_controls()
+        self._fill_ground_choices()
         crit = store.meta.get("criteria")
         if crit:
             i = self.cmb_crit.findData(crit)
@@ -513,6 +529,39 @@ class RsdDock(QDockWidget):
         return MarkingConfig.from_auto(self.auto_config(), road_class=self.cmb_mclass.currentData(),
                                        studs=self.cmb_mstuds.currentData(),
                                        carriageway=self.spn_mwidth.value() or None)
+
+    def _fill_ground_choices(self):
+        from .rfd import terrain as T
+        self.cmb_bground.clear()
+        self.cmb_bground.addItem("Automatic (by name: OGL, EG, existing...)", None)
+        names = list(self.store.al.sections.surface_names()) if getattr(self.store.al, "sections", None) else []
+        try:
+            names += [n for n in T.surface_names(self.store.landxml_path) if n not in names]
+        except OSError:
+            pass
+        for n in names:
+            self.cmb_bground.addItem(n, n)
+
+    def barrier_config(self):
+        from .rfd.barriers import BarrierConfig
+        a = self.auto_config()
+        return BarrierConfig(criteria=a.criteria, include_judgement=self.chk_bjudge.isChecked(),
+                             aadt=self.spn_baadt.value() or None, ground_surface=self.cmb_bground.currentData(),
+                             landxml=self.store.landxml_path, start=a.start, end=a.end)
+
+    def propose_barriers(self):
+        if self.store is None:
+            return
+        with _busy():
+            n, findings, skipped = self.store.lines.auto_propose_barriers(self.barrier_config())
+        bars = [f for f in findings if f.kind == "barrier"]
+        jud = [f for f in findings if f.kind == "barrier_judgement"]
+        notes = [f.text for f in findings if f.kind == "barrier_note"] + skipped
+        msg = (f"{len(bars)} barrier runs proposed, {sum(f.end - f.start for f in bars):.0f} m"
+               + (f"; {len(jud)} fill sections left to judgement" if jud else "") + ".")
+        if notes:
+            msg += " " + "; ".join(notes)
+        self.iface.messageBar().pushMessage("Road Furniture Designer", msg, MSG_INFO, 12)
 
     def propose_markings(self):
         if self.store is None:

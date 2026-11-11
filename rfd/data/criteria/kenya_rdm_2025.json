@@ -317,7 +317,8 @@
   "setback": 0.5,
   "setback_high": 0.75,
   "setback_high_rule": "AADT >= 12000 and speed limit > 80 km/h",
-  "group_gap": 60.0
+  "group_gap": 80.0,
+  "group_gap_note": "RDM 1.3 12.6.14: short gaps (< 80 m) should not be left in guardrails"
  },
  "marking_visibility": {
   "note": "RDM 6.1 Table 4.4: 85th percentile speed, visibility distance and critical value (m); eye and target 1.05 m",

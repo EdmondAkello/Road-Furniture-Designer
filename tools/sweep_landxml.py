@@ -47,6 +47,16 @@ for f in files:
                 sl = build_signlist([], al, sc)
                 write_dxf(os.path.join(d, "o.dxf"), sl, al, sc, linear=(runs, cat))
                 write_inventory(os.path.join(d, "o.xlsx"), sl, sc, "t", linear=(runs, cat, al))
+            from rfd.barriers import BarrierConfig, propose_barriers
+            t1 = time.time()
+            bruns, bf = propose_barriers(al, BarrierConfig(landxml=f))
+            for r in bruns:
+                assert al.sta_start - 1e-6 <= r.sta_start < r.sta_end <= al.sta_end + 1e-6 and r.length >= 30 - 1e-6
+            for side in "LR":
+                mine = sorted((r for r in bruns if r.side == side), key=lambda r: r.sta_start)
+                assert all(b.sta_start - a.sta_end >= 80 - 1e-6 for a, b in zip(mine, mine[1:])), "barrier gap"
+            notes = [x.text for x in bf if x.kind == "barrier_note"]
+            res.append(f"barriers {len(bruns)} runs {sum(r.length for r in bruns):.0f} m ({time.time() - t1:.1f}s; {'; '.join(notes)[:90]})")
             noot = sum(x.end - x.start for x in fnd if x.kind == "no_overtaking")
             print(info, f"| signs {len(props)} (AASHTO), PSD no-overtaking {noot:.0f} m |", "; ".join(res))
         except Exception:

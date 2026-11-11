@@ -19,8 +19,8 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 118 tests passing, including 60 randomly generated roads (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
-- **QGIS plugin:** 34 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
+- **Core:** 164 tests passing, including 60 randomly generated roads (and 40 with random embankments for the barrier rules) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
+- **QGIS plugin:** 35 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
@@ -109,7 +109,14 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
   - *Edge lines:* continuous LM26 (LM27 on class A/B) on the ETW edge, both sides. Where the LandXML has no corridor, give a carriageway width and they are placed at half that width from the centreline.
   - *Studs:* 6 m on the combined line system (4.5.1), 9 m on edge lines through no-overtaking sections and 12 m elsewhere (Table 13.2). By default studs go everywhere on class A and only on no-overtaking sections otherwise.
   - *Not covered yet:* breaks through junctions, splayed and hatched double lines on sharp bends (Figure 4.6), lane lines on multi-lane roads.
-- **Coming next:** barriers from the RDM 1.3 Fig 12.4 warrant and clear zone.
+- **Propose barriers (RDM 1.3 Chapter 12):** embankment barriers from the corridor sections, proposed for review like markings.
+  - *Fill height and batter,* per section and side, as in the LandXML plugin's section views: the hinge (coded point, or where the design line first drops outward more steeply than 1:10), the toe where the design line meets original ground, height = hinge level − ground at the toe, batter 1:n = run / height. A toe drain, bench or wall therefore does not distort the height.
+  - *Original ground,* in order: the section's own ground line (CrossSectSurf), a TIN surface in the LandXML sampled under the section (picked by name — OGL, EG, existing, terrain — or chosen in the dock), else the corridor's daylight point. The barrier's reason says which was used.
+  - *Warrant:* the criteria's Fig 12.4 curve. Required → barrier; between the curves → listed for judgement (or proposed, if ticked).
+  - *Length:* warranted length + Table 12.6 run-out at both ends, at the highest design speed along the hazard and its approaches; an end on a bend is carried to the tangent point first; at least 30 m; gaps under 80 m closed (12.6.14). Two terminals per run.
+  - *Set-back:* 0.5 m from the ETW edge line, 0.75 m with AADT ≥ 12,000 and speed > 80 km/h (12.6.6). A verge narrower than set-back + post is flagged.
+  - *Clear zone:* batters steeper than 1:3 starting inside the Table 12.1 clear zone and not shielded are listed as findings.
+  - *Not covered:* roadside obstacles (Table 12.4), structures and parapets (on hold), median barriers, terminal flares.
 
 ## Corridor restriction
 

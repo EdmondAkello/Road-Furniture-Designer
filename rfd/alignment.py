@@ -144,6 +144,7 @@ class Alignment:
     speeds: List[Tuple[float, float]] = field(default_factory=list)   # (internal station, km/h)
     profile: Optional["VerticalProfile"] = None                         # design ProfAlign
     edges: Optional["Edges"] = None                                     # corridor edges (ETW, EPS, ...)
+    sections: Optional["Sections"] = None                               # corridor section shapes (offset, rel. z)
     superelevation: List[Tuple[float, float, float]] = field(default_factory=list)  # (start, end, full e %)
     ground: List[Tuple[float, float]] = field(default_factory=list)   # existing ground (station, z) from ProfSurf
 
@@ -407,7 +408,9 @@ def _ground(al_el):
 _PARSE_CACHE = {}
 _BLOCK_OPEN = re.compile(rb"<((?:[A-Za-z_][\w.-]*:)?)(Surfaces|CrossSects)\b[^>]*?(/?)>")
 _SEC_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?CrossSect\b([^>]*)>"
-                     rb"""|<(?:[A-Za-z_][\w.-]*:)?CrossSectPnt\b[^>]*?\bcode\s*=\s*["']([^"']*)["'][^>]*>([^<]*)<""")
+                     rb"""|<(?:[A-Za-z_][\w.-]*:)?CrossSectPnt\b[^>]*?\bcode\s*=\s*["']([^"']*)["'][^>]*>([^<]*)<"""
+                     rb"""|<(?:[A-Za-z_][\w.-]*:)?CrossSectSurf\b[^>]*?\bname\s*=\s*["']([^"']*)["'][^>]*>\s*"""
+                     rb"""<(?:[A-Za-z_][\w.-]*:)?PntList2D\b[^>]*>([^<]*)<""")
 _STA_RE = re.compile(rb"""\bsta\s*=\s*["']([^"']+)["']""")
 _CODE_RE = re.compile(rb"""\bcode\s*=\s*["']([^"']*)["']""")
 _ALIGN_NAME = re.compile(rb"""<(?:[A-Za-z_][\w.-]*:)?Alignment\b[^>]*?\bname\s*=\s*["']([^"']*)["']""")
@@ -431,7 +434,7 @@ def alignment_names(path) -> List[str]:
     return list(names)
 
 
-def _scan_sections(acc, buf, keep_code) -> None:
+def _scan_sections(acc, buf, keep_code, sec=None) -> None:
     """Corridor sections by regex over the raw bytes: same result as collect_section, far faster than a tree.
     Only coded points matter, so the pattern matches CrossSectPnt elements that carry a code."""
     seen, sta = {}, None
@@ -449,6 +452,15 @@ def _scan_sections(acc, buf, keep_code) -> None:
             except ValueError:
                 sta = None
             continue
+        if m.group(4) is not None:                       # <CrossSectSurf name=...><PntList2D> (absolute z)
+            if sec is not None and sta is not None:
+                try:
+                    v = [float(t) for t in m.group(5).split()]
+                    name = m.group(4).decode("utf-8", "replace")
+                    sec.setdefault(sta, {}).setdefault("_surf", {})[name] = list(zip(v[0::2], v[1::2]))
+                except ValueError:
+                    pass
+            continue
         raw = m.group(2)
         code = keep.get(raw)
         if code is None:
@@ -456,11 +468,17 @@ def _scan_sections(acc, buf, keep_code) -> None:
             code = keep[raw] = c if keep_code(c) else ""
         if not code:
             continue
-        sp = m.group(3).split(None, 1)
+        sp = m.group(3).split(None, 2)
         try:
             off = float(sp[0])
         except (IndexError, ValueError):
             continue
+        if sec is not None and sta is not None and len(sp) > 1 and not (-1e-6 < off < 1e-6):
+            try:
+                sec.setdefault(sta, {}).setdefault("L" if off < 0 else "R", []).append(
+                    (round(-off if off < 0 else off, 4), round(float(sp[1]), 4), code))
+            except ValueError:
+                pass
         if -1e-6 < off < 1e-6:
             continue
         k = (code, "L" if off < 0 else "R")
@@ -525,7 +543,7 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
     Roadway/Speeds), the design vertical profile (ProfAlign) and corridor edges (CrossSect codes).
     """
     import io
-    from .corridor import Edges, collect_section, keep_code
+    from .corridor import Edges, Sections, collect_section, keep_code
     src = path_or_text
     blocks = None
     key = None
@@ -541,22 +559,23 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
         except (OSError, ValueError):
             blocks = None
     out, roadway_speeds = [], {}
-    edge_acc = None
+    edge_acc = sec_acc = None
     for ev, el in ET.iterparse(src, events=("start", "end")):
         t = _local(el.tag)
         if ev == "start":
             if t == "Alignment":
                 edge_acc = {}
+                sec_acc = {}
             continue
         if t == "RSDSections" and blocks is not None:
             if corridor and edge_acc is not None:
-                _scan_sections(edge_acc, blocks[int(el.get("ref"))], keep_code)
+                _scan_sections(edge_acc, blocks[int(el.get("ref"))], keep_code, sec_acc)
             el.clear()
             continue
         if t == "CrossSect" and edge_acc is not None:
             if corridor:
                 try:
-                    collect_section(edge_acc, float(el.get("sta")), el, _local)
+                    collect_section(edge_acc, float(el.get("sta")), el, _local, sec_acc)
                 except (TypeError, ValueError):
                     pass
             el.clear()
@@ -598,6 +617,7 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
                         except (TypeError, ValueError):
                             pass
                 al.edges = Edges(edge_acc or {}) or None
+                al.sections = Sections(sec_acc or {}) or None
                 out.append(al)
             edge_acc = None
             el.clear()
