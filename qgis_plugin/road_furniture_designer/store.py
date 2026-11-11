@@ -350,7 +350,8 @@ class SignStore(QObject):
         if not info["epsg"]:
             try:
                 info.update({k: v for k, v in landxml_crs(self.landxml_path).items() if v})
-            except Exception:
+            # LandXML moved or unreadable: the CRS stays as stored.
+            except Exception:  # nosec B110
                 pass
         return info
 

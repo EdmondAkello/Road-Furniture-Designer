@@ -363,7 +363,8 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
         if ext.has_data:
             msp.reset_extents(ext.extmin, ext.extmax)          # sets $EXTMIN/$EXTMAX for Zoom Extents
             doc.header["$EXTMIN"], doc.header["$EXTMAX"] = ext.extmin, ext.extmax
-    except Exception:
+    # Extents are a convenience for Zoom Extents; the DXF is valid without them.
+    except Exception:  # nosec B110
         pass
     doc.saveas(path)
 

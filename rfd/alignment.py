@@ -15,7 +15,8 @@ from __future__ import annotations
 import math
 import os
 import re
-import xml.etree.ElementTree as ET
+# Every file is checked by safe_xml.check() before it is parsed.
+import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -558,9 +559,12 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
             src = io.BytesIO(slim)
         except (OSError, ValueError):
             blocks = None
+    from .safe_xml import check
+    check(path_or_text)
     out, roadway_speeds = [], {}
     edge_acc = sec_acc = None
-    for ev, el in ET.iterparse(src, events=("start", "end")):
+    # Prolog checked above.
+    for ev, el in ET.iterparse(src, events=("start", "end")):  # nosec B314
         t = _local(el.tag)
         if ev == "start":
             if t == "Alignment":
@@ -638,8 +642,11 @@ def landxml_crs(path_or_text) -> dict:
     src = path_or_text
     if isinstance(path_or_text, str) and path_or_text.lstrip().startswith("<"):
         src = io.BytesIO(path_or_text.encode("utf-8"))
+    from .safe_xml import check
+    check(src)
     out = {}
-    for ev, el in ET.iterparse(src, events=("start",)):
+    # Prolog checked above.
+    for ev, el in ET.iterparse(src, events=("start",)):  # nosec B314
         t = _local(el.tag)
         if t == "CoordinateSystem":
             out = {"epsg": el.get("epsgCode") or "", "name": el.get("desc") or el.get("name") or "",
