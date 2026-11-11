@@ -1,0 +1,22 @@
+{
+  "version": "RDM6.2-2025.1",
+  "note": "Signs that open a restriction or condition and what must close it or go with it, for traffic in one direction. 'end': alternative sets of codes on one post that close it (a set of two means the sign with its plate). 'plate': plate codes expected on the start post. 'repeatable': the start code may be repeated inside the section without closing it. Open schema: add files with the same layout to RFD_SIGN_PAIRS_PATH.",
+  "pairs": [
+    {"what": "No overtaking", "start": ["P32"], "end": [["P32", "END"]], "plate": ["W23"],
+     "ref": "RDM 6.2 3.11", "repeatable": true},
+    {"what": "Speed limit", "start": ["P5", "P6", "P7", "P8"],
+     "end": [["P9"], ["P5"], ["P6"], ["P7"], ["P8"]], "ref": "RDM 6.2 3.5", "repeatable": true},
+    {"what": "Clearway", "start": ["P14"], "end": [["P14", "END"]], "ref": "RDM 6.2 3.6", "repeatable": true},
+    {"what": "Cycle track", "start": ["P17"], "end": [["P18"]], "ref": "RDM 6.2 3.8"},
+    {"what": "Heavy vehicle parking restriction", "start": ["P30"], "end": [["P31"]], "ref": "RDM 6.2 3.10"},
+    {"what": "Divided carriageway", "start": ["W27"], "end": [["W28"]], "ref": "RDM 6.2 4.6.3"},
+    {"what": "Expressway", "start": ["IM12", "IM13"], "end": [["IM4"], ["IM26"]], "ref": "RDM 6.2 8"},
+    {"what": "Series of bends", "start": ["W21", "W22"], "plate": ["W23"], "ref": "RDM 6.2 4.6.1",
+     "plate_level": "info"},
+    {"what": "Road works no overtaking", "start": ["RW40"], "end": [["RW40", "RW41"]], "ref": "RDM 6.2 10",
+     "repeatable": true},
+    {"what": "Road works divided road", "start": ["RW38"], "end": [["RW39"]], "ref": "RDM 6.2 10"},
+    {"what": "Diversion", "start": ["RW30", "RW31", "RW32", "RW33", "RW34"], "end": [["RW35"]], "ref": "RDM 6.2 10",
+     "repeatable": true}
+  ]
+}

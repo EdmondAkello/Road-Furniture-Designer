@@ -1,4 +1,4 @@
-"""Road signage report: long-section sheets (PDF / PNG) and schedule pages, drawn with QPainter.
+"""Road furniture report: plan and long-section sheets (PDF / PNG), the strip diagram and schedule pages, drawn with QPainter.
 
 One render routine paints every output (as in the LandXML Road & Terrain plugin), so
 the PDF pages and the PNG sheets are identical. Each sheet shows, over a chainage window:
@@ -9,6 +9,11 @@ the PDF pages and the PNG sheets are identical. Each sheet shows, over a chainag
     headlight-limited sags and crests short of stopping sight distance
   * the horizontal alignment as a curvature band (curves needing warning highlighted)
   * grades between PVIs
+
+After the sign schedule and the geometry findings come the road furniture pages
+(furniture_pages.py): a strip diagram of signs, markings, studs, barriers and features,
+the marking, barrier and feature schedules, linear quantities and the furniture checks
+against the geometry.
 """
 from __future__ import annotations
 
@@ -121,7 +126,8 @@ def draw_frame(p, d, heading, drawing, page, pages, scale_text="NTS"):
 
 
 class ReportData:
-    def __init__(self, store, cfg=None, title="Road Signage", plan_scale=None):
+    def __init__(self, store, cfg=None, title="Road Furniture", plan_scale=None, barrier_cfg=None, feature_cfg=None,
+                 furniture=True):
         self.store = store
         self.plan_scale = plan_scale            # None: no plan sheets; else the drawing scale denominator
         self.signatories = {k: store.meta.get(k, "") for k in ("prepared_by", "checked_by", "approved_by")}
@@ -162,10 +168,19 @@ class ReportData:
                 "edge": f["edge_ref"] or "", "grade": f["grade_pct"] if isinstance(f["grade_pct"], (int, float)) else None,
                 "legend": f["legend"] or "", "status": f["status"] or "", "reason": f["reason"] or "", "svg": svg,
                 "legend_face": bool(f["face_svg"]) and sd.legend in ("directional", "plate"),
+                "rule": f["rule"] or "",
                 "x": pt.x() if pt else self.al.point_at(sta_i)[0], "y": pt.y() if pt else self.al.point_at(sta_i)[1],
                 "heading": self.al.point_at(sta_i)[2]})
         self.signs.sort(key=lambda s: (s["sta"], s["side"]))
         self._svg = {}
+        lines = getattr(store, "lines", None)
+        self.lcat = lines.cat if lines is not None else None
+        self.runs = lines.runs(include_proposed=True) if lines is not None else []
+        self.fr = None
+        if furniture and self.lcat is not None:
+            from .rfd import furniture_report as FR
+            self.fr = FR.build(self.al, self.runs, self.lcat, self.signs, self.cfg, barrier_cfg, feature_cfg,
+                               vfindings=self.findings, curves=self.curves)
 
     def renderer(self, path):
         r = self._svg.get(path)
@@ -471,6 +486,8 @@ def pages(d, sheet_len):
     out += [("sheet", w) for w in wins]
     out += [("schedule", c) for c in chunks(sched)]
     out += [("findings", c) for c in chunks(finds)]
+    from .furniture_pages import furniture_pages
+    out += furniture_pages(d)
     return out
 
 
@@ -480,7 +497,7 @@ def draw_page(p, d, item, i, n):
         from .plansheet import draw_plan
         k, nk, s0, s1, th, sc = payload
         rng = f"CH {format_station(d.al.display_station(s0), 0)} – {format_station(d.al.display_station(s1), 0)}"
-        draw_frame(p, d, d.title, f"Signage plan {rng} (plan sheet {k} of {nk})", i, n, f"1:{sc:g}")
+        draw_frame(p, d, d.title, f"Road furniture plan {rng} (plan sheet {k} of {nk})", i, n, f"1:{sc:g}")
         lower = QRectF(PLAN_RECT.left(), PLAN_RECT.bottom() + 8, PLAN_RECT.width(), BOTTOM - PLAN_RECT.bottom() - 14)
         draw_plan(p, d, PLAN_RECT, s0, s1, th, sc, W, _font, COL,
                   key_rect=QRectF(lower.right() - 330, lower.top(), 330, lower.height()),
@@ -488,6 +505,9 @@ def draw_page(p, d, item, i, n):
                   sheet_no=k, sheets=nk)
     elif kind == "sheet":
         draw_sheet(p, d, payload[0], payload[1], i, n)
+    elif kind in ("strip", "ftable"):
+        from .furniture_pages import draw_furniture_page
+        draw_furniture_page(p, d, kind, payload, i, n)
     elif kind == "schedule":
         draw_table_page(p, d, "Sign schedule", SCHED_HEAD, payload, SCHED_W, i, n)
     else:
@@ -522,7 +542,7 @@ def write_pngs(folder, d, sheet_len=1000.0, scale=1.5, sheets_only=True):
     items = pages(d, sheet_len)
     paths = []
     for i, item in enumerate(items, start=1):
-        if sheets_only and item[0] not in ("sheet", "plan"):
+        if sheets_only and item[0] not in ("sheet", "plan", "strip"):
             continue
         img = QImage(int(W * scale), int(H * scale), QImage.Format.Format_ARGB32 if hasattr(QImage, "Format")
                      else QImage.Format_ARGB32)
@@ -536,6 +556,8 @@ def write_pngs(folder, d, sheet_len=1000.0, scale=1.5, sheets_only=True):
             name = f"plan_{item[1][0]:02d}_{format_station(d.al.display_station(item[1][2]), 0).replace('+', '_')}.png"
         elif item[0] == "sheet":
             name = f"section_{format_station(d.al.display_station(item[1][0]), 0).replace('+', '_')}.png"
+        elif item[0] == "strip":
+            name = f"strip_{format_station(d.al.display_station(item[1][0][0]), 0).replace('+', '_')}.png"
         else:
             name = f"page_{i:02d}.png"
         out = os.path.join(folder, name)
@@ -545,7 +567,8 @@ def write_pngs(folder, d, sheet_len=1000.0, scale=1.5, sheets_only=True):
 
 
 def write_xlsx(path, d):
-    """Report workbook: Signs (incl. proposals and why), Findings, Horizontal curves, Vertical curves."""
+    """Report workbook: Signs (incl. proposals and why), Findings, Horizontal curves, Vertical curves, and the
+    road furniture sheets: Markings, Barriers, Features, Furniture quantities, Furniture checks."""
     from openpyxl import Workbook
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
@@ -601,6 +624,8 @@ def write_xlsx(path, d):
                          round(c.k, 1) if c.k else None, v or None, S])
     sheet(ws, "RSD_VCurves", ["PVI", "Type", "Length (m)", "Grade in (%)", "Grade out (%)", "A (%)", "K",
                               "Design speed (km/h)", "SSD (m)"], rows, [10, 8, 10, 12, 12, 8, 8, 16, 9])
+    if d.fr is not None:
+        _furniture_sheets(wb, d, sheet)
     ws = wb.create_sheet("Basis")
     for line in [
         ("Sign catalogue", "RDM 6.2 Traffic Signs (2025), Ministry of Roads and Transport"),
@@ -616,7 +641,49 @@ def write_xlsx(path, d):
         ("Passing sight distance", f"{crit.ref('psd')}{' (reduced values)' if d.cfg.psd_reduced and crit.is_kenya else ''}; "
                                    f"eye {crit.eye_height:g} m, object {crit.psd_object_height:g} m"),
         ("Crest / sag K", f"{crit.ref('k_crest')} / {crit.ref('k_sag')}"),
+        ("Markings", "RDM 6.1 Road Marking (2025): centre line from the no-overtaking zones (PSD basis)"),
+        ("Barriers", f"{crit.ref('barrier_warrant')}; run-out {crit.ref('barrier_runout')}; "
+                     f"clear zone {crit.ref('clear_zone')}"),
+        ("Traffic calming", "RDM 6.4 Other Traffic Control Devices; crossings RDM 6.1 9.2"),
         ("Generated", dt.datetime.now().strftime("%Y-%m-%d %H:%M"))]:
         ws.append(list(line))
     ws.column_dimensions["A"].width = 18; ws.column_dimensions["B"].width = 110
     wb.save(path)
+
+
+def _furniture_sheets(wb, d, sheet):
+    from .rfd.furniture_report import KIND_TEXT
+    al = d.al
+    disp = lambda s: round(al.display_station(s), 3)
+    ch = lambda s: format_station(al.display_station(s), 0)
+    fr = d.fr
+    ws = wb.create_sheet("Markings")
+    sheet(ws, "RFD_Markings", ["Code", "Description", "Category", "From", "To", "From (m)", "To (m)", "Length (m)",
+                               "Side", "Offset (m)", "Edge", "Pattern / interval", "Quantity", "Unit", "Area (m2)",
+                               "Status", "Reason", "Run UUID"],
+          [[m["code"], m["name"], m["category"], ch(m["from"]), ch(m["to"]), disp(m["from"]), disp(m["to"]),
+            round(m["length"], 2), m["side"], round(m["offset"], 2), m["edge"] or None, m["detail"], m["qty"],
+            m["unit"], m["area"], m["status"], m["reason"], m["run"].uuid] for m in fr.markings],
+          [8, 40, 11, 10, 10, 10, 10, 10, 6, 9, 7, 34, 9, 6, 10, 10, 60, 38])
+    ws = wb.create_sheet("Barriers")
+    sheet(ws, "RFD_Barriers", ["Item", "From", "To", "From (m)", "To (m)", "Length (m)", "Side", "Offset (m)",
+                               "Edge", "Terminals", "Status", "Basis", "Run UUID"],
+          [[m["code"], ch(m["from"]), ch(m["to"]), disp(m["from"]), disp(m["to"]), round(m["length"], 2), m["side"],
+            round(m["offset"], 2), m["edge"] or None, m["terminals"], m["status"], m["reason"], m["run"].uuid]
+           for m in fr.barriers], [8, 10, 10, 10, 10, 10, 6, 9, 7, 9, 10, 100, 38])
+    ws = wb.create_sheet("Features")
+    rows = []
+    for g in fr.features:
+        rows.append([ch(g["station"]), disp(g["station"]), g["kind"], g["main"], g["detail"], ", ".join(g["codes"]),
+                     ", ".join(g["sign_codes"]), "; ".join(c.text for c in g.get("checks", [])), g["status"],
+                     g["id"]])
+    sheet(ws, "RFD_Features", ["Chainage", "Chainage (m)", "Kind", "Main item", "Detail", "Items", "Signs",
+                               "Checks", "Status", "Feature ID"], rows, [10, 11, 16, 10, 70, 30, 12, 70, 10, 10])
+    ws = wb.create_sheet("Furniture quantities")
+    sheet(ws, "RFD_Furniture_Quantities", ["Category", "Item", "Description", "Pattern", "Unit", "Quantity"],
+          [list(q) for q in fr.quantities], [16, 10, 44, 30, 6, 10])
+    ws = wb.create_sheet("Furniture checks")
+    sheet(ws, "RFD_Checks", ["Level", "From", "To", "From (m)", "To (m)", "Side", "Check", "Detail"],
+          [[c.level, ch(c.start), ch(c.end), disp(c.start), disp(c.end), c.side, KIND_TEXT.get(c.kind, c.kind), c.text]
+           for c in fr.checks] + [["info", "", "", None, None, "", "Note", n] for n in fr.notes],
+          [8, 10, 10, 10, 10, 9, 34, 120])

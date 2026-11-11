@@ -638,7 +638,7 @@ class SignStore(QObject):
     def remove_proposals(self, rule_prefix=None, keep_prefix=None):
         ids = [f.id() for f in self.proposals()
                if (rule_prefix is None or (f["rule"] or "").startswith(rule_prefix))
-               and not (keep_prefix and (f["rule"] or "").startswith(keep_prefix))]
+               and not (keep_prefix and (f["rule"] or "").startswith(tuple(keep_prefix) if isinstance(keep_prefix, (list, tuple)) else keep_prefix))]
         if ids:
             if self.signs.isEditable():
                 self.signs.deleteFeatures(ids)
@@ -666,7 +666,7 @@ class SignStore(QObject):
         """Run the RDM rules and add the results as proposed signs (previous proposals replaced)."""
         from .rfd.autoplace import AutoConfig, propose, space_out
         cfg = cfg or AutoConfig()
-        self.remove_proposals(keep_prefix="feature:")      # traffic calming features keep their own signs
+        self.remove_proposals(keep_prefix=("feature:", "speed:"))   # features and speed zones keep their signs
         props, findings = propose(self.al, cfg)
         existing = [(f["station_int"], f["side"], f["facing"], f["sign_code"]) for f in self.signs.getFeatures()]
         props = space_out(props, existing, self.al.speed_at)
@@ -731,6 +731,49 @@ class SignStore(QObject):
                 g = out.setdefault(r[8:], {"runs": 0, "signs": 0, "station": f["station_int"], "codes": []})
                 g["signs"] += 1
         return out
+
+    # ------------------------------------------------------------------ speed limit zones (RDM 6.2 3.5)
+    def _sign_dicts(self):
+        return [{"sta": f["station_int"] or 0.0, "code": f["sign_code"], "facing": f["facing"], "side": f["side"],
+                 "status": f["status"] or "", "rule": f["rule"] or "", "fid": f.id()} for f in self.signs.getFeatures()]
+
+    def speed_zones(self):
+        """Zones in the project: [{id, limit, start, end, signs, status}] by chainage."""
+        from .rfd.speedzones import zones_from_signs
+        return zones_from_signs(self._sign_dicts(), self.al)
+
+    def add_speed_zone(self, limit, start, end, auto=None, repeat=None):
+        """Sign a speed limit zone: limit signs at the start (both directions), repeaters, P9 at the end.
+
+        Where the new zone adjoins an existing one, that zone's P9 at the shared boundary is removed: the
+        new zone's limit sign marks the change."""
+        from .rfd.speedzones import END_SIGN, SpeedZone, design_zone
+        zone = SpeedZone(start, end, limit)
+        others = [SpeedZone(z["start"], z["end"], z["limit"], id=z["id"]) for z in self.speed_zones() if z["limit"]]
+        d = design_zone(self.al, zone, repeat=repeat, neighbours=others)
+        stale = [s["fid"] for s in self._sign_dicts() if s["rule"].startswith("speed:") and s["code"] == END_SIGN
+                 and min(abs(s["sta"] - zone.start), abs(s["sta"] - zone.end)) < 1.0]
+        self._delete_signs(stale)
+        if d.signs:
+            self.place_proposals(d.signs, auto)
+        self.changed.emit()
+        return d
+
+    def remove_speed_zone(self, zid):
+        n = self._delete_signs([s["fid"] for s in self._sign_dicts() if s["rule"] == f"speed:{zid}"])
+        self.changed.emit()
+        return n
+
+    def _delete_signs(self, fids):
+        if not fids:
+            return 0
+        if self.signs.isEditable():
+            self.signs.deleteFeatures(fids)
+        else:
+            self.signs.dataProvider().deleteFeatures(fids)
+            self.signs.reload()
+        self.signs.triggerRepaint()
+        return len(fids)
 
     def remove_feature(self, group):
         rule = f"feature:{group}"

@@ -131,7 +131,7 @@ class RsdDock(QDockWidget):
         self.btn_c3d = QPushButton("Export to Civil 3D (package + DXF)…")
         self.btn_rb = QPushButton("Import Civil 3D read-back…")
         self.btn_recalc = QPushButton("Recompute all chainages")
-        self.btn_report = QPushButton("Road signage report (PDF + PNG sheets + Excel)…")
+        self.btn_report = QPushButton("Road furniture report (PDF + PNG sheets + Excel)…")
         for b in (self.btn_report, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc):
             il.addWidget(b)
         tabs.addTab(iw, "Inventory")
@@ -339,6 +339,40 @@ class RsdDock(QDockWidget):
         self.btn_fdel = QPushButton("Remove selected feature (with its signs and markings)")
         cl_.addWidget(self.btn_fdel)
         tabs.addTab(cw_, "Calming")
+
+        # ---------------- Speed limits tab (RDM 6.2 3.5): zones chosen by the designer, signed by RFD
+        zw = QWidget(); zl = QVBoxLayout(zw)
+        zf = QFormLayout()
+        self.cmb_zlimit = QComboBox()
+        from .rfd.speedzones import LIMIT_SIGNS, LIMIT_TEXT
+        for v, code in LIMIT_SIGNS.items():
+            self.cmb_zlimit.addItem(f"{code}  {LIMIT_TEXT[v]}", v)
+        self.spn_zfrom = QDoubleSpinBox(); self.spn_zto = QDoubleSpinBox()
+        for sp in (self.spn_zfrom, self.spn_zto):
+            sp.setRange(-1e6, 1e6); sp.setDecimals(1); sp.setSuffix(" m"); sp.setSingleStep(100)
+        self.spn_zrep = QDoubleSpinBox(); self.spn_zrep.setRange(0, 5000); self.spn_zrep.setSingleStep(250)
+        self.spn_zrep.setDecimals(0); self.spn_zrep.setSuffix(" m"); self.spn_zrep.setSpecialValueText("Middle only")
+        zf.addRow("Limit", self.cmb_zlimit)
+        zf.addRow("From chainage", self.spn_zfrom)
+        zf.addRow("To chainage", self.spn_zto)
+        zf.addRow("Repeaters every", self.spn_zrep)
+        zl.addLayout(zf)
+        zb = QHBoxLayout()
+        self.btn_zadd = QPushButton("Add zone")
+        self.btn_zsuggest = QPushButton("Propose from design speed")
+        self.btn_zsuggest.setToolTip("Zones where the design speed is 50, 70 or 80 km/h. The posted limit is "
+                                     "your decision: check each before accepting the signs.")
+        zb.addWidget(self.btn_zadd); zb.addWidget(self.btn_zsuggest)
+        zl.addLayout(zb)
+        self.lbl_zinfo = QLabel("Limit signs at both ends of the zone for each direction, repeaters at the middle "
+                                "(RDM 6.2 3.5) and P9 where traffic leaves the zone. Signs are added as proposals.")
+        self.lbl_zinfo.setWordWrap(True)
+        zl.addWidget(self.lbl_zinfo)
+        self.lst_zones = QListWidget()
+        zl.addWidget(self.lst_zones, 1)
+        self.btn_zdel = QPushButton("Remove selected zone (with its signs)")
+        zl.addWidget(self.btn_zdel)
+        tabs.addTab(zw, "Speed limits")
         self.tabs = tabs
         self.setWidget(w)
 
@@ -386,6 +420,9 @@ class RsdDock(QDockWidget):
         self.btn_fadd.clicked.connect(self.add_feature_at)
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
+        self.btn_zadd.clicked.connect(self.add_speed_zone)
+        self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
+        self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
         self.spn_loff.setEnabled(False)
         self._set_enabled(False)
@@ -526,6 +563,7 @@ class RsdDock(QDockWidget):
                 self.tbl.setItem(r, c, cell)
         self._refresh_lines()
         self._refresh_features()
+        self._refresh_zones()
         faces = sorted(self.store.signs.getFeatures(), key=lambda f: (f["station_int"] or 0, f["side"] or "", f.id()))
         self.tbl_signs.setRowCount(len(faces))
         for r, f in enumerate(faces):
@@ -561,8 +599,9 @@ class RsdDock(QDockWidget):
         for code in (self.store.al.edges.codes() if self.store.al.edges else []):
             self.cmb_lref.addItem(code, code)
         al = self.store.al
-        for sp in (self.spn_lfrom, self.spn_lto, self.spn_fsta):
+        for sp in (self.spn_lfrom, self.spn_lto, self.spn_fsta, self.spn_zfrom, self.spn_zto):
             sp.setRange(al.sta_start, al.sta_end)
+        self.spn_zfrom.setValue(al.sta_start); self.spn_zto.setValue(al.sta_end)
         self.spn_lfrom.setValue(al.sta_start); self.spn_lto.setValue(al.sta_end)
         self._line_side_changed()
 
@@ -705,6 +744,54 @@ class RsdDock(QDockWidget):
                                  f"({g['runs']} items, {g['signs']} signs)")
             it.setData(Qt.UserRole, gid)
             self.lst_features.addItem(it)
+
+    # ------------------------------------------------------------------ speed limit zones
+    def add_speed_zone(self):
+        if self.store is None:
+            return
+        try:
+            d = self.store.add_speed_zone(self.cmb_zlimit.currentData(), self.spn_zfrom.value(), self.spn_zto.value(),
+                                          self.auto_config(), repeat=self.spn_zrep.value() or None)
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
+            return
+        notes = [f.text for f in d.findings]
+        self.lbl_zinfo.setText(d.summary + (" - " + "; ".join(notes) if notes else ""))
+        self.refresh()
+
+    def suggest_speed_zones(self):
+        if self.store is None:
+            return
+        from .rfd.speedzones import zones_from_design_speed
+        zones = zones_from_design_speed(self.store.al)
+        if not zones:
+            self.lbl_zinfo.setText("No design speed sections of 50, 70 or 80 km/h in the LandXML.")
+            return
+        notes = []
+        with _busy():
+            for z in zones:
+                d = self.store.add_speed_zone(z.limit, z.start, z.end, self.auto_config(),
+                                              repeat=self.spn_zrep.value() or None)
+                notes += [f.text for f in d.findings]
+        self.lbl_zinfo.setText(f"{len(zones)} zone(s) proposed from the design speed. The posted limit is the "
+                               f"designer's decision: review before accepting." + (" " + "; ".join(notes) if notes else ""))
+        self.refresh()
+
+    def _refresh_zones(self):
+        from .rfd.alignment import format_station
+        self.lst_zones.clear()
+        for z in self.store.speed_zones():
+            ch = lambda s: format_station(self.store.al.display_station(s), 0)
+            it = QListWidgetItem(f"{ch(z['start'])} – {ch(z['end'])}  {z['limit'] or '?'} km/h  "
+                                 f"({len(z['signs'])} signs, {z['status']})")
+            it.setData(Qt.UserRole, z["id"])
+            self.lst_zones.addItem(it)
+
+    def remove_speed_zone(self):
+        it = self.lst_zones.currentItem()
+        if it is not None and self.store is not None:
+            self.store.remove_speed_zone(it.data(Qt.UserRole))
+            self.refresh()
 
     def remove_feature(self):
         it = self.lst_features.currentItem()
@@ -961,24 +1048,25 @@ class RsdDock(QDockWidget):
 
     def export_report(self):
         base = os.path.splitext(self.store.gpkg)[0]
-        p, _ = QFileDialog.getSaveFileName(self, "Road signage report", base + "_Road_Signage_Report.pdf", "PDF (*.pdf)")
+        p, _ = QFileDialog.getSaveFileName(self, "Road furniture report", base + "_Road_Furniture_Report.pdf",
+                                           "PDF (*.pdf)")
         if not p:
             return
         from .report import ReportData, write_pdf, write_pngs, write_xlsx
         from .plansheet import auto_scale
         auto = auto_scale(self.store.al)
         opts = [f"Auto (1:{auto})", "1:500", "1:1000", "1:1250", "1:2000", "1:2500", "1:5000", "No plan sheets"]
-        sc, ok = QInputDialog.getItem(self, "Road signage report", "Plan layout sheets (A3) at scale:", opts, 0, False)
+        sc, ok = QInputDialog.getItem(self, "Road furniture report", "Plan layout sheets (A3) at scale:", opts, 0, False)
         if not ok:
             return
         plan_scale = auto if sc.startswith("Auto") else (None if sc.startswith("No") else float(sc.split(":")[1]))
         if not self._report_signatories():
             return
         proj = self.store.meta.get("project")
-        d = ReportData(self.store, self.auto_config(), title="Road Signage" + (f" – {proj}" if proj else ""),
-                       plan_scale=plan_scale)
         stem = os.path.splitext(p)[0]
         with _busy():
+            d = ReportData(self.store, self.auto_config(), title="Road Furniture" + (f" – {proj}" if proj else ""),
+                           plan_scale=plan_scale, barrier_cfg=self.barrier_config(), feature_cfg=self.feature_config())
             n = write_pdf(p, d, sheet_len=1000.0)
             pngs = write_pngs(stem + "_sheets", d, sheet_len=1000.0)
         try:

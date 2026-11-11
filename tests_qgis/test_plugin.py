@@ -438,10 +438,12 @@ def test_report_outputs(tmp_path):
     n = write_pdf(str(tmp_path / "r.pdf"), d, sheet_len=500)
     pngs = write_pngs(str(tmp_path / "sheets"), d, sheet_len=500)
     write_xlsx(str(tmp_path / "r.xlsx"), d)
-    assert n >= 4 and len(pngs) == 3 and (tmp_path / "r.pdf").stat().st_size > 10000
+    assert n >= 4 and len(pngs) == 4 and (tmp_path / "r.pdf").stat().st_size > 10000
+    assert sum(os.path.basename(p).startswith("strip_") for p in pngs) == 1
     from openpyxl import load_workbook
     wb = load_workbook(tmp_path / "r.xlsx")
-    assert wb.sheetnames == ["Signs", "Findings", "Horizontal curves", "Vertical curves", "Basis"]
+    assert wb.sheetnames == ["Signs", "Findings", "Horizontal curves", "Vertical curves", "Markings", "Barriers",
+                             "Features", "Furniture quantities", "Furniture checks", "Basis"]
     hc = list(wb["Horizontal curves"].iter_rows(min_row=2, values_only=True))
     assert hc and hc[0][2] == 100.0 and hc[0][-1] == "yes"
 
@@ -462,6 +464,9 @@ def test_report_plan_sheets_and_title_block(tmp_path):
     assert abs(plans[0][1][2] - st2.al.sta_start) < 1e-6 and abs(plans[-1][1][3] - st2.al.sta_end) < 1e-6
     pngs = write_pngs(str(tmp_path / "s"), d, sheet_len=500)
     assert any(os.path.basename(p).startswith("plan_") for p in pngs)
+    # a second alignment in the project is drawn on the plan sheets (it used to break the viewport clip)
+    d.others = [st2.al]
+    assert write_pngs(str(tmp_path / "s2"), d, sheet_len=500)
 
 
 def test_dxf_callouts_keep_posts_georeferenced(tmp_path):
