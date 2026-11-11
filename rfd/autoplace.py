@@ -485,22 +485,39 @@ def propose(al, cfg: AutoConfig) -> Tuple[List[Proposal], List[Finding]]:
     return props, findings
 
 
+PLATE_CODES = {"W23", "END"}             # supplementary plates: they go on the post of the sign they qualify
+
+
 def space_out(props: List[Proposal], existing: List[Tuple[float, str, str]], speed_at) -> List[Proposal]:
     """RDM 2.4 minimum spacing 0.6 V between signs (same side, same direction).
 
-    A proposal that crowds an existing sign of the same code is dropped (already signed);
-    one that crowds another sign is moved back, away from the hazard, up to 3 times.
-    Chevrons and plates sharing a post are left alone (they have their own spacing).
+    A proposal that crowds an existing sign of the same code is dropped (already signed), and so are
+    the plates that go with it; one that crowds another sign is moved back, away from the hazard, up
+    to 3 times. Chevrons and plates keep their own spacing; they are dropped only where the same sign
+    is already there.
     """
     taken = list(existing)    # (station, side, facing, code)
     out = []
-    for p in sorted(props, key=lambda p: p.station):
-        if p.code.startswith("W24") or p.code == "W23":
+    dropped = set()
+    there = lambda p, tol: any(c == p.code and sd == p.side and fc == p.facing and abs(s - p.station) < tol
+                               for s, sd, fc, c in existing)
+    for p in sorted(props, key=lambda p: (p.station, p.code in PLATE_CODES)):
+        if p.code in PLATE_CODES:
+            if (p.group and p.group in dropped) or there(p, 1.0):
+                continue
             out.append(p)
             continue
+        if p.code.startswith("W24"):
+            if not there(p, 1.0):
+                out.append(p)
+            continue
         gap = 0.6 * (speed_at(p.station) or 80.0)
-        if any(c == p.code and sd == p.side and fc == p.facing and abs(s - p.station) < gap
+        # already signed: the same sign within the reach of an earlier move (up to 3 spacings, below)
+        reach = 3 * gap + 1e-6 if there(p, 3 * gap + 1e-6) else gap
+        if any(c == p.code and sd == p.side and fc == p.facing and abs(s - p.station) < reach
                for s, sd, fc, c in taken):
+            if p.group:
+                dropped.add(p.group)
             continue
         back = -1.0 if p.facing == "Forward" else 1.0
         for _ in range(3):

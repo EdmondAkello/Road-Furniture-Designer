@@ -47,7 +47,8 @@ class RoadFurnitureDesignerPlugin:
     def unload(self):
         try:
             QgsProject.instance().readProject.disconnect(self._project_loaded)
-        except Exception:
+        # Not connected (plugin loaded without a project); nothing to undo.
+        except Exception:  # nosec B110
             pass
         if self.dock:
             self.iface.removeDockWidget(self.dock)

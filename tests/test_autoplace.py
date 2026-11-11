@@ -100,3 +100,16 @@ def test_clamp_offset():
     assert clamp_offset(e, "L", 50, 4.0)[0] == pytest.approx(5.6)          # pushed out to EPS + 0.6
     assert clamp_offset(e, "L", 50, 12.0)[0] == pytest.approx(7.0)         # inside the corridor (ditch)
     assert clamp_offset(e, "L", 50, 6.5) == (6.5, "")
+
+
+def test_rerun_on_placed_signs_adds_nothing():
+    """Auto-propose run again over its own (accepted) signs proposes nothing: no duplicate chevrons or plates."""
+    from rfd.autoplace import space_out
+    from tests.test_bootstrap import random_road
+    for seed in range(20):
+        al, _ = random_road(seed)
+        props, _ = propose(al, AutoConfig())
+        placed = space_out([p for p in props], [], al.speed_at)
+        existing = [(p.station, p.side, p.facing, p.code) for p in placed]
+        again, _ = propose(al, AutoConfig())
+        assert space_out(again, existing, al.speed_at) == [], f"seed {seed}"

@@ -20,7 +20,7 @@ const { execFileSync } = require('child_process');
   await page.addStyleTag({ content: '.cover { display: none !important; }' });
   await page.pdf({
     path: body, format: 'A4', printBackground: true, preferCSSPageSize: true, displayHeaderFooter: true,
-    headerTemplate: `<div style="${style} display:flex; justify-content:space-between;"><span>Road Furniture Designer ${version} · <b style="color:#d9822b">Experimental · Demo</b></span><span>User Guide and Technical Manual</span></div>`,
+    headerTemplate: `<div style="${style} display:flex; justify-content:space-between;"><span>Road Furniture Designer ${version} · <b style="color:#d9822b">Experimental</b></span><span>User Guide and Technical Manual</span></div>`,
     footerTemplate: `<div style="${style} display:flex; justify-content:space-between;"><span>Edmond Akello</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
   });
   execFileSync('pdfunite', [cover, body, output]);

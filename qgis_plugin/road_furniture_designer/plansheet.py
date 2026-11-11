@@ -1,4 +1,4 @@
-"""Plan layout sheets for the road signage report.
+"""Plan layout sheets for the road furniture report.
 
 Each sheet shows a stretch of road at a fixed drawing scale (1:1000, 1:2500 ...),
 turned so the road runs left to right, with the corridor edges, other LandXML

@@ -60,7 +60,9 @@ def test_limit_above_design_speed_and_bad_limit():
 
 def test_zones_from_design_speed():
     al = road(5000, speeds=((0.0, 100.0), (1000.0, 50.0), (2000.0, 50.0), (2500.0, 60.0), (3000.0, 80.0)))
-    z = zones_from_design_speed(al)
+    z = zones_from_design_speed(al)                                    # built-up 50 km/h sections only
+    assert [(a.start, a.end, a.limit) for a in z] == [(1000.0, 2500.0, 50)]
+    z = zones_from_design_speed(al, limits=(50, 70, 80))
     assert [(a.start, a.end, a.limit) for a in z] == [(1000.0, 2500.0, 50), (3000.0, 5000.0, 80)]
 
 

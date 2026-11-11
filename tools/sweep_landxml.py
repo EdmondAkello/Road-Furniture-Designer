@@ -51,10 +51,12 @@ for f in files:
             t1 = time.time()
             bruns, bf = propose_barriers(al, BarrierConfig(landxml=f))
             for r in bruns:
-                assert al.sta_start - 1e-6 <= r.sta_start < r.sta_end <= al.sta_end + 1e-6 and r.length >= 30 - 1e-6
+                if not (al.sta_start - 1e-6 <= r.sta_start < r.sta_end <= al.sta_end + 1e-6 and r.length >= 30 - 1e-6):
+                    raise AssertionError(f"barrier run {r.sta_start:.1f}-{r.sta_end:.1f} off the road or short")
             for side in "LR":
                 mine = sorted((r for r in bruns if r.side == side), key=lambda r: r.sta_start)
-                assert all(b.sta_start - a.sta_end >= 80 - 1e-6 for a, b in zip(mine, mine[1:])), "barrier gap"
+                if not all(b.sta_start - a.sta_end >= 80 - 1e-6 for a, b in zip(mine, mine[1:])):
+                    raise AssertionError("barrier gap under 80 m")
             notes = [x.text for x in bf if x.kind == "barrier_note"]
             res.append(f"barriers {len(bruns)} runs {sum(r.length for r in bruns):.0f} m ({time.time() - t1:.1f}s; {'; '.join(notes)[:90]})")
             noot = sum(x.end - x.start for x in fnd if x.kind == "no_overtaking")

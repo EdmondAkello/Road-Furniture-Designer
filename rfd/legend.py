@@ -1,12 +1,12 @@
 """Editable sign legends.
 
 Directional signs (RDM 6.2 chapter 5) and text plates have legends that change
-from job to job - a sign at Salgaa reads "Nakuru / Eldoret", not "Mombasa".
+from job to job - a sign near Nakuru reads "Nakuru / Eldoret", not the manual's "Mombasa".
 The legend is plain text, one line per destination:
 
     ^ Nakuru A104 18        ahead, route A104, 18 km
     < Eldoret A104 140      left
-    > Rongai 9              right (route and distance optional)
+    > Molo 9                right (route and distance optional)
 
 Arrow tokens: ^ or A (ahead), < or L (left), > or R (right). A line with no
 arrow is just text (used for plates: "FOR 5 KM", "Safe height 5.0 m").
@@ -19,7 +19,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import List, Optional
-from xml.sax.saxutils import escape
+# Escapes text written into generated SVG; parses nothing.
+from xml.sax.saxutils import escape  # nosec B406
 
 # RDM 6.2 Table 2.6 (Table 5.1 lists UC under both green and white; Table 2.6 is followed)
 SCHEMES = {

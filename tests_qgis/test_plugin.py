@@ -230,9 +230,9 @@ def test_directional_legend_face(store):
     path = os.path.join(os.path.splitext(store.gpkg)[0] + "_faces", f["face_svg"])
     svg = open(path).read()
     assert "Nakuru" in svg and "Eldoret" in svg and "#0b7a3b" in svg      # green: class A
-    store.set_fields(fid, {"legend": "^ Salgaa 2", "road_class": "C"})
+    store.set_fields(fid, {"legend": "^ Molo 2", "road_class": "C"})
     svg = open(path).read()
-    assert "Salgaa" in svg and "Nakuru" not in svg and "#0b7a3b" not in svg
+    assert "Molo" in svg and "Nakuru" not in svg and "#0b7a3b" not in svg
     rows, sl = store.summary()
     assert not [i for i in sl.issues if "legend" in i.message]
 
@@ -456,7 +456,7 @@ def test_report_plan_sheets_and_title_block(tmp_path):
     st2 = SignStore.open(st.gpkg)
     assert st2.meta["prepared_by"] == "EA" and st2.meta["checked_by"] == "XY"
     from road_furniture_designer.report import ReportData, pages, write_pngs
-    d = ReportData(st2, title="Road Signage", plan_scale=1000)
+    d = ReportData(st2, title="Road Furniture", plan_scale=1000)
     items = pages(d, 500)
     plans = [i for i in items if i[0] == "plan"]
     assert plans and plans[0][1][1] == len(plans)
