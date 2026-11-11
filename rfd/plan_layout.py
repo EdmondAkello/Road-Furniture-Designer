@@ -1,8 +1,8 @@
 """Where to draw sign symbols on a plan so they read at drawing scale.
 
 On a plan a sign symbol is far bigger than the post it stands for (10 mm at 1:2500 is
-25 m), so drawings show it beside the road with a leader back to the post, as in HH's
-current drawings. The post (block insertion point) stays at its true coordinates.
+25 m), so drawings show it beside the road with a leader back to the post, as on typical
+plan drawings. The post (block insertion point) stays at its true coordinates.
 
 callouts() places each upright symbol (an axis-aligned box w x h) just outside its post,
 on the side away from the road, and moves it further out or along the road until it

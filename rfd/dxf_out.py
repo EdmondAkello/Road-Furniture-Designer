@@ -101,7 +101,7 @@ def _fallback_block(doc, name, code):
 
 
 # ---------------------------------------------------------------- plan sizing
-SYMBOL_MM = 10.0      # sign symbol size on the printed plan: 25 m at 1:2500, as in HH's drawings
+SYMBOL_MM = 10.0      # sign symbol size on the printed plan: 25 m at 1:2500
 TEXT_MM = 1.8         # sign code / legend / chainage text on the printed plan
 DEFAULT_PLAN_SCALE = 2500.0
 LEGEND_FACTOR = 0.6   # directional signs / text plates: legend text ~0.19 x symbol size (4.8 m at 1:2500)
@@ -255,7 +255,7 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     uses the same coordinate system with COPYBASE (base 0,0) + PASTEORIG, or the whole
     file inserted/xref'd at 0,0,0 scale 1 rotation 0.
 
-    callout=True (default, HH drawing style): each sign is one block inserted at its post.
+    callout=True (default, plan-drawing style): each sign is one block inserted at its post.
     The block holds a post marker, a leader and the sign symbol upright beside the road,
     clear of the carriageway and of the other symbols. callout=False puts the sign block
     itself on the post, rotated to face traffic.
@@ -290,7 +290,7 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     cross = text_h * 2
     msp.add_line((x0 - cross, y0), (x0 + cross, y0), dxfattribs={"layer": "RSD-REF-NOTES"})
     msp.add_line((x0, y0 - cross), (x0, y0 + cross), dxfattribs={"layer": "RSD-REF-NOTES"})
-    note = (f"RSD CHECK POINT  {al.name} CH {format_station(al.display_station(al.sta_start))}\\P"
+    note = (f"RFD CHECK POINT  {al.name} CH {format_station(al.display_station(al.sta_start))}\\P"
             f"E {x0:.3f}  N {y0:.3f}\\P{crs_label or 'CRS as LandXML'}\\P"
             f"World coordinates from {os.path.basename(source) if source else 'the LandXML'} (m). "
             f"Copy layer RSD-SIGN with base point 0,0 and PASTEORIG.")

@@ -1,4 +1,4 @@
-# RoadSign Designer (RSD), v0.6.2
+# Road Furniture Designer (RFD), v0.7.0
 
 Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
 
@@ -20,8 +20,8 @@ The dock's project summary shows which of these were found.
 
 **Status:**
 - **Core:** 37 tests passing.
-- **QGIS plugin:** 27 headless tests passing on QGIS 3.34. Also checked on the Nessuit–Salgaa preliminary design LandXML (Arc 1960 / UTM 36S, 4 alignments, 26 spirals) and on Olkaria LOT 3 (UTM 37S, 59 MB with TIN surfaces and 3,569 corridor sections; loads in about 1.3 s).
-- **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing on Olkaria LOT 3.
+- **QGIS plugin:** 27 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
+- **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
 
@@ -30,7 +30,7 @@ The dock's project summary shows which of these were found.
 `tools/extract_rdm_signs.py` reads the manual and does three things:
 - Matches every "Figure x.y …, Sign CODE" caption to its framed artwork.
 - Keeps only the sign itself, dropping dimension lines and notes.
-- Writes a vector SVG icon per sign, plus a colour CAD block library (`rsd/data/RSD_SignBlocks.dxf`, hatched faces, one block `RSD_<code>` per sign).
+- Writes a vector SVG icon per sign, plus a colour CAD block library (`rfd/data/RSD_SignBlocks.dxf`, hatched faces, one block `RSD_<code>` per sign).
 
 `tools/build_catalogue.py` then adds the sizing and legend rules. Re-run both when a new edition of the manual comes out.
 
@@ -44,7 +44,7 @@ The dock's project summary shows which of these were found.
 - IM4 is used twice, so the expressway symbol becomes IM4S.
 - The directional examples "incorporating the X symbol" become I20-D, I21-D and I22-D.
 
-The Ministry's standard drawings WSCM/84/2/01 (Jan 2024) use a **different numbering** (W1 = Sharp left turn there, Crossroads in RDM 6.2). RSD uses RDM 6.2 codes on drawings and schedules (agreed with HH, Nov 2026).
+The Ministry's standard drawings WSCM/84/2/01 (Jan 2024) use a **different numbering** (W1 = Sharp left turn there, Crossroads in RDM 6.2). RFD uses RDM 6.2 codes on drawings and schedules.
 
 **Sizes.** RDM 2.9 allows 600, 750 or 900 mm, and 1200 mm on expressways. For Stop and Give Way (Tables 3.1 and 3.3), warning signs (Table 4.1) and circular regulatory signs, choose **Auto**. The size then follows the design speed at the sign's chainage, taken from the Civil 3D SpeedStation data in the LandXML, and is recomputed if the sign is moved. The design speed stands in for the manual's 85th-percentile approach speed. Typing a size by hand turns Auto off for that sign. Plates and information signs are "custom" (designed size).
 
@@ -69,7 +69,7 @@ The legend goes into the inventory (`Legend` column), the Civil 3D package and t
 
 ## Install the QGIS plugin
 
-In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and choose `roadsign_designer.zip`. Restart QGIS if you are replacing an older version.
+In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and choose `road_furniture_designer.zip`. Restart QGIS if you are replacing an older version.
 
 No pip is needed. The export libraries are bundled in the plugin's `ext_libs` folder as pure Python (openpyxl, ezdxf, fontTools, pyparsing, typing_extensions, et_xmlfile). If QGIS's own Python already has any of them, those copies are used instead.
 
@@ -112,7 +112,7 @@ The Checks list flags:
 - **PNG:** one image per plan and long-section sheet (`plan_NN_<chainage>.png`, `section_<chainage>.png`).
 - **Excel workbook:** Signs (including proposals and the reason for each), Findings, Horizontal curves (R, e, f, curve speed against design speed), Vertical curves (K, A, SSD) and Basis.
 
-**Frame and title block.** Border, title and logo top right, and a title block with Project, Alignment, Drawing, Scale, Prepared / Checked / Approved by, Date and Sheet. The logo is the Howard Humphreys mark by default; to use another, set the QGIS setting `RoadSignDesigner/report_logo` to an image file.
+**Frame and title block.** Border, title and logo top right, and a title block with Project, Alignment, Drawing, Scale, Prepared / Checked / Approved by, Date and Sheet. No logo is drawn by default; to add one, set the QGIS setting `RoadFurnitureDesigner/report_logo` to an image file.
 
 **Plan layout sheets.** Each sheet is turned so the road runs left to right and drawn at the chosen scale (Auto = 1:2500, or 1:1000 for roads under 1.2 km). Sheet lengths adapt so that tight curves still fit with room for the signs. Each sheet shows:
 - the corridor edges (ETW, EPS, hinge, ditches, daylight) and the centreline with chainages
@@ -136,7 +136,7 @@ The pages are drawn with QPainter, the same way the LandXML Road & Terrain plugi
 ## DXF for plan drawings
 
 On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:2500):
-- **Symbols** print at 10 mm, matching HH plan drawings: 25 m in model space at 1:2500, 10 m at 1:1000.
+- **Symbols** print at 10 mm: 25 m in model space at 1:2500, 10 m at 1:1000.
 - **Callouts.** Each sign is one block inserted at its post (true coordinates). The block holds a post marker, a leader and the sign face upright beside the road, clear of the carriageway and of the neighbouring signs, with the code underneath. A sign and its plate stack; back-to-back faces sit side by side.
 - **Text** (codes, legends, chainages) prints at 1.8 mm. Chainage labels read the right way up on either side.
 - **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size. Legend text uses the `RSD_LEGEND` style (Arial) so it fits its plate.
@@ -161,21 +161,21 @@ Requirements for the target drawing:
 - the same coordinate system
 - World UCS when pasting
 
-The reference alignment, the chainage ticks and an **RSD CHECK POINT** go on non-plotting layers (`RSD-ALIGN`, `RSD-REF-NOTES`). The check point is a cross at the alignment start, labelled with its own E/N. Paste it once to confirm everything lines up with the Civil 3D alignment, then delete it.
+The reference alignment, the chainage ticks and an **RFD CHECK POINT** go on non-plotting layers (`RSD-ALIGN`, `RSD-REF-NOTES`). The check point is a cross at the alignment start, labelled with its own E/N. Paste it once to confirm everything lines up with the Civil 3D alignment, then delete it.
 
-Pasted signs keep their attributes and their RSD identity (XDATA), so a later read-back still matches them to the sign list. On Olkaria LOT 3, every exported sign back-computes to its chainage and offset with zero difference, and the reference alignment starts exactly at the LandXML's first `<Start>` point.
+Pasted signs keep their attributes and their RFD identity (XDATA), so a later read-back still matches them to the sign list. On a real project export, every exported sign back-computes to its chainage and offset with zero difference, and the reference alignment starts exactly at the LandXML's first `<Start>` point.
 
 ## Road edges and vertical profile from the LandXML
 
 When the LandXML includes Civil 3D corridor sections (`CrossSect` / `DesignCrossSectSurf`) or a design profile (`ProfAlign`), the new project picks them up automatically.
 
-**Road edges.** Every coded corridor point becomes an edge line in the `RSD road edges` layer, with an offset that varies by station: ETW (edge of travelled way), EPS (edge of paved shoulder), Hinge, Ditch_In / Ditch_Out, Daylight. Pavement layer codes (`*_Base`, `*_Pave2`, …) and Crown are skipped. Daylight is drawn only where it exists (it isn't interpolated across gaps of more than 30 m).
+**Road edges.** Every coded corridor point becomes an edge line in the `RFD road edges` layer, with an offset that varies by station: ETW (edge of travelled way), EPS (edge of paved shoulder), Hinge, Ditch_In / Ditch_Out, Daylight. Pavement layer codes (`*_Base`, `*_Pave2`, …) and Crown are skipped. Daylight is drawn only where it exists (it isn't interpolated across gaps of more than 30 m).
 - **Offset from:** on the Place tab, choose an edge here. With **Fix offset at 1.0 m**, every sign lands 1.0 m beyond that edge at the chainage you click, even where the road widens.
 - **Hover readout:** shows the clearance from the edge and the grade, e.g. `Ch 1+150.00  6.00 m Left  (+1.00 m from EPS)  grade +2.5%`.
 - **Stored on each sign:** its reference edge and its clearance from it, recomputed when the sign is moved. The default reference is EPS, or ETW if the file has no EPS.
 - **Checks:** a sign inside the travelled way is an **error**; a sign on the shoulder is a **warning**.
 
-**Vertical profile.** The `RSD vertical curves` layer marks every crest and sag at its PVI, labelled with its K-value and length (e.g. `Crest K=10 L=141`). Each sign stores the design grade at its chainage. Use these to place W30/W31 (steep descent/ascent), W41/W42 (sharp rise/dip) and no-overtaking signs.
+**Vertical profile.** The `RFD vertical curves` layer marks every crest and sag at its PVI, labelled with its K-value and length (e.g. `Crest K=10 L=141`). Each sign stores the design grade at its chainage. Use these to place W30/W31 (steep descent/ascent), W41/W42 (sharp rise/dip) and no-overtaking signs.
 
 The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)** and **Design Speed (km/h)**, and the Civil 3D package carries the same values.
 
@@ -184,7 +184,7 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
 1. **New project…**
    1. Pick the LandXML file and the alignment.
    2. Choose the CRS of the LandXML coordinates if the QGIS project doesn't already have a projected one.
-   3. Save the RSD GeoPackage.
+   3. Save the RFD GeoPackage.
    The plugin adds three layers: the alignment, chainage ticks every 100 m, and the sign layer.
 2. **Place tab**
    1. Pick a sign from the palette (searchable) and choose its size.
@@ -207,7 +207,7 @@ The GeoPackage is the master record. Save the QGIS project and the plugin reopen
 
 The working route is the georeferenced DXF (above). The Dynamo route below is **parked**: the scripts are kept for later and have not been run in Civil 3D.
 
-- **Block library:** `rsd/data/RSD_SignBlocks.dxf` holds the RDM artwork as colour hatches, including `_M` mirrored blocks. Open it in Civil 3D and save it as DWG (or run `python -m rsd library RSD_SignBlocks.dxf` for a copy). Raster-only figures in the manual (a few information signs) become a labelled outline block.
+- **Block library:** `rfd/data/RSD_SignBlocks.dxf` holds the RDM artwork as colour hatches, including `_M` mirrored blocks. Open it in Civil 3D and save it as DWG (or run `python -m rfd library RSD_SignBlocks.dxf` for a copy). Raster-only figures in the manual (a few information signs) become a labelled outline block.
 - **Blocks:** each block is named `RSD_<code>`. The insertion point is the post, and local +Y points toward the traffic the sign faces. Each block carries attributes `SIGN_CODE`, `LEGEND`, `DESCRIPTION`, `SIZE`, `CHAINAGE`, `OFFSET`, `SIDE`, `FACING`, `POST_REF`, `FACE_UUID` and `INSTALL_UUID`. Its identity is also stored in XDATA (app `RSD`), and that copy is authoritative.
 
 ### First run in Civil 3D
@@ -236,11 +236,11 @@ The command line covers working without QGIS, from an Excel sign list:
 
 ```
 set PYTHONPATH=vendor\ext_libs        (or: python -m pip install openpyxl ezdxf)
-python -m rsd template SignList.xlsx --alignment NAME
-python -m rsd build SignList.xlsx road.xml --out outputs
-python -m rsd reconcile SignList.xlsx readback.json road.xml
-python -m rsd readback-dxf edited.dxf readback.json
-python -m rsd library RSD_SignBlocks.dxf
+python -m rfd template SignList.xlsx --alignment NAME
+python -m rfd build SignList.xlsx road.xml --out outputs
+python -m rfd reconcile SignList.xlsx readback.json road.xml
+python -m rfd readback-dxf edited.dxf readback.json
+python -m rfd library RSD_SignBlocks.dxf
 ```
 
 ## Conventions
@@ -253,7 +253,7 @@ python -m rsd library RSD_SignBlocks.dxf
 ## Layout
 
 ```
-rsd/                      core (stdlib; openpyxl/ezdxf only for exports)
+rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
   alignment.py            LandXML, station/offset both ways, station equations
   records.py              records -> validated faces & installations (shared by QGIS and Excel)
   catalogue.py, data/     catalogue.json (RDM 6.2), signs/ SVG icons, RSD_SignBlocks.dxf
@@ -264,16 +264,16 @@ rsd/                      core (stdlib; openpyxl/ezdxf only for exports)
   plan_layout.py          where sign symbols go on a plan (callouts clear of the road and each other)
   package.py, dxf_out.py  Civil 3D package, placed DXF (georeferenced, callouts), block library, DXF read-back
   signlist.py, reconcile.py, cli.py   Excel route
-qgis_plugin/roadsign_designer/   plugin (store.py, maptool.py, dock.py, report.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
+qgis_plugin/road_furniture_designer/   plugin (store.py, maptool.py, dock.py, report.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
 vendor/ext_libs/          bundled pure-Python export libraries
 dynamo/                   rsd_place.py, rsd_readback.py
 tools/                    extract_rdm_signs.py, build_catalogue.py, build_plugin.py
-tools/guide/              user guide and technical manual (HTML -> PDF; figures from Olkaria LOT 3)
-docs/user-guide/          RoadSign_Designer_<version>_User_Guide.pdf
+tools/guide/              user guide and technical manual (HTML -> PDF)
+docs/user-guide/          Road_Furniture_Designer_<version>_User_Guide.pdf
 tests/ (core), tests_qgis/ (run with QGIS Python, QT_QPA_PLATFORM=offscreen)
 ```
 
-Build the plugin zip: `python tools/build_plugin.py roadsign_designer.zip`
+Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 ## Next
 

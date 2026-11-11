@@ -4,10 +4,10 @@ import os
 import pytest
 from openpyxl import load_workbook
 
-from rsd.alignment import parse_landxml
-from rsd.catalogue import Catalogue
-from rsd.cli import main
-from rsd.signlist import COLUMNS, FIRST_ROW, block_rotation_deg, make_template, read_signlist
+from rfd.alignment import parse_landxml
+from rfd.catalogue import Catalogue
+from rfd.cli import main
+from rfd.signlist import COLUMNS, FIRST_ROW, block_rotation_deg, make_template, read_signlist
 from examples.make_demo_road import build, to_landxml
 from examples.make_demo_signlist import ROWS
 
@@ -132,8 +132,8 @@ def test_cli_blocks_on_errors(setup):
 def test_roundtrip_move_in_drawing(setup):
     """Place -> move/rotate one block in the 'drawing' -> read back -> reconcile."""
     import ezdxf, math
-    from rsd.dxf_out import readback_dxf
-    from rsd.reconcile import reconcile
+    from rfd.dxf_out import readback_dxf
+    from rfd.reconcile import reconcile
     tmp, xml, xl, cat = setup
     _fill(xl, ROWS)
     out = tmp / "out"

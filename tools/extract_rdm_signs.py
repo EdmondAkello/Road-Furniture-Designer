@@ -2,7 +2,7 @@
 
     python tools/extract_rdm_signs.py RDM_6.2_Traffic_Signs.pdf [WSCM_warning.pdf WSCM_other.pdf]
 
-Outputs (under rsd/data/):
+Outputs (under rfd/data/):
     signs/<CODE>.svg       vector icon, artwork only (dimension lines and notes removed)
     rdm_signs.json         code, name, figure, page, category, shape, aspect
     RSD_SignBlocks.dxf     CAD block library: one block RSD_<CODE> per sign
@@ -20,7 +20,7 @@ from collections import defaultdict
 import pymupdf as fitz
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA = os.path.join(ROOT, "rsd", "data")
+DATA = os.path.join(ROOT, "rfd", "data")
 OUT_SVG = os.path.join(DATA, "signs")
 PDF_OFFSET = 24          # pdf page index = printed page + 24 in the 2025 edition
 CODE_RE = r"(?:PD|RW|I\s*M|[RMPWIE])\s*\d+(?:\s?-\s?[A-Za-z])?"
@@ -429,7 +429,7 @@ def add_block(doc, name, art, size=1.0, cy=0.95, mirror=False):
 def main(pdf):
     import ezdxf
     sys.path.insert(0, ROOT)
-    from rsd.dxf_out import APPID, ATTRS, VISIBLE
+    from rfd.dxf_out import APPID, ATTRS, VISIBLE
     doc = fitz.open(pdf)
     lof, notes = fix_codes(list_of_figures(doc))
     chosen = find_frames(doc, set(lof))

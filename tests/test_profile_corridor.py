@@ -1,6 +1,6 @@
 import pytest
 
-from rsd.alignment import parse_landxml
+from rfd.alignment import parse_landxml
 from examples.make_demo_road import PROFILE_XML, build, corridor_xml, to_landxml
 
 
@@ -48,8 +48,8 @@ def test_no_corridor_is_none():
 
 
 def test_sign_checks_and_clearance(road):
-    from rsd.catalogue import Catalogue
-    from rsd.records import build_signlist
+    from rfd.catalogue import Catalogue
+    from rfd.records import build_signlist
     cat = Catalogue.load()
     recs = [   # spread along the road so the RDM 0.6V spacing check stays quiet
         {"ref": 1, "station": 100, "offset": 2.0, "side": "L", "facing": "Forward", "code": "W64"},  # in lane

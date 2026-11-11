@@ -111,7 +111,7 @@ a { color: var(--accent); }
   figure.half img { width: 100%; }
 }
 
-/* RoadSign Designer: HH palette, edition badges */
+/* Road Furniture Designer: palette, edition badges */
 :root { --navy: #2b2a63; --accent: #4b4a9f; --accent-soft: #ecebf7; }
 .badges { display: flex; gap: 2.5mm; margin-bottom: 6mm; flex-wrap: wrap; }
 .badge { display: inline-block; padding: 1.2mm 3.2mm; border-radius: 1.2mm; font-size: 8.5pt; font-weight: 700;

@@ -3,7 +3,7 @@
 Each sheet shows a stretch of road at a fixed drawing scale (1:1000, 1:2500 ...),
 turned so the road runs left to right, with the corridor edges, other LandXML
 alignments, chainages, and every sign drawn upright beside the road with a
-leader to its post (as in HH plan drawings). Match lines close each sheet; a key
+leader to its post, as on typical plan drawings. Match lines close each sheet; a key
 plan, scale bar and north arrow sit under the viewport with the sheet's sign list.
 
 Sheet windows are chosen so the road (and room for the signs either side) fits
@@ -16,9 +16,9 @@ import math
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
 from qgis.PyQt.QtGui import QColor, QFontMetrics, QPainterPath, QPen, QPolygonF
 
-from .rsd.alignment import format_station
-from .rsd.corridor import edge_polylines
-from .rsd.plan_layout import SERIES_CODES, SERIES_FACTOR, callouts_by_post, leader_tip
+from .rfd.alignment import format_station
+from .rfd.corridor import edge_polylines
+from .rfd.plan_layout import SERIES_CODES, SERIES_FACTOR, callouts_by_post, leader_tip
 
 PAPER_W_MM = 420.0                     # A3 landscape; logical page is report.W wide
 SYMBOL_MM = 10.0                       # sign symbol on the plan (as the DXF export)
@@ -30,7 +30,7 @@ EDGE_STYLE = {"ETW": ("#3b4250", 1.4, Qt.PenStyle.SolidLine), "EPS": ("#7d8796",
 
 
 def auto_scale(al) -> int:
-    """Drawing scale for the plan sheets: 1:1000 for short roads, else 1:2500 (HH's usual plan scale)."""
+    """Drawing scale for the plan sheets: 1:1000 for short roads, else 1:2500."""
     return 1000 if al.length <= 1200 else 2500
 
 

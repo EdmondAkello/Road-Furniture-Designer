@@ -1,4 +1,4 @@
-"""RoadSign Designer dock: project, sign palette, placement options, live inventory, exports."""
+"""Road Furniture Designer dock: project, sign palette, placement options, live inventory, exports."""
 from __future__ import annotations
 
 import os
@@ -14,11 +14,11 @@ from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceSignTool
-from .rsd.alignment import alignment_names, format_station, parse_landxml
-from .rsd.legend import SCHEMES, summary as legend_summary
+from .rfd.alignment import alignment_names, format_station, parse_landxml
+from .rfd.legend import SCHEMES, summary as legend_summary
 from .store import SVG_DIR, SignStore
 
-SETTINGS_KEY = "roadsign_designer/last_project"
+SETTINGS_KEY = "road_furniture_designer/last_project"
 
 
 class _busy:
@@ -35,10 +35,10 @@ class _busy:
 
 class RsdDock(QDockWidget):
     def __init__(self, iface, parent=None):
-        super().__init__("RoadSign Designer", parent)
+        super().__init__("Road Furniture Designer", parent)
         self.iface = iface
         self.store = None
-        self.setObjectName("RoadSignDesignerDock")
+        self.setObjectName("RoadFurnitureDesignerDock")
         w = QWidget()
         lay = QVBoxLayout(w)
 
@@ -199,7 +199,7 @@ class RsdDock(QDockWidget):
         self.tool = PlaceSignTool(iface.mapCanvas(), lambda: self.store, self.settings)
         self.tool.hover.connect(self.lbl_hover.setText)
         self.tool.placed.connect(lambda t: self.lbl_last.setText("Placed: " + t))
-        self.tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("RoadSign Designer", t, MSG_WARNING, 4))
+        self.tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t, MSG_WARNING, 4))
         self.tool.deactivated.connect(lambda: self.btn_place.setChecked(False))
 
         self.btn_new.clicked.connect(self.new_project)
@@ -248,7 +248,7 @@ class RsdDock(QDockWidget):
         self.store = store
         store.add_to_project()
         store.changed.connect(self.refresh)
-        store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("RoadSign Designer", t,
+        store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
                                                                             MSG_LEVELS.get(l, MSG_INFO), 5))
         al = store.al
         sp = ", ".join(f"{v:.0f} km/h from {format_station(al.display_station(s), 0)}" for s, v in al.speeds) \
@@ -277,7 +277,7 @@ class RsdDock(QDockWidget):
         self.chk_restrict.setEnabled(bool(al.edges))
         self.chk_restrict.setChecked(bool(al.edges))
         self._set_enabled(True)
-        QgsProject.instance().writeEntry("RoadSignDesigner", "gpkg", store.gpkg)
+        QgsProject.instance().writeEntry("RoadFurnitureDesigner", "gpkg", store.gpkg)
         self.refresh()
 
     def _fill_palette(self):
@@ -384,7 +384,7 @@ class RsdDock(QDockWidget):
     def edit_legend(self):
         rows = self.tbl_signs.selectionModel().selectedRows()
         if not rows:
-            QMessageBox.information(self, "RoadSign Designer", "Select a sign in the list first.")
+            QMessageBox.information(self, "Road Furniture Designer", "Select a sign in the list first.")
             return
         fid = self.tbl_signs.item(rows[0].row(), 0).data(Qt.UserRole)
         f = self.store.signs.getFeature(fid)
@@ -395,7 +395,7 @@ class RsdDock(QDockWidget):
             self.store.set_fields(fid, {"legend": text.strip() or None})
 
     def auto_config(self):
-        from .rsd.autoplace import AutoConfig
+        from .rfd.autoplace import AutoConfig
         return AutoConfig(curves=self.chk_r_curves.isChecked(), grades=self.chk_r_grades.isChecked(),
                           no_overtaking=self.chk_r_overtake.isChecked(), warn_margin=self.spn_warn.value(),
                           chevron_margin=self.spn_chev.value(), sharp_margin=self.spn_sharp.value(),
@@ -430,7 +430,7 @@ class RsdDock(QDockWidget):
 
     def renumber(self):
         n = self.store.renumber_posts()
-        self.iface.messageBar().pushMessage("RoadSign Designer", f"{n} posts renumbered by chainage", MSG_INFO, 4)
+        self.iface.messageBar().pushMessage("Road Furniture Designer", f"{n} posts renumbered by chainage", MSG_INFO, 4)
 
     # ------------------------------------------------------------------ project actions
     def new_project(self):
@@ -440,24 +440,24 @@ class RsdDock(QDockWidget):
         try:
             names = list(dict.fromkeys(alignment_names(lx)))     # byte scan of start tags: instant
         except Exception as ex:
-            QMessageBox.critical(self, "RoadSign Designer", f"Could not read LandXML:\n{ex}")
+            QMessageBox.critical(self, "Road Furniture Designer", f"Could not read LandXML:\n{ex}")
             return
         if not names:
-            QMessageBox.warning(self, "RoadSign Designer", "No horizontal alignments in that file.")
+            QMessageBox.warning(self, "Road Furniture Designer", "No horizontal alignments in that file.")
             return
         name = names[0]
         if len(names) > 1:
             name, ok = QInputDialog.getItem(self, "Alignment", "Sign this alignment:", names, 0, False)
             if not ok:
                 return
-        from .rsd.alignment import landxml_crs
+        from .rfd.alignment import landxml_crs
         lxc = landxml_crs(lx)
         crs = QgsCoordinateReferenceSystem(f"EPSG:{lxc['epsg']}") if lxc.get("epsg") else QgsProject.instance().crs()
         if lxc.get("epsg") and crs.isValid():
             pc = QgsProject.instance().crs()
             if pc.isValid() and pc.authid() != crs.authid():
                 self.iface.messageBar().pushMessage(
-                    "RoadSign Designer", f"Sign layer uses the LandXML's CRS {crs.authid()} ({lxc.get('name', '')}); "
+                    "Road Furniture Designer", f"Sign layer uses the LandXML's CRS {crs.authid()} ({lxc.get('name', '')}); "
                     f"the QGIS project is {pc.authid()} and will reproject on the fly.", MSG_INFO, 8)
         if not crs.isValid() or crs.isGeographic():
             from qgis.gui import QgsProjectionSelectionDialog
@@ -466,7 +466,7 @@ class RsdDock(QDockWidget):
             if not dlg.exec_():
                 return
             crs = dlg.crs()
-        gp, _ = QFileDialog.getSaveFileName(self, "Save RSD project", os.path.splitext(lx)[0] + "_signs.gpkg",
+        gp, _ = QFileDialog.getSaveFileName(self, "Save Road Furniture Designer project", os.path.splitext(lx)[0] + "_signs.gpkg",
                                             "GeoPackage (*.gpkg)")
         if not gp:
             return
@@ -474,14 +474,14 @@ class RsdDock(QDockWidget):
             with _busy():
                 st = SignStore.create(gp, lx, name, crs, QgsProject.instance().title())
         except Exception as ex:
-            QMessageBox.critical(self, "RoadSign Designer", str(ex))
+            QMessageBox.critical(self, "Road Furniture Designer", str(ex))
             return
         self.set_store(st)
         self.iface.mapCanvas().setExtent(st.alignment_layer.extent().buffered(50))
         self.iface.mapCanvas().refresh()
 
     def open_project(self):
-        gp, _ = QFileDialog.getOpenFileName(self, "Open RSD project", "", "GeoPackage (*.gpkg)")
+        gp, _ = QFileDialog.getOpenFileName(self, "Open Road Furniture Designer project", "", "GeoPackage (*.gpkg)")
         if gp:
             self.open_path(gp)
 
@@ -490,12 +490,12 @@ class RsdDock(QDockWidget):
             with _busy():
                 st = SignStore.open(gp)
         except Exception as ex:
-            QMessageBox.critical(self, "RoadSign Designer", str(ex))
+            QMessageBox.critical(self, "Road Furniture Designer", str(ex))
             return
         self.set_store(st)
 
     def _need_libs(self, ex):
-        QMessageBox.warning(self, "RoadSign Designer",
+        QMessageBox.warning(self, "Road Furniture Designer",
                             f"{ex}\n\nThe plugin bundles openpyxl and ezdxf in its ext_libs folder; "
                             "reinstall the plugin from the ZIP if that folder is missing.")
 
@@ -547,7 +547,7 @@ class RsdDock(QDockWidget):
         except ImportError as ex:
             return self._need_libs(ex)
         self.iface.messageBar().pushMessage(
-            "RoadSign Designer", f"Report: {n} PDF pages, {len(pngs)} PNG sheets and an Excel workbook → "
+            "Road Furniture Designer", f"Report: {n} PDF pages, {len(pngs)} PNG sheets and an Excel workbook → "
             f"{os.path.dirname(p)}", MSG_SUCCESS, 8)
 
     def export_inventory(self):
@@ -560,7 +560,7 @@ class RsdDock(QDockWidget):
         except ImportError as ex:
             return self._need_libs(ex)
         self.iface.messageBar().pushMessage(
-            "RoadSign Designer", f"Inventory: {len(sl.faces)} faces, {len(sl.installations)} posts → {p}",
+            "Road Furniture Designer", f"Inventory: {len(sl.faces)} faces, {len(sl.installations)} posts → {p}",
             MSG_SUCCESS, 6)
 
     def export_civil3d(self):
@@ -571,7 +571,7 @@ class RsdDock(QDockWidget):
             return
         scales = ["1:500", "1:1000", "1:1250", "1:2000", "1:2500", "1:5000"]
         sc, ok = QInputDialog.getItem(self, "Plan scale", "Drawing scale for sign symbols and text "
-                                      "(symbols print ~10 mm, as in HH drawings):", scales, 4, False)
+                                      "(symbols print ~10 mm, 25 m at 1:2500):", scales, 4, False)
         if not ok:
             return
         plan_scale = float(sc.split(":")[1])
@@ -581,10 +581,10 @@ class RsdDock(QDockWidget):
         except ImportError as ex:
             return self._need_libs(ex)
         except ValueError as ex:
-            QMessageBox.warning(self, "RoadSign Designer", str(ex))
+            QMessageBox.warning(self, "Road Furniture Designer", str(ex))
             return
         self.iface.messageBar().pushMessage(
-            "RoadSign Designer", f"{len(sl.faces)} signs at {sc} → {p}. In Dynamo use symbol scale "
+            "Road Furniture Designer", f"{len(sl.faces)} signs at {sc} → {p}. In Dynamo use symbol scale "
             f"{10 * plan_scale / 1000:g} and the exported DXF as the block source.", MSG_SUCCESS, 10)
 
     def import_readback(self):
@@ -595,7 +595,7 @@ class RsdDock(QDockWidget):
         msg = f"{moved} sign(s) updated from the drawing."
         if notes:
             msg += "\n\n" + "\n".join(notes[:30])
-        QMessageBox.information(self, "RoadSign Designer", msg)
+        QMessageBox.information(self, "Road Furniture Designer", msg)
 
     def closeEvent(self, e):
         if self.iface.mapCanvas().mapTool() is self.tool:

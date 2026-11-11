@@ -36,7 +36,7 @@ def _pick(als, name):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="rsd", description="RoadSign Designer core")
+    p = argparse.ArgumentParser(prog="rfd", description="Road Furniture Designer core")
     p.add_argument("--catalogue", default=DEFAULT_PATH)
     sub = p.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("template"); t.add_argument("xlsx"); t.add_argument("--alignment", default="")

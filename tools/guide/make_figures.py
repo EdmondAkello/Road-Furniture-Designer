@@ -23,7 +23,7 @@ from qgis.PyQt.QtGui import QColor, QFont, QImage, QPainter  # noqa: E402
 app = QgsApplication([], True)
 app.initQgis()
 
-from roadsign_designer.store import SignStore  # noqa: E402
+from road_furniture_designer.store import SignStore  # noqa: E402
 
 lx, align, out = sys.argv[1], sys.argv[2], sys.argv[3]
 project = sys.argv[4] if len(sys.argv) > 4 else "Demo"
@@ -39,7 +39,7 @@ def save(img, name):
 
 
 # ------------------------------------------------------------------ project
-from roadsign_designer.rsd.alignment import landxml_crs  # noqa: E402
+from road_furniture_designer.rfd.alignment import landxml_crs  # noqa: E402
 epsg = landxml_crs(lx).get("epsg") or "21037"
 st = SignStore.create(os.path.join(work, "guide.gpkg"), lx, align, QgsCoordinateReferenceSystem(f"EPSG:{epsg}"),
                       project)
@@ -82,7 +82,7 @@ render_map(ext, (1000, 1300), "fig_map_overview.png")
 # ------------------------------------------------------------------ dock
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow, QTabWidget  # noqa: E402
-from roadsign_designer.dock import RsdDock  # noqa: E402
+from road_furniture_designer.dock import RsdDock  # noqa: E402
 
 
 class Iface:
@@ -112,7 +112,7 @@ dock.hide()
 
 # ------------------------------------------------------------------ report pages
 st.accept_proposals()
-from roadsign_designer.report import ReportData, pages, write_pngs  # noqa: E402
+from road_furniture_designer.report import ReportData, pages, write_pngs  # noqa: E402
 d = ReportData(st, title=f"Road Signage – {project}", plan_scale=2500)
 items = pages(d, 1000.0)
 pngs = write_pngs(os.path.join(work, "pages"), d, sheet_len=1000.0, scale=1.6, sheets_only=False)
@@ -159,7 +159,7 @@ except Exception as ex:                                   # matplotlib not in th
 
 # ------------------------------------------------------------------ catalogue and legend panels
 from qgis.PyQt.QtSvg import QSvgRenderer  # noqa: E402
-from roadsign_designer.rsd.legend import directional_svg, plate_svg  # noqa: E402
+from road_furniture_designer.rfd.legend import directional_svg, plate_svg  # noqa: E402
 
 
 def panel(entries, cols, cell, name, title_h=0):

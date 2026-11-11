@@ -61,12 +61,12 @@ class PlaceSignTool(QgsMapToolEmitPoint):
         if s.get("lock_offset") is not None:
             off = (abs(s["lock_offset"]) + (ro or 0.0)) * (1 if side == "R" else -1)
         if s.get("restrict") and st.al.edges:
-            from .rsd.corridor import clamp_offset
+            from .rfd.corridor import clamp_offset
             a, _ = clamp_offset(st.al.edges, side, sta, abs(off), ref or st.default_edge_ref())
             off = a * (1 if side == "R" else -1)
         x, y, _ = st.al.point_at(sta, off)
         cx, cy, _ = st.al.point_at(sta, 0.0)
-        from .rsd.alignment import format_station
+        from .rfd.alignment import format_station
         text = f"Ch {format_station(disp, 2)}   {abs(off):.2f} m {'Right' if side == 'R' else 'Left'}"
         if ro is not None:
             text += f"   ({abs(off) - ro:+.2f} m from {ref})"

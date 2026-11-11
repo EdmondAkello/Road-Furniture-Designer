@@ -1,4 +1,4 @@
-"""Build rsd/data/catalogue.json from the extracted RDM 6.2 sign list (rdm_signs.json)
+"""Build rfd/data/catalogue.json from the extracted RDM 6.2 sign list (rdm_signs.json)
 plus the RDM sizing rules and legend behaviour. Run after extract_rdm_signs.py.
 """
 import json
@@ -6,7 +6,7 @@ import os
 import re
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA = os.path.join(ROOT, "rsd", "data")
+DATA = os.path.join(ROOT, "rfd", "data")
 
 STD = ["600", "750", "900", "1200"]
 
@@ -88,7 +88,7 @@ def regenerate_icons(signs):
     """Replace illegible design-drawing icons with generated sample faces (originals kept as *_design.svg)."""
     import sys
     sys.path.insert(0, ROOT)
-    from rsd.legend import directional_svg, plate_svg
+    from rfd.legend import directional_svg, plate_svg
     sd = os.path.join(DATA, "signs")
     n = 0
     for e in signs:

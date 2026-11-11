@@ -1,11 +1,11 @@
 import math
 import pytest
 
-from rsd.alignment import Alignment, Arc, Line, parse_landxml
-from rsd.autoplace import (AutoConfig, advance_distance, chevron_spacing, curve_speed, propose, space_out,
+from rfd.alignment import Alignment, Arc, Line, parse_landxml
+from rfd.autoplace import (AutoConfig, advance_distance, chevron_spacing, curve_speed, propose, space_out,
                            Proposal, sight_distances)
-from rsd.corridor import Edges, clamp_offset
-from rsd.profile import VerticalProfile
+from rfd.corridor import Edges, clamp_offset
+from rfd.profile import VerticalProfile
 
 
 def road(radius=100.0, ccw=False, speed=80.0, e=None, profile=None):

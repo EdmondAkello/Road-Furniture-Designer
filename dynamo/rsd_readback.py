@@ -1,4 +1,4 @@
-# RoadSign Designer - READ BACK placed signs from the drawing to a JSON file.
+# Road Furniture Designer - READ BACK placed signs from the drawing to a JSON file.
 # Paste into a Dynamo "Python Script" node (Civil 3D 2026+, CPython3 / PythonNet3 engine).
 #
 # Inputs:
