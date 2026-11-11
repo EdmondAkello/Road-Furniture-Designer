@@ -221,6 +221,44 @@ def geometry(al, run: Run, step: float = 5.0) -> List[List[Tuple[float, float]]]
     return parts
 
 
+ZEBRA = {"BM01", "BM02", "BM03"}
+CALMING_FILL = {"HUMP-C", "HUMP-T", "TABLE", "BUMP"}
+# along-road length of a transverse item placed with one click (m); calming items are sized by the Calming tab
+CLICK_LENGTH = {"BM01": 2.0, "BM02": 3.0, "BM03": 4.0, "BAR-SET": 4.8, "BM04": 2.0,
+                "HUMP-C": 3.7, "HUMP-T": 6.5, "TABLE": 8.4, "BUMP": 0.6}
+
+
+def pattern(al, run: Run, bars: int = 6, bar_width: float = 0.3) -> List[List[Tuple[float, float]]]:
+    """The painted shapes of a transverse item, as closed rings in map coordinates:
+    zebra bars (500 mm bars, 500 mm gaps, along the traffic; RDM 6.1 Figure 9.1), bar sets (bars across
+    the road), hump triangles (BM04, pointing up each ramp) or, for humps, tables and bumps, the footprint."""
+    run = clamp_run(al, run)
+    if run.length <= 0 or not (getattr(run, "width", None) and run.side == "C"):
+        return []
+    h, c, a, b = run.width / 2.0, run.offset, run.sta_start, run.sta_end
+    P = lambda s, o: al.point_at(s, c + o)[:2]
+    rect = lambda s0, s1, o0, o1: [P(s0, o0), P(s1, o0), P(s1, o1), P(s0, o1), P(s0, o0)]
+    code = run.code
+    if code in ZEBRA:
+        out, o = [], -h
+        while o + 0.5 <= h + 1e-6:
+            out.append(rect(a, b, o, o + 0.5))
+            o += 1.0
+        return out
+    if code == "BAR-SET":
+        gap = max((run.length - bars * bar_width) / max(bars - 1, 1), 0.0)
+        return [rect(a + k * (bar_width + gap), a + k * (bar_width + gap) + bar_width, -h, h) for k in range(bars)]
+    if code == "BM04":
+        out, o, base, height = [], -h, 0.75, min(1.85, run.length / 2)
+        while o + base <= h + 1e-6:
+            m = o + base / 2
+            out.append([P(a, o), P(a, o + base), P(a + height, m), P(a, o)])          # up the entry ramp
+            out.append([P(b, o), P(b, o + base), P(b - height, m), P(b, o)])          # and the exit ramp
+            o += base + 1.0
+        return out
+    return [rect(a, b, -h, h)]                                                         # footprint, filled
+
+
 def speed_for(al, run: Run) -> Optional[float]:
     return al.speed_at((run.sta_start + run.sta_end) / 2) if al is not None else None
 

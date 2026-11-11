@@ -236,7 +236,7 @@ class RsdDock(QDockWidget):
         lf.addRow("", self.chk_lflip)
         ll_.addLayout(lf)
         lb0 = QHBoxLayout()
-        self.btn_ldraw = QPushButton("Draw on map (click start, then end)")
+        self.btn_ldraw = QPushButton("Draw on map (start, end; one click for crossings and humps)")
         self.btn_ldraw.setCheckable(True)
         self.btn_ladd = QPushButton("Add run at chainages")
         lb0.addWidget(self.btn_ldraw); lb0.addWidget(self.btn_ladd)
@@ -322,6 +322,15 @@ class RsdDock(QDockWidget):
         cf.addRow("Feature", self.cmb_fkind)
         cf.addRow("Hump crossing speed", self.spn_fspeed)
         cf.addRow("Crossing width", self.spn_fwidth)
+        self.spn_frefuge = QDoubleSpinBox(); self.spn_frefuge.setRange(0, 30); self.spn_frefuge.setSingleStep(0.5)
+        self.spn_frefuge.setSuffix(" m"); self.spn_frefuge.setSpecialValueText("None")
+        self.spn_frefuge.setToolTip("Refuge island or median width. The crossing is split into two zebras with "
+                                    "the refuge between them, on the centreline when the crossing spans it.")
+        self.chk_fspan = QCheckBox("Crossing ends by two clicks")
+        self.chk_fspan.setToolTip("Click one kerb, then the other: the crossing runs exactly between them "
+                                  "(part of the road, a dual carriageway, a road without corridor edges)")
+        cf.addRow("Refuge / median", self.spn_frefuge)
+        cf.addRow("", self.chk_fspan)
         cf.addRow("Bar markings for", self.cmb_fdir)
         cf.addRow("", self.chk_fbars)
         cf.addRow("", self.chk_fsigns)
@@ -382,6 +391,12 @@ class RsdDock(QDockWidget):
         self.spn_jscale = QDoubleSpinBox(); self.spn_jscale.setRange(0.5, 2.0); self.spn_jscale.setSingleStep(0.05)
         self.spn_jscale.setValue(1.0)
         self.chk_jguides = QCheckBox("Guide lines (edges, kerb returns, Rc arcs)"); self.chk_jguides.setChecked(True)
+        self.cmb_jrole = QComboBox()
+        self.cmb_jrole.addItem("Our road is the main road", "main")
+        self.cmb_jrole.addItem("Our road joins another road", "minor")
+        self.cmb_jmajor = QComboBox()
+        jf.addRow("Junction", self.cmb_jrole)
+        jf.addRow("Main road", self.cmb_jmajor)
         jf.addRow("Junction type", self.cmb_jtype)
         jf.addRow("Place", self.cmb_jpiece)
         jf.addRow("Scale", self.spn_jscale)
@@ -456,6 +471,8 @@ class RsdDock(QDockWidget):
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
         self.btn_jplace.toggled.connect(self._toggle_junction_tool)
+        self.cmb_jrole.currentIndexChanged.connect(self._junction_role_changed)
+        self._junction_role_changed()
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
         self.btn_jdel.clicked.connect(self.remove_junction)
         self.btn_jscale.clicked.connect(self.rescale_junction)
@@ -508,6 +525,7 @@ class RsdDock(QDockWidget):
         "Export to Civil 3D (package + DXF)…": "Export to Civil 3D…",
         "Remove selected feature (with its signs and markings)": "Remove selected feature",
         "Remove selected zone (with its signs)": "Remove selected zone",
+        "Draw on map (start, end; one click for crossings and humps)": "Draw on map",
     }
 
     @staticmethod
@@ -580,6 +598,7 @@ class RsdDock(QDockWidget):
         store.changed.connect(self.refresh)
         self._fill_linear_controls()
         self._fill_ground_choices()
+        self._fill_junction_majors()
         crit = store.meta.get("criteria")
         if crit:
             i = self.cmb_crit.findData(crit)
@@ -816,6 +835,7 @@ class RsdDock(QDockWidget):
                 "lock_offset": self.spn_loff.value() if self.chk_lfix.isChecked() else None,
                 "no_overtaking": self.chk_lnoot.isChecked(), "flip": self.chk_lflip.isChecked(),
                 "kind": self.cmb_fkind.currentData(), "feature_cfg": self.feature_config(),
+                "span": self.chk_fspan.isChecked() and self.cmb_fkind.currentData() == "crossing",
                 "auto_cfg": self.auto_config()}
 
     def feature_config(self):
@@ -823,7 +843,8 @@ class RsdDock(QDockWidget):
         return FeatureConfig(criteria=self.cmb_crit.currentData(), desired_speed=self.spn_fspeed.value(),
                              crossing_width=self.spn_fwidth.value(), bar_markings=self.chk_fbars.isChecked(),
                              signs=self.chk_fsigns.isChecked(), road_class=self.cmb_mclass.currentData(),
-                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData())
+                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData(),
+                             refuge=self.spn_frefuge.value())
 
     def _toggle_run_tool(self, on, mode):
         canvas = self.iface.mapCanvas()
@@ -894,7 +915,23 @@ class RsdDock(QDockWidget):
 
     def junction_settings(self):
         return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
-                "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked()}
+                "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
+                "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or ""}
+
+    def _fill_junction_majors(self):
+        self.cmb_jmajor.clear()
+        self.cmb_jmajor.addItem("Click its direction", "")
+        for a in (self.store.junctions.others() if self.store else []):
+            self.cmb_jmajor.addItem(f"Alignment {a.name}", a.name)
+        self._junction_role_changed()
+
+    def _junction_role_changed(self, *_):
+        minor = self.cmb_jrole.currentData() == "minor"
+        self.cmb_jmajor.setEnabled(minor)
+        self.lbl_jhover.setText(
+            "Click our road where it meets the main road, then a point along the main road (or click again "
+            "when the main road is an alignment). Give Way markings and an R2 sign go on our approach."
+            if minor else "Click the junction point on the main road, then a point up the minor road.")
 
     def _toggle_junction_tool(self, on):
         canvas = self.iface.mapCanvas()
@@ -915,7 +952,9 @@ class RsdDock(QDockWidget):
         self.lst_junctions.clear()
         for j in self.store.junctions.junctions():
             paint = sum(v[1] for v in j["paint"].values())
-            it = QListWidgetItem(f"{j['ch']}  type {j['kit']}  {'left' if j['side'] == 'L' else 'right'}  "
+            where = ("joins " + (j["main_ref"][4:] if j["main_ref"].startswith("alg:") else "main road")
+                     if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
+            it = QListWidgetItem(f"{j['ch']}  type {j['kit']}  {where}  "
                                  f"{j['crossing_deg']:.0f} deg  x{j['scale']:g}  "
                                  f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)")
             it.setData(Qt.UserRole, j["id"])
@@ -927,7 +966,7 @@ class RsdDock(QDockWidget):
     def remove_junction(self):
         it = self.lst_junctions.currentItem()
         if self.store and it:
-            self.store.junctions.remove(it.data(Qt.UserRole))
+            self.store.remove_junction(it.data(Qt.UserRole))
             self.refresh()
 
     def rescale_junction(self):

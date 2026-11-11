@@ -50,6 +50,9 @@ class Placement:
     scale: float = 1.0
     edge: Optional[float] = None    # main-road edge offset on the minor side (m); None: ETW or 3.5 m
     junction_id: str = field(default_factory=lambda: _uuid.uuid4().hex[:8])
+    role: str = "main"              # main: our road is the main road; minor: our road joins another road
+    main_ref: str = ""              # minor role: "alg:<name>" (another alignment) or "line:x,y,heading_rad"
+    our_station: Optional[float] = None   # minor role: where our road meets the main road (our chainage)
 
     def frame(self, al) -> "Frame":
         return Frame(al, self)
@@ -63,6 +66,83 @@ def place(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement:
     if math.hypot(x1 - px, y1 - py) < 1.0:
         raise ValueError("The second point must be at least 1 m up the minor road")
     return Placement(sta, math.atan2(y1 - py, x1 - px), **kw)
+
+
+def straight_road(x: float, y: float, heading: float, half: float = 400.0):
+    """A straight main road through (x, y): the junction point is at its station `half`."""
+    from .alignment import Alignment
+    dx, dy = math.cos(heading), math.sin(heading)
+    return Alignment.from_polyline("MAJOR", [(x - half * dx, y - half * dy), (x + half * dx, y + half * dy)])
+
+
+def main_alignment(al, pl: Placement, others=()):
+    """The alignment the main-road pieces follow: ours, another one of the LandXML, or a straight line."""
+    if pl.role != "minor":
+        return al
+    if pl.main_ref.startswith("alg:"):
+        name = pl.main_ref[4:]
+        for a in others:
+            if a.name == name:
+                return a
+        raise ValueError(f"Main road alignment {name!r} is not in the LandXML")
+    if pl.main_ref.startswith("line:"):
+        x, y, h = (float(v) for v in pl.main_ref[5:].split(","))
+        return straight_road(x, y, h)
+    raise ValueError("A junction on another road needs that road (an alignment or a clicked direction)")
+
+
+def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Optional[float] = None,
+                major=None, **kw) -> Tuple[Placement, object]:
+    """Our road joins another road. (x0, y0): a click on our road where it meets the main road (snapped to
+    our centreline). The main road is `major` (another alignment) or the direction from that point to
+    (x1, y1). Returns the placement and the main road's alignment."""
+    so = al.station_offset(x0, y0)
+    s0 = min(max(so.station, al.sta_start), al.sta_end)
+    px, py, _ = al.point_at(s0)
+    if major is not None:
+        main, ref = major, f"alg:{major.name}"
+    else:
+        if x1 is None or math.hypot(x1 - px, y1 - py) < 1.0:
+            raise ValueError("Click a point along the main road, at least 1 m from the junction")
+        h = math.atan2(y1 - py, x1 - px)
+        main, ref = straight_road(px, py, h), f"line:{px:.3f},{py:.3f},{h:.6f}"
+    mo = main.station_offset(px, py)
+    if not mo.in_range:
+        raise ValueError(f"Our road at this point is beyond the ends of {getattr(main, 'name', 'the main road')}")
+    ms = mo.station
+    jx, jy, _ = main.point_at(ms)
+    # our road leaves the main road in the direction that takes it away from the main road's centreline
+    step = min(15.0, max(2.0, (al.sta_end - al.sta_start) / 4))
+    cand = []
+    for sgn in (1, -1):
+        s = min(max(s0 + sgn * step, al.sta_start), al.sta_end)
+        if abs(s - s0) > 0.5:
+            x, y, _ = al.point_at(s)
+            cand.append((abs(main.station_offset(x, y).offset), math.atan2(y - jy, x - jx)))
+    if not cand:
+        raise ValueError("Our road is too short here")
+    bearing = max(cand)[1]
+    pl = Placement(ms, bearing, role="minor", main_ref=ref, our_station=s0, **kw)
+    return pl, main
+
+
+def minor_signs(al, pl: Placement, main) -> List[dict]:
+    """Signs for our approach when our road is the minor road: R2 Give Way on the left of the approaching
+    traffic (Kenya drives on the left), a little behind the give way line."""
+    if pl.role != "minor" or pl.our_station is None:
+        return []
+    F = pl.frame(main)
+    s0 = pl.our_station
+    ahead = al.point_at(min(s0 + 1.0, al.sta_end))[:2]
+    here = al.point_at(s0)[:2]
+    up = (ahead[0] - here[0]) * F.d[0] + (ahead[1] - here[1]) * F.d[1] > 0   # chainage runs away from the main road
+    back = F.u_edge + 2.5 * F.s                                               # give way line + 1.8 m
+    sta = s0 + back if up else s0 - back
+    if not (al.sta_start <= sta <= al.sta_end):
+        return []
+    facing = "Backward" if up else "Forward"                                  # traffic heading for the main road
+    side = "R" if up else "L"                                                 # its left
+    return [{"code": "R2", "station": sta, "side": side, "facing": facing}]
 
 
 class Frame:
@@ -437,6 +517,7 @@ def build_kit(al, pl: Placement, jtype: str, templates: Optional[dict] = None,
 
 
 def findings(al, pl: Placement) -> List[Tuple[str, str]]:
+    """al: the main road's alignment (main_alignment)."""
     """(level, text) about the placement: skew to RDM 1.3 9.2.3, junction near the alignment ends."""
     F = pl.frame(al)
     out = []

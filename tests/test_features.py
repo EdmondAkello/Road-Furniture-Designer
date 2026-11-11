@@ -90,3 +90,28 @@ def test_summary_counts_transverse():
     rows = {(r[1], r[4]): r[5] for r in summarise(d.runs, CAT)}
     assert rows[("HUMP-C", "No.")] == 1 and rows[("BAR-SET", "No.")] == 2
     assert rows[("BAR-SET", "m2")] == pytest.approx(2 * 6 * 0.3 * 7, abs=0.1)
+
+
+def test_crossing_span_and_refuge():
+    from rfd.alignment import Alignment
+    from rfd.features import FeatureConfig, crossing_legs, design_feature
+    al = Alignment.from_polyline("S", [(0, 0), (400, 0)])
+    one = design_feature(al, "crossing", 200, FeatureConfig(carriageway=7.0))
+    z = [r for r in one.runs if r.code.startswith("BM0")]
+    assert len(z) == 1 and z[0].width == pytest.approx(7.0) and z[0].offset == pytest.approx(0)
+    # dual carriageway: 2 x 7.3 m with a 3 m median, refuge on the centreline
+    dual = design_feature(al, "crossing", 200, FeatureConfig(span=(-8.8, 8.8), refuge=3.0))
+    legs = sorted((r.offset - r.width / 2, r.offset + r.width / 2) for r in dual.runs if r.code.startswith("BM0"))
+    assert legs == [pytest.approx((-8.8, -1.5)), pytest.approx((1.5, 8.8))]
+    ref = [r for r in dual.runs if r.code == "REFUGE"]
+    assert len(ref) == 1 and ref[0].width == pytest.approx(3.0) and ref[0].length == pytest.approx(5.0)
+    assert "two legs" in dual.summary and not [f for f in dual.findings if "over 10.5" in f.text]
+    # one long crossing still flags the refuge; a narrow refuge is flagged too
+    long_ = design_feature(al, "crossing", 200, FeatureConfig(span=(-6.0, 6.0)))
+    assert any("refuge" in f.text for f in long_.findings)
+    narrow = design_feature(al, "crossing", 200, FeatureConfig(span=(-6.0, 6.0), refuge=1.0))
+    assert any("under the 1.2 m minimum" in f.text for f in narrow.findings)
+    # a crossing on one side only: the refuge goes in its middle
+    legs, r = crossing_legs(2.0, 12.0, 2.0)
+    assert r == pytest.approx((6.0, 8.0)) and legs == [pytest.approx((2.0, 6.0)), pytest.approx((8.0, 12.0))]
+    assert crossing_legs(-3.5, 3.5, 0) == ([(-3.5, 3.5)], None)

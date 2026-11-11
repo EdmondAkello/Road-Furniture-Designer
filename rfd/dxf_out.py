@@ -529,9 +529,16 @@ def write_linear(doc, msp, al, runs, cat):
         xd = [(1000, "rsd-line/0.1"), (1000, r.uuid), (1000, r.code),
               (1040, r.sta_start), (1040, r.sta_end), (1000, r.side)]
         if it.transverse:
-            for pts in geometry(al, r):
+            from .linear import pattern
+            for pts in geometry(al, r):                              # footprint
                 pl = msp.add_lwpolyline(pts[:-1], close=True, dxfattribs={"layer": lay})
                 pl.set_xdata(APPID, xd)
+            for pts in pattern(al, r, it.bars, it.bar_width):         # painted bars / triangles, solid filled
+                if r.code in ("HUMP-C", "HUMP-T", "TABLE", "BUMP"):
+                    continue
+                h = msp.add_hatch(dxfattribs={"layer": lay})
+                h.set_solid_fill()
+                h.paths.add_polyline_path(pts[:-1], is_closed=True)
             continue
         if it.is_point_series:
             q = run_quantities(r, it, v)

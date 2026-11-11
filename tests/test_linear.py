@@ -99,3 +99,21 @@ def test_inventory_and_dxf_linear(tmp_path, cat, al):
     assert len(msp.query('LWPOLYLINE[layer=="RSD-BARRIER-GR-W"]')) == 2
     ys = sorted(e.get_points("xy")[0][1] for e in lm28)     # 0.1 m apart (gap) + 0.1 m line width
     assert ys == pytest.approx([-0.1, 0.1])
+
+
+def test_transverse_patterns():
+    from rfd.alignment import Alignment
+    from rfd.linear import Run, pattern
+    al = Alignment.from_polyline("S", [(0, 0), (200, 0)])
+    zebra = pattern(al, Run("BM02", 100, 103, side="C", width=7.0))
+    assert len(zebra) == 7                                              # 500 mm bars, 500 mm gaps over 7 m
+    for ring in zebra:
+        xs, ys = [p[0] for p in ring], [p[1] for p in ring]
+        assert max(xs) - min(xs) == pytest.approx(3.0) and max(ys) - min(ys) == pytest.approx(0.5)
+    bars = pattern(al, Run("BAR-SET", 50, 54.8, side="C", width=7.0))
+    assert len(bars) == 6 and all(max(p[1] for p in r) - min(p[1] for p in r) == pytest.approx(7.0) for r in bars)
+    tri = pattern(al, Run("BM04", 20, 24, side="C", width=7.0))
+    assert len(tri) % 2 == 0 and all(len(r) == 4 for r in tri)
+    hump = pattern(al, Run("HUMP-C", 30, 33.7, side="C", width=7.0))
+    assert len(hump) == 1 and len(hump[0]) == 5
+    assert pattern(al, Run("LM01", 0, 50, side="C")) == []

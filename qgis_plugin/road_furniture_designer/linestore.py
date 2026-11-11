@@ -14,7 +14,7 @@ from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFi
 
 from .compat import WKB_MULTILINESTRING
 from .rfd.alignment import format_station
-from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, run_quantities, summarise
+from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_quantities, summarise
 
 LAYER = "rsd_lines"
 LINE_FIELDS = [
@@ -95,7 +95,8 @@ class LineStore(QObject):
         if hi - lo < 0.01:
             raise ValueError(f"{run.code}: {run.sta_start:.1f}-{run.sta_end:.1f} is outside the alignment")
         run.sta_start, run.sta_end = lo, hi
-        parts = geometry(self.al, run)
+        parts = (pattern(self.al, run, it.bars, it.bar_width) or geometry(self.al, run)) if it.transverse \
+            else geometry(self.al, run)
         geom = QgsGeometry.fromMultiPolylineXY([[QgsPointXY(x, y) for x, y in p] for p in parts]) if parts \
             else QgsGeometry()
         v = self.al.speed_at((lo + hi) / 2)
@@ -261,13 +262,34 @@ class LineStore(QObject):
         return n, findings, skipped
 
     # ------------------------------------------------------------------ style
+    @staticmethod
+    def _fill_symbol(rgb, code):
+        """Transverse items are stored as closed rings: fill each ring (zebra bars, bar sets, hump triangles,
+        hump and table footprints) so they read as the marking or the hump itself."""
+        from qgis.core import QgsFillSymbol, QgsGeometryGeneratorSymbolLayer
+        from .rfd.linear import CALMING_FILL
+        expr = ("collect_geometries(array_foreach(generate_series(1, num_geometries($geometry)), "
+                "make_polygon(geometry_n($geometry, @element))))")
+        gen = QgsGeometryGeneratorSymbolLayer.create({"geometryModifier": expr, "SymbolType": "Fill"})
+        if code in CALMING_FILL:          # brick red with a dark edge: stands out from the markings
+            fill = QgsFillSymbol.createSimple({"color": "190,70,40,210", "outline_color": "60,20,10",
+                                               "outline_width": "0.5"})
+        else:
+            fill = QgsFillSymbol.createSimple({"color": rgb, "outline_color": "60,60,60", "outline_width": "0.15"})
+        gen.setSubSymbol(fill)
+        sym = QgsLineSymbol()
+        sym.changeSymbolLayer(0, gen)
+        return sym
+
     def style(self):
         cats = []
         colours = {"yellow": "230,180,0", "white": "245,245,245", "grey": "90,90,90", "black": "40,40,40"}
         for c in self.cat.categories():
             for it in self.cat.by_category(c):
                 rgb = colours.get(it.colour, "200,0,200")
-                if it.category == "Barrier":
+                if it.transverse:
+                    sym = self._fill_symbol(rgb, it.code)
+                elif it.category == "Barrier":
                     sym = QgsLineSymbol.createSimple({"color": rgb, "width": "1.0", "capstyle": "flat"})
                 elif it.is_point_series:
                     sym = QgsLineSymbol.createSimple({"color": rgb, "width": "0.8", "line_style": "dot"})

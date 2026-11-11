@@ -419,6 +419,16 @@
    "unit": "No.",
    "transverse": true,
    "ref": "RDM 6.4 2.1, Figure 2.1; RDM 6.1 BM04/BM05"
+  },
+  {
+   "code": "REFUGE",
+   "category": "Traffic calming",
+   "name": "Pedestrian refuge island (kerbed)",
+   "colour": "grey",
+   "unit": "No.",
+   "transverse": true,
+   "area_factor": 1.0,
+   "ref": "RDM 6.1 9.2; RDM 1.3 4.13"
   }
  ]
 }

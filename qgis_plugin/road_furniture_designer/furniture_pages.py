@@ -312,7 +312,9 @@ def junction_rows(d):
     for j in getattr(d, "junction_list", []) or []:
         isl = sorted(p for p in j["pieces"] if "island" in p or "splitter" in p)
         marks = ", ".join(f"{c} {v[0]:.0f} / {v[1]:.1f}" for c, v in sorted(j["paint"].items()))
-        out.append([j["ch"], j["kit"], "Left" if j["side"] == "L" else "Right", f"{j['crossing_deg']:.0f}°",
+        side = ("Joins " + (j["main_ref"][4:] if j.get("main_ref", "").startswith("alg:") else "main road")
+                if j.get("role") == "minor" else ("Left" if j["side"] == "L" else "Right"))
+        out.append([j["ch"], j["kit"], side, f"{j['crossing_deg']:.0f}°",
                     f"{j['scale']:g}", ", ".join(i.replace("_", " ") for i in isl) or "-",
                     f"{j['kerb_m']:.1f}", f"{j['island_m2']:.1f}", marks or "-", j["status"] or ""])
     return out
