@@ -404,6 +404,11 @@ class RsdDock(QDockWidget):
         jl.addLayout(jf)
         self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
         jl.addWidget(self.btn_jplace)
+        self.spn_jaadt = QDoubleSpinBox(); self.spn_jaadt.setRange(0, 200000); self.spn_jaadt.setDecimals(0)
+        self.spn_jaadt.setSingleStep(500); self.spn_jaadt.setSpecialValueText("AADT not given")
+        self.spn_jaadt.setSuffix(" pcu (year 10)")
+        self.btn_jclimb = QPushButton("Propose climbing lanes from the profile")
+        jl.addWidget(self.spn_jaadt); jl.addWidget(self.btn_jclimb)
         self.lbl_jhover = QLabel("Click the junction point on the main road, then a point up the minor road.")
         self.lbl_jhover.setWordWrap(True)
         jl.addWidget(self.lbl_jhover)
@@ -471,6 +476,7 @@ class RsdDock(QDockWidget):
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
         self.btn_jplace.toggled.connect(self._toggle_junction_tool)
+        self.btn_jclimb.clicked.connect(self.propose_climbing_lanes)
         self.cmb_jrole.currentIndexChanged.connect(self._junction_role_changed)
         self._junction_role_changed()
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
@@ -906,10 +912,17 @@ class RsdDock(QDockWidget):
         self.cmb_jpiece.clear()
         if not k:
             return
-        bus = k == "BUS"
+        bus = k in ("BUS", "CLIMB")
         for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale):
             w.setEnabled(not bus)
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
+        self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
+        if k == "CLIMB":
+            self.cmb_jpiece.addItem("Climbing lane with its tapers, lines and signs", "")
+            self.lbl_jhover.setText("Propose from the profile (RDM 1.3 Table 6.6), or click where the full-width "
+                                    "lane starts on the uphill traffic's side, then where it ends. 100 m tapers are "
+                                    "added; WSCM-I1 / I2 signs are proposed.")
+            return
         if bus:
             self.cmb_jpiece.addItem("Bus bay with its tapers, platform and sign", "")
             self.lbl_jhover.setText("Click where the bay starts on the side of the road it serves, then where it "
@@ -967,7 +980,7 @@ class RsdDock(QDockWidget):
                      if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
             if j.get("bay"):
                 b = j["bay"]
-                it = QListWidgetItem(f"{j['ch']}  bus bay {abs(b['stations'][2] - b['stations'][1]):.0f} m  {where}  "
+                it = QListWidgetItem(f"{j['ch']}  {b.get('kind', 'bus bay')} {abs(b['stations'][2] - b['stations'][1]):.0f} m  {where}  "
                                      f"(widening {j['widen_m2']:.0f} m2, kerb {j['kerb_m']:.0f} m)")
                 it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
                 self.lst_junctions.addItem(it)
@@ -982,6 +995,14 @@ class RsdDock(QDockWidget):
             self.lst_junctions.addItem(it)
             if j["id"] == keep:
                 self.lst_junctions.setCurrentItem(it)
+
+    def propose_climbing_lanes(self):
+        if self.store is None:
+            return
+        n, notes = self.store.propose_climbing_lanes(self.spn_jaadt.value() or None)
+        self.lbl_jhover.setText(f"{n} climbing lane(s) proposed" + (": " + "; ".join(notes) if notes else
+                                " - no up-grade is longer than its RDM 1.3 Table 6.6 limit (or no profile)"))
+        self.refresh()
 
     def remove_junction(self):
         it = self.lst_junctions.currentItem()

@@ -260,6 +260,19 @@ def test_bus_bay_in_a_project(tmp_path):
     d = ReportData(st, AutoConfig())
     write_xlsx(str(tmp_path / "b.xlsx"), d)
     from openpyxl import load_workbook
-    rows = list(load_workbook(tmp_path / "b.xlsx")["Bus bays"].iter_rows(min_row=2, values_only=True))
-    assert len(rows) == 1 and rows[0][1] == "L" and rows[0][8] == 4.0
+    rows = list(load_workbook(tmp_path / "b.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
+    assert len(rows) == 1 and rows[0][1] == "bus bay" and rows[0][2] == "L" and rows[0][9] == 4.0
     assert st.remove_junction(pl.junction_id) >= 2
+
+
+def test_climbing_lane_proposed_in_a_project(tmp_path):
+    from road_furniture_designer.rfd.profile import VerticalProfile
+    st, xml = _fill_road(tmp_path)
+    L = st.al.sta_end
+    st.al.profile = VerticalProfile("P", [(0, 100, 0), (100, 100, 60), (L - 100, 100 + 0.07 * (L - 200), 60), (L, 100 + 0.07 * (L - 200), 0)])
+    n, notes = st.propose_climbing_lanes(aadt=7000)
+    assert n == 1 and "required" in notes[0]
+    j = st.junctions.junctions()[0]
+    assert j["bay"]["kind"] == "climbing lane" and j["bay"]["side"] == "L" and j["widen_m2"] > 1000
+    codes = sorted(f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{j['id']}")
+    assert codes == ["WSCM-I1", "WSCM-I2"]

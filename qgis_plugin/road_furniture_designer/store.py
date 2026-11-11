@@ -853,17 +853,21 @@ class SignStore(QObject):
             j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
             if j and j["bay"]:
                 b = j["bay"]
-                s1 = b["stations"][1]
-                off = (self.al.edges.offset("ETW", b["side"], s1) if self.al.edges else None) or 3.5
-                off += b["depth"] + 1.5
-                x, y, _ = self.al.point_at(s1, off if b["side"] == "R" else -off)
-                try:
-                    self.add_sign(x, y, "WSCM-I3", facing="Forward" if b["side"] == "L" else "Backward",
-                                  status="proposed", rule=f"junction:{pl.junction_id}",
-                                  reason="Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)")
-                    signs += 1
-                except ValueError:
-                    pass
+                s0, s1, s2, _s3 = b["stations"]
+                lane = b.get("kind") == "climbing lane"
+                todo = ([("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)"),
+                         ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)")] if lane
+                        else [("WSCM-I3", s1, "Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)")])
+                for code, at, why in todo:
+                    off = (self.al.edges.offset("ETW", b["side"], at) if self.al.edges else None) or 3.5
+                    off += (b["depth"] if not lane or at == s2 else 0.0) + 1.5
+                    x, y, _ = self.al.point_at(at, off if b["side"] == "R" else -off)
+                    try:
+                        self.add_sign(x, y, code, facing="Forward" if b["side"] == "L" else "Backward",
+                                      status="proposed", rule=f"junction:{pl.junction_id}", reason=why)
+                        signs += 1
+                    except ValueError:
+                        pass
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -875,6 +879,18 @@ class SignStore(QObject):
                 except ValueError:
                     pass
         return n, finds, signs
+
+    def propose_climbing_lanes(self, aadt=None):
+        """Climbing lanes the profile asks for (RDM 1.3 6.6), placed as proposals. Returns (lanes, notes)."""
+        from .rfd import junctions as J
+        n, notes = 0, []
+        for c in J.climbing_lanes(self.al, aadt):
+            pl, L = J.place_lane(self.al, c["start"], c["end"], c["side"])
+            self.add_junction(pl, "CLIMB", params={"bay": L})
+            n += 1
+            notes.append(f"{c['grade']:+.1f} % over {c['length']:.0f} m (limit {c['limit']:.0f} m), "
+                         f"{'left' if c['side'] == 'L' else 'right'}: {c['note']}")
+        return n, notes
 
     def remove_junction(self, junction_id):
         """Remove a junction's pieces and the signs proposed with it."""

@@ -203,7 +203,15 @@ Every kit also has the GIVE WAY line across the approach lane (TM07), the triang
 - kerb line, the raised 1.0 m loading platform (hatched), the 1 m / 1 m separation line along the carriageway edge and an indicative shelter
 - the Bus Stop sign (WSCM-I3) as a proposal
 
-The Excel sheet **Bus bays** is the widening table for Civil 3D: widening from, full width from and to, widening to, tapers and width. The checks flag bays serving opposite directions less than 60 m apart, centre to centre (drawing note 4).
+The Excel sheet **Widenings** is the widening table for Civil 3D: widening from, full width from and to, widening to, tapers and width. The checks flag bays serving opposite directions less than 60 m apart, centre to centre (drawing note 4).
+
+**Climbing lanes** (type **CLIMB**, RDM 1.3 6.6, RDM/1/3/3/02).
+- **Propose from the profile** finds up-grades longer than their RDM 1.3 Table 6.6 limit (4 % 900 m … 8 % 500 m; none at 3 % or less). It places a lane from where the limit is reached to 200 m past the end of the grade, on the uphill traffic's left.
+- With an AADT (design year 10): none under 2000 pcu, "consider" for 2000–6000, "normally required" above.
+- Or click the full-width start and end yourself.
+- 100 m tapers. The lane is as wide as the adjacent through lane less 0.25 m where that is 3.25 m or more.
+- Draws the new edge line (LM26) and the broken lane line (LM03), and proposes WSCM-I1 at the entry taper and WSCM-I2 where the exit taper starts.
+- Lanes and bus bays share the Excel sheet **Widenings**, the widening table for Civil 3D.
 
 **Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
 

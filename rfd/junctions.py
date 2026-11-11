@@ -428,7 +428,7 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
         return _guides(F, spec, P, piece)
-    elif piece == "bus_bay":
+    elif piece in ("bus_bay", "climbing_lane"):
         return _bus_bay(F, spec, P, piece)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
@@ -533,7 +533,11 @@ def bay_stations(al, pl: Placement, P: dict, sigma: int):
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
-    depth, plat, ramp = P["depth"], P["platform"], P["ramp"]
+    lane = piece == "climbing_lane"
+    if lane and not P.get("depth"):                            # as wide as the reduced through lane (6.6.3)
+        e0 = F.e
+        P = dict(P, depth=round(e0 - 0.25 if e0 >= 3.25 else e0, 2))
+    depth, plat, ramp = P["depth"], P.get("platform", 0.0), P.get("ramp", 0.0)
 
     def edge(s):
         e = getattr(al, "edges", None)
@@ -557,6 +561,21 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     ss = [lo + (hi - lo) * i / n for i in range(n + 1)]
     pt = lambda s, o: al.point_at(s, sg * o)[:2]
     kerb = [pt(s, edge(s) + widen(s)) for s in ss]
+    if lane:
+        # new edge line along the widened edge, broken lane line along the old edge over the full width
+        parts = [Part("LM26", kerb)]
+        b0, b1 = sorted((s1, s2))
+        s = max(b0, al.sta_start)
+        while s + 2.0 <= min(b1, al.sta_end):
+            parts.append(Part("LM03", [pt(s, edge(s)), pt(s + 2.0, edge(s + 2.0))]))
+            s += 8.0
+        widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
+        lm = {c: sum(length(p.pts) for p in parts if p.code == c) for c in ("LM26", "LM03")}
+        q = {"widen_m2": round(widen_area, 2), "LM26_m": round(lm["LM26"], 2), "LM03_m": round(lm["LM03"], 2),
+             "paint_m2": round((lm["LM26"] + lm["LM03"]) * 0.1, 3)}
+        P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
+                 kind="climbing lane")
+        return Piece(piece, spec["name"], "lane", "", parts, q, P)
     parts = [Part("KERB", kerb)]
     # loading platform behind the kerb along the bay, hatched
     b0, b1 = sorted((s1, s2))
@@ -581,8 +600,61 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     q = {"kerb_m": round(length(kerb), 2), "raised_kerb_m": round(abs(s2 - s1) + 2 * ramp, 2),
          "island_m2": round(area(plat_ring), 2), "widen_m2": round(widen_area, 2),
          "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.1, 3)}
-    P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R")
+    P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
+             kind="bus bay")
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
+
+
+GRADE_LIMITS = [(4.0, 900.0), (5.0, 800.0), (6.0, 700.0), (7.0, 600.0), (8.0, 500.0)]   # RDM 1.3 Table 6.6
+
+
+def grade_limit(g: float) -> Optional[float]:
+    """Maximum length of an up-grade before trucks slow by more than 15 km/h (RDM 1.3 Table 6.6); None: no limit."""
+    g = abs(g)
+    if g <= 3.0:
+        return None
+    if g <= 4.0:
+        return 900.0 + (4.0 - g) * 1000.0         # towards "no limit" at 3 %: indicative
+    for (g0, l0), (g1, l1) in zip(GRADE_LIMITS, GRADE_LIMITS[1:]):
+        if g <= g1:
+            return l0 + (g - g0) / (g1 - g0) * (l1 - l0)
+    return 500.0 * 8.0 / g
+
+
+def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0) -> List[dict]:
+    """Climbing lanes the profile asks for (RDM 1.3 6.6): an up-grade longer than its Table 6.6 limit gets a
+    lane from where that limit is reached to `merge` m past the end of the grade, on the uphill traffic's
+    left (Kenya drives on the left). AADT under 2000 pcu: none (6.6.2)."""
+    pr = getattr(al, "profile", None)
+    if pr is None or (aadt is not None and aadt < 2000):
+        return []
+    pv = [(s, z) for s, z, _ in pr.pvis]
+    out = []
+    for (sa, za), (sb, zb) in zip(pv, pv[1:]):
+        L = sb - sa
+        if L <= 0:
+            continue
+        g = (zb - za) / L * 100.0
+        lim = grade_limit(g)
+        if lim is None or L <= lim:
+            continue
+        if g > 0:          # uphill with the chainage: traffic on the left of it
+            start, end, side = sa + lim, min(sb + merge, al.sta_end), "L"
+        else:              # uphill against the chainage: traffic on the right
+            start, end, side = sb - lim, max(sa - merge, al.sta_start), "R"
+        note = ("consider: AADT 2000-6000 pcu with limited passing" if aadt is not None and aadt <= 6000
+                else "normally required above 6000 pcu AADT" if aadt is not None else "AADT not given")
+        out.append({"start": start, "end": end, "side": side, "grade": round(g, 2), "length": round(L, 1),
+                    "limit": round(lim, 1), "note": note})
+    return out
+
+
+def place_lane(al, start: float, end: float, side: str, **kw):
+    """A climbing lane between two stations (full width) on a side, as a placement plus its length."""
+    s = min(max(start, al.sta_start), al.sta_end)
+    _, _, h = al.point_at(s)
+    bearing = h + (math.pi / 2 if side == "L" else -math.pi / 2)
+    return Placement(s, bearing, role="bay", **kw), abs(end - start)
 
 
 def bay_table(al, rows) -> List[dict]:

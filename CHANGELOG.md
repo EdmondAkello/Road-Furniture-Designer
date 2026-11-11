@@ -8,7 +8,9 @@
 
 - **Our road joining another road** (Junctions tab): the main road is another alignment of the LandXML or a clicked direction; markings on our approach, R2 Give Way proposed (kept when auto-placement is re-run, removed with the junction).
 - **Crossings and humps drawn as painted**: zebra bars, bar sets, BM04 triangles and filled hump footprints on the map, plan sheets and DXF; transverse items go in with one click from the Linear tab.
-- **Bus bays** (RDM/1/3/3/01) placed with two clicks: tapers in the direction of travel, kerb, platform, separation line, shelter position and Bus Stop sign; widening table for Civil 3D (Excel sheet Bus bays); 60 m spacing check for opposite bays.
+- **Bus bays** (RDM/1/3/3/01) placed with two clicks: tapers in the direction of travel, kerb, platform, separation line, shelter position and Bus Stop sign; 60 m spacing check for opposite bays.
+- **Climbing lanes** (RDM 1.3 6.6, RDM/1/3/3/02): proposed from the profile against Table 6.6 (with the AADT rule) or placed by two clicks; 100 m tapers, lane width per 6.6.3, LM26 / LM03 lines, WSCM-I1 / I2 signs.
+- Excel sheet **Widenings**: the widening table for Civil 3D (bus bays and climbing lanes).
 - **Crossing extent and refuges**: crossings run between the ETW edges or between two clicked kerbs; a refuge / median width splits them into two zebras with a kerbed refuge island (new item `REFUGE`), with leg-length and refuge-width checks.
 - **Installable plugin ZIP from CI** (`.github/workflows/plugin-zip.yml`): built, checked (`tools/check_plugin_zip.py`), installed into QGIS 3.44 and loaded on every push; attached to a draft release for `v*` tags. The README explains where to download it.
 - User guide: Junctions tab, supplementary signs, installing from the plugin ZIP.
