@@ -28,7 +28,7 @@ The dock's project summary shows which of these were found.
 
 - **Version 0.8.0 (QGIS 3.28+):** 286 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 40 headless QGIS tests pass on QGIS 3.34 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
 - **Civil 3D:** the georeferenced DXF pasted with COPYBASE 0,0 and PASTEORIG lands on the alignment in a project drawing. The Dynamo route is parked (kept in `dynamo/`, not run in Civil 3D).
-- **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and project-defined.
+- **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures, plus 19 supplementary signs from the Ministry's standard drawings WSCM/84/2/01 (see "Sign catalogue" and "Supplementary signs"). Post and foundation types are generic and project-defined.
 
 ## Sign catalogue (RDM 6.2, 2025)
 
@@ -54,6 +54,15 @@ The dock's project summary shows which of these were found.
 - The directional examples "incorporating the X symbol" become I20-D, I21-D and I22-D.
 
 The Ministry's standard drawings WSCM/84/2/01 (Jan 2024) use a **different numbering** (W1 = Sharp left turn there, Crossroads in RDM 6.2). RFD uses RDM 6.2 codes on drawings and schedules.
+
+### Supplementary signs (WSCM/84/2/01)
+
+Signs on the standard drawings with no RDM 6.2 equivalent are in the catalogue group **Supplementary (WSCM)**, always with a `WSCM-` prefix so they can never be read as an RDM code (WSCM W22 is River Bed Crossing; RDM W22 is a series of bends):
+- Information: WSCM-I1 / I2 Start / End of Climbing Lane, I3 Bus Stop, I6 Hotel or Motel, I10 One Way Traffic
+- Regulatory: WSCM-M2 Road Closed, M3 No Entry for Pedestrians, M8 End of No Overtaking Section, M9 Overtaking of Goods Vehicles Prohibited, M14 End of All Prohibitions, M16 / M17 length and distance-apart restrictions
+- Warning: WSCM-W22 River Bed Crossing (Drift), W25 Cyclists, W34 Hazard Ahead, W37 Loose Stones, W39 Soft Verges, W42 / W43 Railway Crossing crosses
+
+`tools/extract_wscm_signs.py` extracts them from the two sheets. W22 is drawn with the red border of the other warning signs (the sheet hatches its border black, a drafting slip). `rfd/data/wscm_crossref.json` maps all 75 WSCM codes to RDM 6.2 (same, similar or none). In the checks, WSCM-M14 ends a speed limit, a no-overtaking zone and a clearway; WSCM-M8 or M14 ends WSCM-M9. The furniture checks list every WSCM sign used, so a reviewer sees which signs are outside RDM 6.2.
 
 **Sizes.** RDM 2.9 allows 600, 750 or 900 mm, and 1200 mm on expressways. For Stop and Give Way (Tables 3.1 and 3.3), warning signs (Table 4.1) and circular regulatory signs, choose **Auto**. The size then follows the design speed at the sign's chainage, taken from the Civil 3D SpeedStation data in the LandXML, and is recomputed if the sign is moved. The design speed stands in for the manual's 85th-percentile approach speed. Typing a size by hand turns Auto off for that sign. Plates and information signs are "custom" (designed size).
 
@@ -160,6 +169,26 @@ The posted limit is your decision (built-up and special areas); RFD signs it to 
 - **P9** (end of speed limit) where traffic leaves the zone. Where the zone adjoins another one, that zone's limit sign marks the change instead.
 
 It flags a limit above the design speed, a very short zone, and a zone that runs off the alignment end (sign its start or end on the road beyond). **Propose from design speed** adds 50 km/h (built-up area) zones where the LandXML design speed is 50 km/h; a rural 70 or 80 km/h design speed does not by itself call for a special limit. Check each zone before accepting. A zone and its signs are listed and removed together, and the Auto tab's sign rules leave them alone.
+
+## Junction islands and markings (Junctions tab)
+
+RFD does not design junctions. The islands and markings of the standard drawings RDM/1/3/2/01 (type A) and RDM/1/3/2/02 (types B, C and D) are **templates you place and fit**, either as a whole kit for a junction type or piece by piece:
+
+| Type | Kit |
+|---|---|
+| A-1 | ghost island tail (HM07 / HM14), raised splitter 7.5 x 3.0 m with hatched tail, corner island with white hatched lead-in |
+| A-2 | raised teardrop splitter (about 25 m), corner islands on both corners |
+| B | teardrop splitter (R 0.75), corner island on the left-turn corner |
+| B-Mod | hatched strip ahead of the right-turn lane, hatched wedge beyond the junction, teardrop splitter |
+| C | teardrop splitter, 10 + 10 m |
+
+Every kit also has the GIVE WAY line across the approach lane (TM07), the triangular GIVE WAY marking 2.5 m back (BM07) and 30 m of continuous centre line on the minor road (LM24), to RDM 6.1 5.3. The sheet titled "types B, C & D" labels no panel D (two panels read "Type B - Modified", drawn alike), so there is one B-Mod template and no D.
+
+**Placing.** Pick the type and the kit or a piece, press **Place on map**, click the junction point on the main road (it snaps to the centreline), then move up the minor road: the pieces follow with the crossing angle shown, and a second click places them. Pieces on the main road follow its curvature; corner islands shear with the skew. Kenya drives on the left, so the approach lane, the left-turn corner and the ghost island tail fall on the right sides for a minor road on either side. **Scale** enlarges or shrinks the pieces about the junction point, before placing or for a selected junction.
+
+**Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
+
+The pieces live in the layer `rsd_junctions` (one feature per piece and marking code, rule `junction:<id>`). Editing `sta`, `bearing_deg`, `scale` or `edge_m` in the attribute table rebuilds the piece. The templates are open data in `rfd/data/junction_templates.json`. The report lists each junction with its kerb length, island area and painted length and area per code (Excel sheet **Junctions**), and checks the crossing angle against RDM 1.3 9.2.3 (75-120 deg preferred, 60 deg minimum). Plan sheets and the DXF draw them (`RSD-JN-<code>` layers). Bus bays and climbing lanes stay manual (Linear tab) for now.
 
 ## Corridor restriction
 
@@ -333,7 +362,9 @@ python -m rfd library RSD_SignBlocks.dxf
 rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
   alignment.py            LandXML, station/offset both ways, station equations
   records.py              records -> validated faces & installations (shared by QGIS and Excel)
-  catalogue.py, data/     catalogue.json (RDM 6.2), signs/ SVG icons, RSD_SignBlocks.dxf
+  catalogue.py, data/     catalogue.json (RDM 6.2 + WSCM supplementary), signs/ SVG icons, RSD_SignBlocks.dxf,
+                          wscm_crossref.json, junction_templates.json
+  junctions.py            junction islands and markings from templates: placement frames, pieces, quantities, guides
   legend.py               legend parsing, directional faces (RDM colour schemes), plates
   corridor.py, profile.py road edges from corridor codes, corridor clamp; vertical profile (grade, crests, sags, K)
   autoplace.py            RDM 6.2 rules -> proposed signs; geometry findings (curve speed, grades, sight distance)
@@ -343,11 +374,11 @@ rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
   plan_layout.py          where sign symbols go on a plan (callouts clear of the road and each other)
   package.py, dxf_out.py  Civil 3D package, placed DXF (georeferenced, callouts), block library, DXF read-back
   signlist.py, reconcile.py, cli.py   Excel route
-qgis_plugin/road_furniture_designer/   plugin (store.py, maptool.py, dock.py, report.py, furniture_pages.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
+qgis_plugin/road_furniture_designer/   plugin (store.py, linestore.py, junctionstore.py, maptool.py, dock.py, report.py, furniture_pages.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
 vendor/ext_libs/          bundled pure-Python export libraries
 dynamo/                   rsd_place.py, rsd_readback.py
   safe_xml.py             refuses LandXML files that declare a DOCTYPE or entities, before parsing
-tools/                    extract_rdm_signs.py, build_catalogue.py, build_plugin.py, sweep_landxml.py
+tools/                    extract_rdm_signs.py, extract_wscm_signs.py, build_catalogue.py, build_plugin.py, sweep_landxml.py
 tools/guide/              make_guide_road.py (synthetic demonstration road), make_figures.py, user_guide.html, build_guide.sh
 docs/user-guide/          user-guide.html, figures/, Road_Furniture_Designer_<version>_User_Guide.pdf
 docs/criteria/            how to write a criteria file
@@ -358,7 +389,6 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 ## Roadmap
 
-- Signs that projects use but RDM 6.2 does not define, as a separate, clearly marked catalogue group.
 - Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
 - Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
 - Junction signing (advance direction and direction signs per RDM Table A1-1) once junction locations are available.

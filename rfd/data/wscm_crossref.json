@@ -1,0 +1,457 @@
+{
+ "source": "WSCM/84/2/01 Standard Traffic Signs (Jan 2024) mapped to RDM 6.2 (2025)",
+ "note": "WSCM numbers are not RDM codes: many are the same strings for different signs (WSCM W1 is a sharp turn, RDM W1 crossroads). RFD stores RDM codes, and WSCM-prefixed codes for signs RDM 6.2 does not have. 'similar': same meaning, different artwork or detail.",
+ "signs": {
+  "R1": {
+   "name": "Stop",
+   "rdm": "R1",
+   "match": "same",
+   "rfd": "R1"
+  },
+  "R2": {
+   "name": "Give Way",
+   "rdm": "R2",
+   "match": "same",
+   "rfd": "R2"
+  },
+  "M1": {
+   "name": "No Entry",
+   "rdm": "P1",
+   "match": "same",
+   "rfd": "P1"
+  },
+  "M2": {
+   "name": "Road Closed",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M2"
+  },
+  "M3": {
+   "name": "No Entry for Pedestrians",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M3"
+  },
+  "M4": {
+   "name": "No Right Turn",
+   "rdm": "P2",
+   "match": "same",
+   "rfd": "P2"
+  },
+  "M5": {
+   "name": "No Left Turn",
+   "rdm": "P3",
+   "match": "same",
+   "rfd": "P3"
+  },
+  "M6": {
+   "name": "No U-turn",
+   "rdm": "P4",
+   "match": "same",
+   "rfd": "P4"
+  },
+  "M7": {
+   "name": "No Overtaking",
+   "rdm": "P32",
+   "match": "same",
+   "rfd": "P32"
+  },
+  "M8": {
+   "name": "End of No Overtaking Section",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M8"
+  },
+  "M9": {
+   "name": "Overtaking of Goods Vehicles Prohibited",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M9"
+  },
+  "M10": {
+   "name": "Speed Limit",
+   "rdm": "P5",
+   "match": "similar",
+   "rfd": "P5"
+  },
+  "M11": {
+   "name": "Sounding of Horns or Sirens Prohibited",
+   "rdm": "P50",
+   "match": "same",
+   "rfd": "P50"
+  },
+  "M12": {
+   "name": "Parking or Waiting Prohibited",
+   "rdm": "P14",
+   "match": "similar",
+   "rfd": "P14"
+  },
+  "M13": {
+   "name": "Parking Prohibited",
+   "rdm": "P13",
+   "match": "same",
+   "rfd": "P13"
+  },
+  "M14": {
+   "name": "End of All Prohibitions",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M14"
+  },
+  "M15": {
+   "name": "No Entry for Vehicles Exceeding the Height Shown",
+   "rdm": "P29",
+   "match": "same",
+   "rfd": "P29"
+  },
+  "M16": {
+   "name": "No Entry for Vehicles Exceeding the Length Shown",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M16"
+  },
+  "M17": {
+   "name": "Driving Vehicles Less than the Distance Shown Apart Prohibited",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-M17"
+  },
+  "M18": {
+   "name": "No Entry for Vehicles Exceeding the Weight Shown on One Axle",
+   "rdm": "P25",
+   "match": "same",
+   "rfd": "P25"
+  },
+  "M19": {
+   "name": "End of Kilometre Range (speed limit)",
+   "rdm": "P9",
+   "match": "same",
+   "rfd": "P9"
+  },
+  "I1": {
+   "name": "Start of Climbing Lane",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-I1",
+   "similar": "I12 Slow Lane"
+  },
+  "I2": {
+   "name": "End of Climbing Lane",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-I2"
+  },
+  "I3": {
+   "name": "Bus Stop",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-I3"
+  },
+  "I4": {
+   "name": "Hospital",
+   "rdm": "I19",
+   "match": "same",
+   "rfd": "I19"
+  },
+  "I5": {
+   "name": "Picnic Site",
+   "rdm": "I30",
+   "match": "same",
+   "rfd": "I30"
+  },
+  "I6": {
+   "name": "Hotel or Motel",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-I6"
+  },
+  "I7": {
+   "name": "Fuel Station",
+   "rdm": "I27",
+   "match": "same",
+   "rfd": "I27"
+  },
+  "I8": {
+   "name": "Keep Left",
+   "rdm": "M5",
+   "match": "same",
+   "rfd": "M5"
+  },
+  "I9": {
+   "name": "Vehicle May Pass Either Side",
+   "rdm": "M9",
+   "match": "same",
+   "rfd": "M9"
+  },
+  "I10": {
+   "name": "One Way Traffic",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-I10"
+  },
+  "W1": {
+   "name": "Sharp Left Hand Turn Ahead",
+   "rdm": "W20",
+   "match": "same",
+   "rfd": "W20"
+  },
+  "W2": {
+   "name": "Sharp Right Hand Turn",
+   "rdm": "W20",
+   "match": "same",
+   "rfd": "W20"
+  },
+  "W3": {
+   "name": "Sharp Bends Ahead, First to the Left",
+   "rdm": "W22",
+   "match": "same",
+   "rfd": "W22"
+  },
+  "W4": {
+   "name": "Sharp Bends Ahead, First to the Right",
+   "rdm": "W22",
+   "match": "same",
+   "rfd": "W22"
+  },
+  "W5": {
+   "name": "Steep Descent Ahead",
+   "rdm": "W30",
+   "match": "same",
+   "rfd": "W30"
+  },
+  "W6": {
+   "name": "Steep Ascent Ahead",
+   "rdm": "W31",
+   "match": "same",
+   "rfd": "W31"
+  },
+  "W7": {
+   "name": "Road Narrows Ahead",
+   "rdm": "W26",
+   "match": "same",
+   "rfd": "W26"
+  },
+  "W8": {
+   "name": "Road Narrows (from Right) Ahead",
+   "rdm": "W25",
+   "match": "same",
+   "rfd": "W25"
+  },
+  "W9": {
+   "name": "Road Narrows (from Left) Ahead",
+   "rdm": "W25",
+   "match": "same",
+   "rfd": "W25"
+  },
+  "W10": {
+   "name": "Narrow Bridge Ahead",
+   "rdm": "W61",
+   "match": "same",
+   "rfd": "W61"
+  },
+  "W11": {
+   "name": "Roundabout",
+   "rdm": "W17",
+   "match": "same",
+   "rfd": "W17"
+  },
+  "W12": {
+   "name": "Two Way Traffic",
+   "rdm": "W29",
+   "match": "same",
+   "rfd": "W29"
+  },
+  "W13": {
+   "name": "Cross Roads with Minor Road Ahead",
+   "rdm": "W1",
+   "match": "same",
+   "rfd": "W1"
+  },
+  "W14": {
+   "name": "Right Hand Side Road Ahead",
+   "rdm": "W2",
+   "match": "same",
+   "rfd": "W2"
+  },
+  "W15": {
+   "name": "Left Hand Side Road Ahead",
+   "rdm": "W2",
+   "match": "same",
+   "rfd": "W2"
+  },
+  "W16": {
+   "name": "Staggered Cross Roads",
+   "rdm": "W5",
+   "match": "same",
+   "rfd": "W5"
+  },
+  "W17": {
+   "name": "Merging Traffic from Left Ahead",
+   "rdm": "W15",
+   "match": "same",
+   "rfd": "W15"
+  },
+  "W18": {
+   "name": "Merging Traffic from Right Ahead",
+   "rdm": "W15",
+   "match": "same",
+   "rfd": "W15"
+  },
+  "W19": {
+   "name": "Uneven Road",
+   "rdm": "W43",
+   "match": "similar",
+   "rfd": "W43"
+  },
+  "W20": {
+   "name": "Speed Hump",
+   "rdm": "W64",
+   "match": "similar",
+   "rfd": "W64"
+  },
+  "W21": {
+   "name": "Severe Dip Ahead",
+   "rdm": "W42",
+   "match": "same",
+   "rfd": "W42"
+  },
+  "W22": {
+   "name": "River Bed Crossing (Drift)",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W22"
+  },
+  "W23": {
+   "name": "School Children Crossing",
+   "rdm": "W48",
+   "match": "same",
+   "rfd": "W48"
+  },
+  "W24": {
+   "name": "Pedestrian Crossing",
+   "rdm": "W55",
+   "match": "same",
+   "rfd": "W55"
+  },
+  "W25": {
+   "name": "Section Frequented by Cyclists",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W25"
+  },
+  "W26": {
+   "name": "Road Works Ahead",
+   "rdm": "RW1",
+   "match": "same",
+   "rfd": "RW1"
+  },
+  "W27": {
+   "name": "Cattle Crossing",
+   "rdm": "W51",
+   "match": "same",
+   "rfd": "W51"
+  },
+  "W28": {
+   "name": "Wild Animals Crossing",
+   "rdm": "W53",
+   "match": "same",
+   "rfd": "W53"
+  },
+  "W29": {
+   "name": "Traffic Signals",
+   "rdm": "W46",
+   "match": "same",
+   "rfd": "W46"
+  },
+  "W30": {
+   "name": "Low Flying Aircraft",
+   "rdm": "W58",
+   "match": "same",
+   "rfd": "W58"
+  },
+  "W31": {
+   "name": "Crosswinds",
+   "rdm": "W54",
+   "match": "same",
+   "rfd": "W54"
+  },
+  "W32": {
+   "name": "Level Crossing with Barrier or Gate Ahead",
+   "rdm": "W37",
+   "match": "same",
+   "rfd": "W37"
+  },
+  "W33": {
+   "name": "Level Crossing without Barrier or Gate Ahead",
+   "rdm": "W36",
+   "match": "same",
+   "rfd": "W36"
+  },
+  "W34": {
+   "name": "Hazard Ahead",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W34"
+  },
+  "W35": {
+   "name": "Road Junction Ahead",
+   "rdm": "W1",
+   "match": "similar",
+   "rfd": "W1"
+  },
+  "W36": {
+   "name": "Slippery Surface Ahead",
+   "rdm": "W44",
+   "match": "same",
+   "rfd": "W44"
+  },
+  "W37": {
+   "name": "Road Surface of Loose Stones Ahead",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W37"
+  },
+  "W38": {
+   "name": "Falling or Fallen Rocks Ahead",
+   "rdm": "W57",
+   "match": "same",
+   "rfd": "W57"
+  },
+  "W39": {
+   "name": "Soft Verges",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W39"
+  },
+  "W40": {
+   "name": "Unprotected Canal, River or Quay Ahead",
+   "rdm": "W45",
+   "match": "same",
+   "rfd": "W45"
+  },
+  "W41": {
+   "name": "Sharp Change of Direction towards Right",
+   "rdm": "W24-d",
+   "match": "similar",
+   "rfd": "W24-d"
+  },
+  "W42": {
+   "name": "Railway Crossing, One Track",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W42"
+  },
+  "W43": {
+   "name": "Railway Crossing, More than One Track",
+   "rdm": null,
+   "match": "none",
+   "rfd": "WSCM-W43"
+  },
+  "W44": {
+   "name": "Hazard Demarcation",
+   "rdm": "W70",
+   "match": "similar",
+   "rfd": "W70"
+  }
+ }
+}

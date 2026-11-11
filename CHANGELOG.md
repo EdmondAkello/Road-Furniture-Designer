@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+- **Supplementary signs from the standard drawings WSCM/84/2/01** (Jan 2024): 19 signs with no RDM 6.2 equivalent, coded `WSCM-` so they never collide with RDM numbers (catalogue now 270 signs). `tools/extract_wscm_signs.py`, `rfd/data/wscm_signs.json`, and `rfd/data/wscm_crossref.json` mapping all 75 WSCM codes to RDM 6.2. WSCM-M14 (End of All Prohibitions) ends speed limits, no-overtaking zones and clearways in the pairing checks; WSCM-M9 is ended by WSCM-M8 or M14. The furniture checks list the WSCM signs used.
+- **Junction islands and markings as templates** (Junctions tab) from RDM/1/3/2/01-02: kits for types A-1, A-2, B, B-Mod and C, or single pieces, placed with two clicks (junction point, then a point up the minor road) so they take the skew; optional scale; guide lines (edges, kerb returns, Rc arcs) for sketching. Layer `rsd_junctions`, open data `rfd/data/junction_templates.json`, report schedule and Excel sheet, crossing angle check (RDM 1.3 9.2.3), plan sheets and DXF layers `RSD-JN-*`.
+
+### Fixed
+- Core tests pass flat sequences to `pytest.approx` (pytest 9).
+
 ## 0.8.0 — 2026-11-11
 
 ### Added

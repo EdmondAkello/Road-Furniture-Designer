@@ -290,3 +290,136 @@ class PlaceRunTool(QgsMapToolEmitPoint):
         self.cancel()
         self.mark.reset(GEOM_POINT)
         super().deactivate()
+
+
+class PlaceJunctionTool(QgsMapToolEmitPoint):
+    """Place junction islands and markings from a template with two clicks.
+
+    First click: the junction point (snapped to the main road centreline). Then move the
+    mouse up the minor road - the pieces follow, with the skew shown - and click to place.
+    Right-click or Esc cancels; a second right-click leaves the tool."""
+    hover = pyqtSignal(str)
+    placed = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, canvas, store_getter, settings_getter):
+        super().__init__(canvas)
+        self.canvas = canvas
+        self._store = store_getter
+        self._settings = settings_getter        # {"kit", "piece", "scale", "guides"}
+        self.p0 = None
+        self.band = QgsRubberBand(canvas, GEOM_LINE)
+        self.band.setColor(QColor(200, 60, 160, 220))
+        self.band.setWidth(1)
+        self.mark = QgsRubberBand(canvas, GEOM_POINT)
+        self.mark.setColor(QColor(200, 60, 160, 230))
+        self.mark.setIconSize(10)
+        self.setCursor(Qt.CrossCursor)
+
+    def _xf(self, to_layer=True):
+        st = self._store()
+        a, b = self.canvas.mapSettings().destinationCrs(), st.signs.crs()
+        return QgsCoordinateTransform(a, b, QgsProject.instance()) if to_layer else \
+            QgsCoordinateTransform(b, a, QgsProject.instance())
+
+    def _snap(self, lp):
+        st = self._store()
+        so = st.al.station_offset(lp.x(), lp.y())
+        if not so.in_range:
+            return None
+        x, y, _ = st.al.point_at(so.station)
+        return so.station, x, y
+
+    def _pieces(self, lp):
+        from .rfd import junctions as J
+        st, s = self._store(), self._settings()
+        pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
+        if s.get("piece"):
+            kit_items = [it for it in st.junctions.templates["kits"].get(s["kit"], []) if it["piece"] == s["piece"]]
+            it = kit_items[0] if kit_items else {"piece": s["piece"], "corner": "left_turn"}
+            pcs = [J.build_piece(st.al, pl, it["piece"], it.get("corner", ""), it.get("params"),
+                                 st.junctions.templates)]
+        else:
+            pcs = J.build_kit(st.al, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True))
+        return pl, pcs
+
+    def canvasMoveEvent(self, e):
+        st = self._store()
+        if st is None:
+            return
+        lp = self._xf().transform(e.mapPoint())
+        self.mark.reset(GEOM_POINT)
+        self.band.reset(GEOM_LINE)
+        from .rfd.alignment import format_station
+        if self.p0 is None:
+            sn = self._snap(lp)
+            if sn is None:
+                self.hover.emit("Beyond the alignment ends")
+                return
+            self.mark.addPoint(self._xf(False).transform(QgsPointXY(sn[1], sn[2])), True)
+            self.hover.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - click")
+            return
+        try:
+            pl, pcs = self._pieces(lp)
+        except ValueError as ex:
+            self.hover.emit(str(ex))
+            return
+        xf = self._xf(False)
+        lines = [[xf.transform(QgsPointXY(x, y)) for x, y in (part.pts + ([part.pts[0]] if part.closed else []))]
+                 for pc in pcs for part in pc.parts]
+        self.band.setToGeometry(QgsGeometry.fromMultiPolylineXY(lines), None)
+        F = pl.frame(st.al)
+        self.hover.emit(f"Crossing angle {F.crossing_angle:.0f} deg, minor road on the "
+                        f"{'left' if F.side == 'L' else 'right'} - click to place")
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.cancel()
+
+    def cancel(self):
+        self.p0 = None
+        self.band.reset(GEOM_LINE)
+
+    def canvasReleaseEvent(self, e):
+        st = self._store()
+        if st is None:
+            return
+        if e.button() == Qt.RightButton:
+            if self.p0 is not None:
+                self.cancel()
+            else:
+                self.canvas.unsetMapTool(self)
+            return
+        if e.button() != Qt.LeftButton:
+            return
+        self.click(self._xf().transform(e.mapPoint()))
+
+    def click(self, lp):
+        st, s = self._store(), self._settings()
+        from .rfd.alignment import format_station
+        if self.p0 is None:
+            sn = self._snap(lp)
+            if sn is None:
+                self.failed.emit("Beyond the alignment ends")
+                return None
+            self.p0 = sn
+            self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - "
+                             f"now click a point up the minor road")
+            return None
+        try:
+            from .rfd import junctions as J
+            pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
+            n, finds = st.junctions.add(pl, s["kit"], s.get("piece") or "", s.get("guides", True))
+        except ValueError as ex:
+            self.failed.emit(str(ex))
+            return None
+        self.cancel()
+        what = s.get("piece") or f"type {s['kit']} kit"
+        self.placed.emit(f"{what}: {n} piece(s) at Ch {format_station(st.al.display_station(pl.station), 1)}"
+                         + ("".join(f" - {lvl}: {t}" for lvl, t in finds)))
+        return pl.junction_id
+
+    def deactivate(self):
+        self.cancel()
+        self.mark.reset(GEOM_POINT)
+        super().deactivate()

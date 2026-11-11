@@ -136,3 +136,57 @@ def test_speed_zones_in_a_project(tmp_path):
                                                         for c in rep.fr.checks_of("sign_unclosed"))
     st.remove_speed_zone(st.speed_zones()[0]["id"])
     assert len(st.speed_zones()) == 1
+
+
+def test_junction_templates_in_a_project(tmp_path):
+    import math
+    from road_furniture_designer.report import ReportData, pages, write_pdf, write_xlsx
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    assert st.junctions.layer.isValid()
+    x0, y0, h = st.al.point_at(600.0)
+    up = lambda ang, side=1: (x0 + 30 * math.cos(h + side * math.radians(ang)),
+                              y0 + 30 * math.sin(h + side * math.radians(ang)))
+    n, finds = st.junctions.place(x0, y0, *up(90), kit="A-2")
+    assert n == 7 and finds == []
+    n, finds = st.junctions.place(*st.al.point_at(st.al.sta_end - 300.0)[:2],
+                                  *(lambda x, y, hh: (x + 30 * math.cos(hh - math.radians(70)),
+                                                      y + 30 * math.sin(hh - math.radians(70))))(*st.al.point_at(st.al.sta_end - 300.0)),
+                                  kit="C", guides=False)
+    assert n == 4 and [l for l, _ in finds] == ["check"]
+    js = st.junctions.junctions()
+    assert [j["kit"] for j in js] == ["A-2", "C"]
+    a2 = js[0]
+    assert a2["side"] == "L" and a2["kerb_m"] > 60 and a2["island_m2"] > 80 and "TM07" in a2["paint"]
+    assert "guides" not in js[1]["pieces"] and "guides" in a2["pieces"]
+    # every feature carries the junction rule; a piece's features share its uuid
+    feats = list(st.junctions.layer.getFeatures())
+    assert all(f["rule"] == f"junction:{f['junction_id']}" for f in feats)
+    # rescaling rebuilds from the template; editing a trigger field rebuilds the piece
+    st.junctions.set_scale(a2["id"], 1.2)
+    a2b = st.junctions.junctions()[0]
+    assert a2b["island_m2"] == __import__("pytest").approx(a2["island_m2"] * 1.44, rel=0.02)
+    f = next(f for f in st.junctions.layer.getFeatures() if f["piece"] == "splitter_a2" and f["code"] == "KERB")
+    st.junctions.layer.startEditing()
+    st.junctions.layer.changeAttributeValue(f.id(), st.junctions.layer.fields().indexOf("sta"), 650.0)
+    st.junctions.layer.commitChanges()
+    moved = [g for g in st.junctions.layer.getFeatures() if g["piece"] == "splitter_a2"]
+    assert moved and all(abs(g["sta"] - 650.0) < 1e-6 for g in moved)
+    # report: schedule table, skew check, plan sheet, workbook, DXF
+    d = ReportData(st, AutoConfig(), title="Road Furniture")
+    tables = [p[0] for k, p in pages(d, 500) if k == "ftable"]
+    assert "junctions" in tables
+    assert [c.level for c in d.fr.checks_of("junction_skew")] == ["check"]
+    write_pdf(str(tmp_path / "j.pdf"), d, sheet_len=500)
+    write_xlsx(str(tmp_path / "j.xlsx"), d)
+    from openpyxl import load_workbook
+    rows = list(load_workbook(tmp_path / "j.xlsx")["Junctions"].iter_rows(min_row=2, values_only=True))
+    assert {r[6] for r in rows} >= {"KERB", "TM07", "BM07", "LM24", "HM07"}
+    from road_furniture_designer.rfd.dxf_out import write_junctions
+    import ezdxf
+    doc = ezdxf.new()
+    write_junctions(doc, doc.modelspace(), st.junctions.parts())
+    assert {"RSD-JN-KERB", "RSD-JN-GUIDE", "RSD-JN-TM07"} <= {l.dxf.name for l in doc.layers}
+    # removing a junction removes all its pieces
+    assert st.junctions.remove(js[1]["id"]) > 0
+    assert [j["kit"] for j in st.junctions.junctions()] == ["A-2"]

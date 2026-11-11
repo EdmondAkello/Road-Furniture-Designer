@@ -107,6 +107,30 @@ def add_derived(signs):
         doc.saveas(dxf_path)
 
 
+SUPPLEMENTARY_CATEGORY = "Supplementary (WSCM)"
+
+
+def add_supplementary(signs):
+    """Signs with no RDM 6.2 equivalent from the Ministry's standard drawings WSCM/84/2/01
+    (tools/extract_wscm_signs.py). Their codes carry a WSCM- prefix so no code can mean two signs."""
+    path = os.path.join(DATA, "wscm_signs.json")
+    if not os.path.isfile(path):
+        return
+    src = json.load(open(path, encoding="utf-8"))
+    have = {e["code"] for e in signs}
+    for s in src["signs"]:
+        if s["code"] in have:
+            raise SystemExit(f"{s['code']} is already an RDM code")
+        rule = size_rule({"code": s["code"], "category": s["category"], "shape": s["shape"]})
+        signs.append({"code": s["code"], "name": s["name"], "category": SUPPLEMENTARY_CATEGORY,
+                      "function": s["category"], "shape": s["shape"],
+                      "sizes": STD if rule else ["custom"], "default_size": "750" if rule else "custom",
+                      "size_rule": rule, "legend": s.get("legend"), "mirror": False,
+                      "source": f"{s['drawing']} sheet {s['sheet']}, sign {s['wscm_code']}",
+                      "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+                              + (f" Correction: {s['correction']}." if s.get("correction") else "")})
+
+
 def default_class(code):
     if code.startswith("IM"):
         return "EXP"
@@ -168,8 +192,9 @@ def main():
         signs.append(e)
     print("regenerated icons:", regenerate_icons(signs))
     add_derived(signs)
+    add_supplementary(signs)
     cat = {
-        "catalogue_version": "RDM6.2-2025.2",
+        "catalogue_version": "RDM6.2-2025.3+WSCM2024",
         "standard": {
             "name": "Road Design Manual Vol. 6 Part 2: Traffic Signs (RDM 6.2)",
             "edition": "2025", "publisher": "Ministry of Roads and Transport, Kenya",

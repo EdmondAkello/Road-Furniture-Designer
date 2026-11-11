@@ -302,6 +302,28 @@ def feature_rows(d):
     return out
 
 
+JN_HEAD = ["Chainage", "Type", "Minor road", "Angle", "Scale", "Islands", "Kerb (m)", "Island area (m²)",
+           "Markings: length (m) / area (m²)", "Status"]
+JN_W = [7, 6, 7, 6, 5, 22, 7, 8, 35, 7]
+
+
+def junction_rows(d):
+    out = []
+    for j in getattr(d, "junction_list", []) or []:
+        isl = sorted(p for p in j["pieces"] if "island" in p or "splitter" in p)
+        marks = ", ".join(f"{c} {v[0]:.0f} / {v[1]:.1f}" for c, v in sorted(j["paint"].items()))
+        out.append([j["ch"], j["kit"], "Left" if j["side"] == "L" else "Right", f"{j['crossing_deg']:.0f}°",
+                    f"{j['scale']:g}", ", ".join(i.replace("_", " ") for i in isl) or "-",
+                    f"{j['kerb_m']:.1f}", f"{j['island_m2']:.1f}", marks or "-", j["status"] or ""])
+    return out
+
+
+def junction_note(d):
+    return ("Islands and markings placed from the standard drawings RDM/1/3/2/01-02 as templates and fitted by "
+            "the designer; kerb lines, control radii and entry widths come from the junction design. Areas are "
+            "painted areas (line length x line width).")
+
+
 def quantity_rows(d):
     return [[c, code, name, pat, unit, q] for c, code, name, pat, unit, q in d.fr.quantities]
 
@@ -318,6 +340,8 @@ TABLES = [
     ("markings", "Markings and road studs schedule (RDM 6.1)", MARK_HEAD, MARK_W, marking_rows, None),
     ("barriers", "Safety barrier schedule (RDM 1.3 Chapter 12)", BAR_HEAD, BAR_W, barrier_rows, None),
     ("features", "Traffic calming and crossings (RDM 6.4 / 6.1)", FEAT_HEAD, FEAT_W, feature_rows, None),
+    ("junctions", "Junction islands and markings (RDM/1/3/2/01-02, RDM 6.1)", JN_HEAD, JN_W, junction_rows,
+     junction_note),
     ("fquantities", "Road furniture quantities (linear items)", QTY_HEAD, QTY_W, quantity_rows, None),
     ("checks", "Road furniture checks against the geometry", CHK_HEAD, CHK_W, check_rows, None),
 ]

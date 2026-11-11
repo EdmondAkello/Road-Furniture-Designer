@@ -152,6 +152,7 @@ def draw_plan(p, d, rect: QRectF, s0, s1, th, scale, page_w, font, colours, key_
         p.drawPath(poly(pts))
     # linear furniture: markings, studs, barriers, calming items and crossings
     _draw_runs(p, d, lo, hi, poly, P, vp)
+    _draw_junctions(p, d, lo, hi, poly)
     # centreline
     p.setPen(QPen(QColor("#1f5fbf"), 1.2, Qt.PenStyle.DashDotLine))
     p.drawPath(poly(sample(lo, hi)))
@@ -338,6 +339,27 @@ def _sign_list(p, signs, r, font):
 
 
 RUN_COL = {"white": "#4f5a69", "yellow": "#d9a400"}
+
+
+JN_PEN = {"KERB": ("#2b2f36", 1.4, Qt.PenStyle.SolidLine), "GUIDE": ("#9aa3ae", 0.5, Qt.PenStyle.DashLine)}
+
+
+def _draw_junctions(p, d, lo, hi, poly):
+    """Junction islands and markings placed from the templates (guide lines faint and dashed)."""
+    from .rfd.junctions import load_templates
+    parts = getattr(d, "junction_parts", None)
+    if not parts:
+        return
+    codes = load_templates()["codes"]
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    for code, sta, lines in parts:
+        if sta is None or sta < lo - 150 or sta > hi + 150:
+            continue
+        col, w, style = JN_PEN.get(code, (RUN_COL.get(codes.get(code, {}).get("colour"), "#4f5a69"), 0.8,
+                                          Qt.PenStyle.SolidLine))
+        p.setPen(QPen(QColor(col), w, style))
+        for ln in lines:
+            p.drawPath(poly(ln))
 
 
 def _draw_runs(p, d, lo, hi, poly, P, vp):

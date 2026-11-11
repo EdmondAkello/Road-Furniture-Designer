@@ -1,5 +1,5 @@
 {
- "catalogue_version": "RDM6.2-2025.2",
+ "catalogue_version": "RDM6.2-2025.3+WSCM2024",
  "standard": {
   "name": "Road Design Manual Vol. 6 Part 2: Traffic Signs (RDM 6.2)",
   "edition": "2025",
@@ -4373,6 +4373,346 @@
    "figure": "3.46",
    "page": 28,
    "note": "RDM 6.2 3.11 (no overtaking, P32) and 3.6 (clearway, P14): the end of the restriction is the same sign with a supplementary plate reading END, on the same post. The manual gives the plate no code; the artwork is the identical END plate of Figure 10.43 (RW41)."
+  },
+  {
+   "code": "WSCM-I1",
+   "name": "Start of Climbing Lane",
+   "category": "Supplementary (WSCM)",
+   "function": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign I1",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-I2",
+   "name": "End of Climbing Lane",
+   "category": "Supplementary (WSCM)",
+   "function": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign I2",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-I3",
+   "name": "Bus Stop",
+   "category": "Supplementary (WSCM)",
+   "function": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign I3",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-I6",
+   "name": "Hotel or Motel",
+   "category": "Supplementary (WSCM)",
+   "function": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign I6",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-I10",
+   "name": "One Way Traffic",
+   "category": "Supplementary (WSCM)",
+   "function": "Information",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign I10",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M2",
+   "name": "Road Closed",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M2",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M3",
+   "name": "No Entry for Pedestrians",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M3",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M8",
+   "name": "End of No Overtaking Section",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M8",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M9",
+   "name": "Overtaking of Goods Vehicles Prohibited",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M9",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M14",
+   "name": "End of All Prohibitions",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M14",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M16",
+   "name": "No Entry for Vehicles Exceeding the Length Shown (10 m as drawn)",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M16",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-M17",
+   "name": "Driving Vehicles Less than the Distance Shown Apart Prohibited (70 m as drawn)",
+   "category": "Supplementary (WSCM)",
+   "function": "Prohibitory",
+   "shape": "circle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 2/2, sign M17",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W22",
+   "name": "River Bed Crossing (Drift)",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W22",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024). Correction: the drawing shows the border hatched in black; drawn with the red border of every other warning sign on the sheet."
+  },
+  {
+   "code": "WSCM-W25",
+   "name": "Section Frequented by Cyclists",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W25",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W34",
+   "name": "Hazard Ahead",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W34",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W37",
+   "name": "Road Surface of Loose Stones Ahead",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W37",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W39",
+   "name": "Soft Verges",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "triangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "warning",
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W39",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W42",
+   "name": "Railway Crossing, One Track",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W42",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
+  },
+  {
+   "code": "WSCM-W43",
+   "name": "Railway Crossing, More than One Track",
+   "category": "Supplementary (WSCM)",
+   "function": "Warning",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "source": "WSCM/84/2/01 sheet 1/2, sign W43",
+   "note": "Not in RDM 6.2 (2025); from the Ministry's standard drawings WSCM/84/2/01 (Jan 2024)."
   }
  ],
  "posts": {
