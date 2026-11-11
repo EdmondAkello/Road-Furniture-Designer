@@ -92,10 +92,60 @@ class Edges:
         return None, None
 
 
-def collect_section(acc: Dict, station: float, section_el, local) -> None:
-    """Add one CrossSect's coded points to the accumulator {(code, side): [(sta, off)]}."""
+class Sections:
+    """Corridor cross-section shapes: {station: {side: [(abs offset, elevation rel. to the crown, code)]}}.
+
+    Elevations are as Civil 3D writes them in CrossSectPnt: relative to the alignment's
+    design level at that station, so differences (fill height) need no ground surface."""
+
+    def __init__(self, data: Dict[float, Dict[str, List[Tuple[float, float, str]]]]):
+        self.surfaces: Dict[float, Dict[str, List[Tuple[float, float]]]] = {
+            s: v["_surf"] for s, v in data.items() if v.get("_surf")}
+        self.data = {s: {sd: sorted(set(p)) for sd, p in v.items() if p and sd != "_surf"}
+                     for s, v in sorted(data.items())}
+        self.stations = sorted(self.data)
+
+    def surface_names(self) -> List[str]:
+        """Names of the section surfaces (CrossSectSurf, absolute elevations), most frequent first."""
+        from collections import Counter
+        c = Counter(n for v in self.surfaces.values() for n in v)
+        return [n for n, _ in c.most_common()]
+
+    def surface(self, station: float, name: str) -> Optional[List[Tuple[float, float]]]:
+        return self.surfaces.get(station, {}).get(name)
+
+    def __bool__(self):
+        return bool(self.data)
+
+    def __len__(self):
+        return len(self.stations)
+
+    def side(self, station: float, side: str) -> List[Tuple[float, float, str]]:
+        return self.data.get(station, {}).get(side, [])
+
+
+def _add_point(sec, station, code, off, z):
+    if sec is None or abs(off) < 1e-6:
+        return
+    side = "L" if off < 0 else "R"
+    sec.setdefault(station, {}).setdefault(side, []).append((round(abs(off), 4), round(z, 4), code))
+
+
+def collect_section(acc: Dict, station: float, section_el, local, sec: Dict = None) -> None:
+    """Add one CrossSect's coded points to the accumulator {(code, side): [(sta, off)]}
+    and, when ``sec`` is given, the points with their elevations to {station: {side: [...]}}."""
     seen = {}
     for item in section_el:
+        if local(item.tag) == "CrossSectSurf" and sec is not None:
+            for pl in item:
+                if local(pl.tag) == "PntList2D" and pl.text:
+                    try:
+                        v = [float(t) for t in pl.text.split()]
+                    except ValueError:
+                        continue
+                    sec.setdefault(station, {}).setdefault("_surf", {})[item.get("name", "")] = \
+                        list(zip(v[0::2], v[1::2]))
+            continue
         if local(item.tag) != "DesignCrossSectSurf":
             continue
         for p in item:
@@ -107,6 +157,10 @@ def collect_section(acc: Dict, station: float, section_el, local) -> None:
                 off = float(parts[0])
             except (IndexError, ValueError):
                 continue
+            try:
+                _add_point(sec, station, code, off, float(parts[1]))
+            except (IndexError, ValueError):
+                pass
             side = "L" if off < 0 else "R"
             if abs(off) < 1e-6:
                 continue

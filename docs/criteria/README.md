@@ -55,7 +55,7 @@ linearly and held constant beyond the first and last keys.
 | `headlight_height`, `headlight_angle_degrees` | no | Sag headlight check. Defaults 0.6 m / 1° | RDM 1.3 S3.13.8 |
 | `k_crest`, `k_sag` | no | Minimum K by speed. Without them K is computed from SSD and the heights | RDM 1.3 Tables 6.1, 6.4 |
 | `clear_zone` | no | `{"medium_traffic"\|"low_traffic": {"fill"\|"cut": {speed: m}}}` | RDM 1.3 Table 12.1 |
-| `barrier` | no | `runout` {speed: m}, `min_length`, `setback`, `setback_high`, `group_gap`, and optionally `simple` {`height`, `slope_n`} | RDM 1.3 Chapter 12 |
+| `barrier` | no | `runout` {speed: m}, `min_length` (30 m), `setback` (0.5 m), `setback_high` (0.75 m, AADT ≥ 12,000 and > 80 km/h), `group_gap` (gaps shorter than this are closed; 80 m), and optionally `simple` {`height`, `slope_n`} | RDM 1.3 12.6.6, 12.6.14, Table 12.6 |
 | `barrier_warrant` | no | Embankment warrant curve: a file name (relative to the criteria file) or an inline object, see below | RDM 1.3 Figure 12.4 |
 | `marking_visibility` | no | `{"rows": [{"classes": [...], "speed", "visibility", "critical"}]}` for the combined line system | RDM 6.1 Table 4.4 |
 

@@ -118,3 +118,38 @@ def test_propose_markings_roundtrip(tmp_path):
     import ezdxf
     msp = ezdxf.readfile(dxf).modelspace()
     assert len(msp.query('LWPOLYLINE[layer=="RSD-MARK-LM27"]')) >= 2
+
+
+def test_propose_barriers_on_a_fill(tmp_path):
+    from examples.make_demo_road import corridor_xml
+    from road_furniture_designer.rfd.barriers import BarrierConfig
+    QgsProject.instance().clear()
+    els = build()
+    L = sum(e.length for e in els)
+    # profile on an 8 m embankment between 300 and 500; the corridor's daylight points sit 12 m out (1:1.5)
+    prof = ('<Profile name="DEMO"><ProfAlign name="FRL"><PVI>0 100</PVI><PVI>%.3f 100</PVI></ProfAlign></Profile>' % L)
+    sec = corridor_xml(L)
+    import re
+    def fill(m):
+        sta = float(m.group(1))
+        body = m.group(0)
+        if 300 <= sta <= 500:
+            for side in (-1, 1):
+                body = body.replace("</DesignCrossSectSurf>",
+                                    '<CrossSectPnt code="Hinge">%.1f -0.2</CrossSectPnt>'
+                                    '<CrossSectPnt code="Daylight">%.1f -8.2</CrossSectPnt></DesignCrossSectSurf>'
+                                    % (side * 6.0, side * 18.0), 1)
+        return body
+    sec = re.sub(r'<CrossSect sta="([^"]+)".*?</CrossSect>', fill, sec, flags=re.S)
+    xml = tmp_path / "road.xml"
+    xml.write_text(to_landxml(els, extra=prof + sec))
+    store = SignStore.create(str(tmp_path / "signs.gpkg"), str(xml), "DEMO-RD", CRS, "Test")
+    store.add_to_project()
+    n, findings, skipped = store.lines.auto_propose_barriers(BarrierConfig(landxml=str(xml)))
+    bars = [f for f in store.lines.layer.getFeatures() if f["item_code"] == "GR-W"]
+    assert n == len(bars) >= 1 and not skipped
+    assert all(f["status"] == "proposed" and f["rule"] == "barrier" for f in bars)
+    assert any("daylight" in f.text for f in findings if f.kind == "barrier_note")
+    store.lines.accept_proposals()
+    rows, _ = store.summary()
+    assert any(r[1] == "GR-TERM" for r in rows)
