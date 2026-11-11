@@ -83,7 +83,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 </ul>
 <p>What has <b>not</b> been checked yet:</p>
 <ul>
-  <li>The auto-placement rules follow RDM 6.2, but the sight-distance and side-friction values are AASHTO 2011 defaults until they are checked against RDM Part 1.3 (section 21).</li>
+  <li>The auto-placement rules follow RDM 6.2. Side friction, sight distances and K values follow RDM Part 1.3 (2025); the AASHTO 2011 values remain available as an alternative criteria set.</li>
 </ul>
 
 <div class="warn"><b>Results depend on the Civil 3D model</b>Road Furniture Designer only knows what the LandXML tells it. Its chainages, proposals, checks and report are as good as the design work in Civil 3D and the export settings, so before relying on the output make sure that:
@@ -216,7 +216,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
     <tr><td>Descent steeper than 5 %</td><td>W30 with the actual grade</td><td>RDM 6.2 §4.6.4</td></tr>
     <tr><td>Ascent steeper than 10 %</td><td>W31 with the actual grade</td><td>RDM 6.2 §4.6.4</td></tr>
     <tr><td>Sight distance below passing sight distance</td><td>P32 no overtaking with a W23 distance plate at the start, and an END plate, in each direction</td><td>RDM 6.2 §3.11</td></tr>
-    <tr><td>Sag with headlight sight distance short of SSD; crest short of SSD</td><td>Reported as findings (no sign proposed)</td><td>AASHTO 2011 defaults</td></tr>
+    <tr><td>Sag with headlight sight distance short of SSD; crest short of SSD</td><td>Reported as findings (no sign proposed)</td><td>RDM 1.3 Tables 6.1, 6.4</td></tr>
   </tbody>
 </table>
 <p>Signs are placed at the advance distance (6 seconds of travel at the design speed, RDM 6.2 §2.4), on the left for up-chainage traffic and on the right for down-chainage traffic, at the set clearance beyond the reference edge, and moved apart where they would be closer than 0.6 V metres.</p>
@@ -365,18 +365,18 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 <table>
   <thead><tr><th>Item</th><th>Method</th><th>Source</th></tr></thead>
   <tbody>
-    <tr><td>Curve safe speed</td><td>V² = 127 R (e + f<sub>max</sub>(V)), solved by iteration</td><td>f<sub>max</sub>: AASHTO 2011 Table 3-7 (default)</td></tr>
+    <tr><td>Curve safe speed</td><td>V² = 127 R (e + f<sub>max</sub>(V)), solved by iteration</td><td>f<sub>max</sub>: RDM 1.3 Table 5.1</td></tr>
     <tr><td>Advance distance</td><td>6 s of travel at the design speed, rounded up to 10 m (130 m at 80 km/h)</td><td>RDM 6.2 §2.4</td></tr>
     <tr><td>Minimum spacing</td><td>0.6 V metres</td><td>RDM 6.2 §2.4</td></tr>
     <tr><td>Lateral position</td><td>0.6–3.0 m beyond the carriageway or paved-shoulder edge</td><td>RDM 6.2 §2.4</td></tr>
     <tr><td>Chevron spacing</td><td>By radius, on the curve and before it</td><td>RDM 6.2 Table 4.2</td></tr>
     <tr><td>Steep grades</td><td>Descent &gt; 5 %, ascent &gt; 10 %</td><td>RDM 6.2 §4.6.4</td></tr>
-    <tr><td>Sight distance on crests</td><td>Running scan of the profile: the farthest point visible from an eye 1.08 m high, compared with SSD (object 0.60 m) and PSD (object 1.08 m)</td><td>AASHTO 2011 SSD and PSD tables (default)</td></tr>
-    <tr><td>Sags</td><td>Headlight sight distance (0.6 m, 1° up-spread) compared with SSD</td><td>AASHTO 2011 (default)</td></tr>
+    <tr><td>Sight distance on crests</td><td>Running scan of the profile: the farthest point visible from an eye 1.05 m high, compared with SSD (object 0.20 m, corrected for grade) and reduced PSD (object 1.3 m)</td><td>RDM 1.3 Tables 3.13, 3.16, 3.20</td></tr>
+    <tr><td>Sags</td><td>Headlight sight distance (0.6 m, 1° up-spread) compared with SSD</td><td>RDM 1.3 Table 6.4</td></tr>
     <tr><td>Sign sizes</td><td>By design speed for Stop, Give Way, warning and circular regulatory signs</td><td>RDM 6.2 Tables 3.1, 3.3, 4.1</td></tr>
   </tbody>
 </table>
-<div class="warn"><b>To confirm</b>RDM 6.2 does not give side-friction, stopping or passing sight distance values; RDM Part 1.3 governs them. Until they are checked against Part 1.3 the AASHTO 2011 values are used and labelled as defaults in the report.</div>
+<div class="note"><b>Criteria</b>RDM 6.2 does not give side-friction, stopping or passing sight distance values, so they are taken from RDM Part 1.3 (2025). The report Basis sheet and the long-section footer cite the tables used.</div>
 
 <h2 id="catalogue"><span class="sec">22</span>The sign catalogue</h2>
 <figure><img src="figures/fig_catalogue.png"><figcaption><b>Figure 13.</b> A selection of the 245 signs in the RDM 6.2 catalogue, drawn from the manual's own figures.</figcaption></figure>
@@ -418,7 +418,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li><b>Quantities.</b> Post and foundation types for the QTO are still to be agreed. Sign numbering follows RDM 6.2.</li>
   <li><b>Corridor restriction.</b> Implemented as RDM's 0.6–3.0 m band inside the ditch or daylight line. A road-reserve boundary is not used yet.</li>
   <li><b>Junctions.</b> Junction signing (RDM Table A1-1) is not automated; place those signs by hand.</li>
-  <li><b>Sight distances</b> use AASHTO 2011 defaults until checked against RDM Part 1.3.</li>
+  <li><b>Sight distances</b> follow RDM Part 1.3; no-overtaking uses the reduced passing sight distance.</li>
 </ul>
 
 <h2 id="trouble"><span class="sec">26</span>Troubleshooting</h2>

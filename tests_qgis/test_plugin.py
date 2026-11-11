@@ -15,8 +15,9 @@ sys.path.insert(0, ROOT)
 from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsGeometry, QgsPointXY,  # noqa: E402
                        QgsProject)
 
-_app = QgsApplication([], True)
-_app.initQgis()
+if QgsApplication.instance() is None:          # one application for the whole test session
+    _app = QgsApplication([], True)
+    _app.initQgis()
 
 from road_furniture_designer.store import SignStore  # noqa: E402
 from examples.make_demo_road import build, to_landxml  # noqa: E402
@@ -476,3 +477,30 @@ def test_dxf_callouts_keep_posts_georeferenced(tmp_path):
         f = by_uuid[e.get_xdata("RSD")[1].value]
         assert abs(e.dxf.insert.x - f.x) < 1e-6 and abs(e.dxf.insert.y - f.y) < 1e-6
         assert e.dxf.name.startswith("RSDC_")
+
+
+def test_dock_linear_tab(store):
+    from qgis.gui import QgsMapCanvas, QgsMessageBar
+    from qgis.PyQt.QtWidgets import QMainWindow
+    from road_furniture_designer.dock import RsdDock
+
+    class Iface:
+        def __init__(self):
+            self.win = QMainWindow(); self.canvas = QgsMapCanvas(); self.bar = QgsMessageBar()
+        def mapCanvas(self): return self.canvas
+        def messageBar(self): return self.bar
+        def mainWindow(self): return self.win
+
+    iface = Iface()
+    iface.canvas.setDestinationCrs(CRS)
+    dock = RsdDock(iface)
+    dock.set_store(store)
+    assert dock.cmb_crit.currentData() == "kenya_rdm_2025"
+    dock.cmb_litem.setCurrentIndex(dock.cmb_litem.findData("LM01"))
+    dock.spn_lfrom.setValue(100); dock.spn_lto.setValue(400)
+    dock.add_line_run()
+    assert dock.tbl_lines.rowCount() == 1 and dock.tbl_lines.item(0, 4).text() == "300 m"
+    dock._zoom_line(0, 0)
+    dock.tbl_lines.selectRow(0)
+    dock.delete_line_runs()
+    assert dock.tbl_lines.rowCount() == 0

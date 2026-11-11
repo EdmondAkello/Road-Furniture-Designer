@@ -98,6 +98,9 @@ class SignStore(QObject):
         self._busy = False
         self._migrate(self.signs)
         self._bind(self.signs)
+        from .linestore import LineStore
+        self.lines = LineStore(gpkg, self.al, crs=self.signs.crs())
+        self.lines.changed.connect(self.changed.emit)
 
     @staticmethod
     def _migrate(layer):
@@ -216,6 +219,9 @@ class SignStore(QObject):
 
         found = {k: existing(l) for k, l in (("s", self.signs), ("c", self.chainage_layer),
                                               ("a", self.alignment_layer))}
+        ex = existing(self.lines.layer)
+        if ex is not None and ex is not self.lines.layer:
+            self.lines.bind(ex)
         for attr in ("edges_layer", "vcurve_layer"):
             lyr = getattr(self, attr)
             if lyr.isValid():
@@ -229,11 +235,16 @@ class SignStore(QObject):
             self.chainage_layer = found["c"]
         if found["a"] is not None:
             self.alignment_layer = found["a"]
+        grp = root.findGroup("Road Furniture Designer") or root.insertGroup(0, "Road Furniture Designer")
+        if ex is None:                 # projects made before the linear layer existed
+            project.addMapLayer(self.lines.layer, False)
+            grp.insertLayer(1, self.lines.layer)
+            self.lines.style()
         if all(found.values()):
             self.style()               # re-point icon paths (plugin or project may have moved)
             return
-        grp = root.findGroup("Road Furniture Designer") or root.insertGroup(0, "Road Furniture Designer")
-        for lyr in (self.signs, self.vcurve_layer, self.chainage_layer, self.edges_layer, self.alignment_layer):
+        for lyr in (self.signs, self.lines.layer, self.vcurve_layer, self.chainage_layer, self.edges_layer,
+                    self.alignment_layer):
             if lyr.isValid() and not project.mapLayer(lyr.id()):
                 project.addMapLayer(lyr, False)
                 grp.addLayer(lyr)
@@ -597,6 +608,7 @@ class SignStore(QObject):
     def recompute_all(self):
         for f in self.signs.getFeatures():
             self.recompute(f.id())
+        self.lines.recompute_all()
         self.changed.emit()
 
     # ------------------------------------------------------------------ inventory / exports
@@ -695,13 +707,16 @@ class SignStore(QObject):
         rows = [("Sign face", c, self.cat.signs[c].name, s, n) for (c, s), n in sorted(faces.items())]
         rows += [("Post", p, self.cat.posts[p]["description"], "", n) for p, n in sorted(posts.items())]
         rows += [("Foundation", p, self.cat.foundations[p]["description"], "", n) for p, n in sorted(fdns.items())]
+        for catg, code, desc, pat, unit, q in self.lines.summary():
+            rows.append((catg, code, desc, pat, f"{q:g} {unit}"))
         return rows, sl
 
     def export_inventory(self, xlsx_path):
         from .rfd.inventory import write_inventory
         sl = self.signlist(include_proposed=False)
         write_inventory(xlsx_path, sl, self.cat, self.meta.get("project", ""),
-                        csv_path=os.path.splitext(xlsx_path)[0] + ".csv")
+                        csv_path=os.path.splitext(xlsx_path)[0] + ".csv",
+                        linear=(self.lines.runs(include_proposed=False), self.lines.cat, self.al))
         return sl
 
     def set_meta(self, **values):
@@ -737,7 +752,8 @@ class SignStore(QObject):
         if dxf_path:
             from .rfd.dxf_out import write_dxf
             write_dxf(dxf_path, sl, self.al, self.cat, plan_scale=plan_scale, crs=self.crs_info(),
-                      source=self.landxml_path, others=self.other_alignments())
+                      source=self.landxml_path, others=self.other_alignments(),
+                      linear=(self.lines.runs(include_proposed=False), self.lines.cat))
         return sl
 
     def import_readback(self, json_path):

@@ -248,7 +248,7 @@ def _draw_alignment(msp, al, layer, tick, text_h, label_name=False):
 
 def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
               symbol_scale: float = None, tick: float = None, plan_scale: float = DEFAULT_PLAN_SCALE,
-              crs: dict = None, source: str = "", others=None, callout: bool = True):
+              crs: dict = None, source: str = "", others=None, callout: bool = True, linear=None):
     """Placed signs in WORLD coordinates (the LandXML's easting/northing, metres).
 
     Nothing is shifted or rescaled, so the signs can be copied into any drawing that
@@ -260,6 +260,8 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     clear of the carriageway and of the other symbols. callout=False puts the sign block
     itself on the post, rotated to face traffic.
     others: further alignments from the LandXML to draw for reference.
+    linear: (runs, LinearCatalogue) - markings, studs and barriers drawn as polylines in
+    world units (RSD-MARK-*, RSD-STUD-*, RSD-BARRIER-* layers).
     """
     from .corridor import edge_polylines
     from .plan_layout import callouts_by_post
@@ -353,6 +355,8 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
                     if upside_down:
                         a.dxf.rotation = (a.dxf.get("rotation", 0.0) + 180.0) % 360.0
         ref.set_xdata(APPID, [(1000, "rsd/0.1"), (1000, f.face_uuid), (1000, f.install_uuid)])
+    if linear:
+        write_linear(doc, msp, al, *linear)
     try:
         from ezdxf import bbox
         ext = bbox.extents(msp)
@@ -459,3 +463,67 @@ def readback_dxf(path: str) -> dict:
             "rotation_deg": e.dxf.get("rotation", 0.0) % 360.0, "handle": e.dxf.handle,
             "attributes": {a.dxf.tag: a.dxf.text for a in e.attribs}})
     return {"schema_version": "0.1", "source": "dxf", "drawing": path, "signs": signs}
+
+
+LINEAR_COLOURS = {"yellow": 2, "white": 7, "grey": 8}
+STUD_RADIUS = 0.1
+
+
+def _linear_layer(doc, it) -> str:
+    kind = {"Marking": "MARK", "Road stud": "STUD", "Barrier": "BARRIER"}.get(it.category, "LINEAR")
+    lay = f"RSD-{kind}-" + "".join(c if c.isalnum() or c in "-_" else "_" for c in it.code)
+    if lay not in doc.layers:
+        doc.layers.add(lay, color=LINEAR_COLOURS.get(it.colour, 6))
+    return lay
+
+
+def _dash_linetype(doc, mark: float, gap: float) -> str:
+    """A linetype in world metres (LTSCALE 1) for a broken marking."""
+    name = f"RSD_{mark:g}_{gap:g}".replace(".", "p")
+    if name not in doc.linetypes:
+        doc.linetypes.add(name, pattern=[mark + gap, mark, -gap], description=f"RSD {mark:g} m mark / {gap:g} m gap")
+    return name
+
+
+def write_linear(doc, msp, al, runs, cat):
+    """Draw linear furniture runs. Multi-line items (double lines, CLS) are drawn line by line."""
+    from dataclasses import replace
+    from .linear import geometry, run_quantities, signed_offset
+    for r in runs:
+        if r.code not in cat:
+            continue
+        it = cat[r.code]
+        lay = _linear_layer(doc, it)
+        v = al.speed_at((r.sta_start + r.sta_end) / 2)
+        xd = [(1000, "rsd-line/0.1"), (1000, r.uuid), (1000, r.code),
+              (1040, r.sta_start), (1040, r.sta_end), (1000, r.side)]
+        if it.is_point_series:
+            q = run_quantities(r, it, v)
+            n, sp = q["count"], q["spacing"]
+            for k in range(n):
+                s = min(r.sta_start + k * sp, r.sta_end)
+                o = signed_offset(al, r, s)
+                if o is None:
+                    continue
+                x, y, _ = al.point_at(s, o)
+                c = msp.add_circle((x, y), STUD_RADIUS, dxfattribs={"layer": lay})
+                c.set_xdata(APPID, xd)
+            continue
+        d = it.dims(v) if it.is_marking else {}
+        # composite lines (CLS) are drawn left to right in chainage direction: the first kind on the left.
+        # Which direction the prohibition applies to is set in step 2 (marking rules).
+        kinds = it.composite or (["line"] * max(1, it.lines if it.is_marking else 1))
+        spacing = float(d.get("spacing") or 0.1) + float(d.get("width") or 0.1)
+        nlines = len(kinds)
+        for j, kind in enumerate(kinds):
+            shift = (j - (nlines - 1) / 2.0) * spacing
+            rr = replace(r, offset=r.offset + (shift if r.side != "L" else -shift))
+            broken = it.is_marking and kind != "continuous" and d.get("mark") and d.get("gap")
+            attrs = {"layer": lay}
+            if broken:
+                attrs["linetype"] = _dash_linetype(doc, float(d["mark"]), float(d["gap"]))
+            for pts in geometry(al, rr, step=2.0):
+                pl = msp.add_lwpolyline(pts, dxfattribs=attrs)
+                if it.is_marking and d.get("width"):
+                    pl.dxf.const_width = float(d["width"])
+                pl.set_xdata(APPID, xd)

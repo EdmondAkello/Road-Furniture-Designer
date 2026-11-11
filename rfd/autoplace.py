@@ -12,9 +12,10 @@ RDM 6.2 (2025)
   4.6.1 chevrons on the outside of the curve, spacing Table 4.2
   4.6.4 W30 where descent > 5 %; W31 where ascent > 10 %
   3.11  P32 both ends of the hazardous length, both directions, distance plate; END plate
-Engineering defaults (configurable, not RDM 6.2 values - RDM 1.3 governs geometry):
-  side friction f_max and stopping / passing sight distances: AASHTO Green Book 2011 metric
-  eye / object heights 1.08 m / 0.60 m (SSD), 1.08 m / 1.08 m (passing); headlight 0.60 m, 1 deg
+RDM 1.3 (2025), through rfd.criteria (default file kenya_rdm_2025.json):
+  Table 5.1 side friction; Tables 3.16 / 3.20 stopping and (reduced) passing sight distance;
+  Table 3.13 eye 1.05 m, passing object 1.3 m; Tables 6.1 / 6.4 crest and sag K; 3.13.8 headlights
+The previous AASHTO 2011 defaults remain available as criteria "aashto_2011".
 """
 from __future__ import annotations
 
@@ -22,14 +23,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-# AASHTO 2011 metric Table 3-7: f_max by design speed (km/h)
-F_MAX = [(20, 0.35), (30, 0.28), (40, 0.23), (50, 0.19), (60, 0.17), (70, 0.15), (80, 0.14),
-         (90, 0.13), (100, 0.12), (110, 0.11), (120, 0.09), (130, 0.08)]
-# AASHTO 2011 metric: stopping sight distance (Table 3-1) and passing sight distance (Table 3-4)
-SSD = [(30, 35), (40, 50), (50, 65), (60, 85), (70, 105), (80, 130), (90, 160), (100, 185),
-       (110, 220), (120, 250)]
-PSD = [(30, 120), (40, 140), (50, 160), (60, 180), (70, 210), (80, 245), (90, 280), (100, 320),
-       (110, 355), (120, 395)]
+from . import criteria as _crit
+
 # RDM 6.2 Table 4.2: chevron spacing on curve / before curve by radius
 CHEVRON = [(50, 15, 30), (100, 20, 40), (200, 30, 60), (300, 45, 90), (400, 60, 120),
            (500, 70, 140), (1e9, 80, 150)]
@@ -56,11 +51,12 @@ def advance_distance(kmh: float) -> float:
     return math.ceil(kmh / 3.6 * 6.0 / 10.0) * 10.0
 
 
-def curve_speed(radius: float, e_pct: float) -> float:
-    """Speed (km/h) at which R, e and f_max(V) balance: V^2 = 127 R (e + f)."""
+def curve_speed(radius: float, e_pct: float, crit=None) -> float:
+    """Speed (km/h) at which R, e and f_max(V) balance: V^2 = 127 R (e + f) (RDM 1.3 Eq. 5.1, Table 5.1 f)."""
+    crit = crit or _crit.get()
     v = 60.0
     for _ in range(40):
-        v_new = math.sqrt(max(127.0 * radius * (e_pct / 100.0 + interp(F_MAX, v)), 0.0))
+        v_new = math.sqrt(max(127.0 * radius * (e_pct / 100.0 + crit.f_max(v)), 0.0))
         if abs(v_new - v) < 0.01:
             break
         v = v_new
@@ -90,6 +86,12 @@ class AutoConfig:
     start: Optional[float] = None    # internal station range
     end: Optional[float] = None
     step: float = 5.0                # m sampling for grades / sight distance
+    criteria: str = _crit.DEFAULT_ID # design criteria file (rfd/data/criteria)
+    psd_reduced: bool = True         # RDM 1.3 Table 3.20: reduced passing sight distance in constrained cases
+
+    @property
+    def crit(self):
+        return _crit.get(self.criteria)
 
 
 @dataclass
@@ -164,7 +166,7 @@ def curve_groups(al, cfg: AutoConfig) -> List[CurveGroup]:
         mid = (s0 + s1) / 2
         v_app = al.speed_at(mid) or al.speed_at(g0) or 0.0
         out.append(CurveGroup(g0, g1, s0, s1, e.radius, e.ccw, defl, e_pct,
-                              curve_speed(e.radius, e_pct), v_app))
+                              curve_speed(e.radius, e_pct, cfg.crit), v_app))
     return out
 
 
@@ -258,43 +260,57 @@ def analyse(al, cfg: AutoConfig) -> List[Finding]:
                                        f"{label} steeper than {thr:.0f}% for {b - a:.0f} m (max {worst:.1f}%)",
                                        {"max": worst}))
     v_of = lambda s: al.speed_at(s) or 80.0
+    crit = cfg.crit
+    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
     if cfg.no_overtaking:
         z = sight_profile(pr, st)
-        max_need = max(interp(PSD, v_of(s)) for s in st)
+        max_need = max(psd_of(s) for s in st)
         for direction, sign in (("Forward", 1), ("Backward", -1)):
-            sd = sight_distances(st, z, sign, 1.08, 1.08, max_need + cfg.step)
-            flags = [d < interp(PSD, v_of(s)) for s, d in zip(st, sd)]
+            sd = sight_distances(st, z, sign, crit.eye_height, crit.psd_object_height, max_need + cfg.step)
+            flags = [d < psd_of(s) for s, d in zip(st, sd)]
             for a, b in _runs(st, flags, cfg.zone_merge_gap, cfg.min_zone_length, cfg.step):
                 out.append(Finding("no_overtaking", a, b, direction,
-                                   f"passing sight distance < {interp(PSD, v_of(a)):.0f} m over {b - a:.0f} m",
-                                   {"psd": interp(PSD, v_of(a))}))
-    # report-only checks on the vertical curves
+                                   f"passing sight distance < {psd_of(a):.0f} m over {b - a:.0f} m "
+                                   f"({crit.ref('psd')}{', reduced' if cfg.psd_reduced and crit.is_kenya else ''})",
+                                   {"psd": psd_of(a)}))
+    # report-only checks on the vertical curves: K against the criteria tables where given
+    # (RDM 1.3 Tables 6.1 / 6.4), else from the SSD with the headlight / eye-object formulas
+    h_eye, h_obj = crit.eye_height, crit.object_height
+    hl_h, hl_a = crit.headlight
     for c in pr.curves:
         if cfg.start is not None and c.end < cfg.start or cfg.end is not None and c.start > cfg.end:
             continue
         v = v_of(c.pvi_station)
-        S = interp(SSD, v)
+        S = crit.ssd(v)
         A = abs(c.a)
         if A < 1e-6:
             continue
         if c.kind == "sag":
-            # headlight sight distance (AASHTO eq. 3-50/3-51: 0.6 m headlights, 1 deg spread)
-            k_req = S * S / (120 + 3.5 * S)
-            if S > k_req * A:                                  # S > L case
-                k_req = max(2 * S - (120 + 3.5 * S) / A, 0.0) / A
+            k_req = crit.k_sag(v)
+            src = crit.ref("k_sag")
+            if k_req is None:
+                den = 200.0 * (hl_h + S * math.tan(math.radians(hl_a)))
+                k_req = S * S / den
+                if S > k_req * A:
+                    k_req = max(2 * S - den / A, 0.0) / A
+                src = crit.ref("headlight")
             if c.k is not None and c.k < k_req:
                 out.append(Finding("sag_headlight", c.start, c.end, "Both",
-                                   f"sag K={c.k:.1f} < {k_req:.1f} for {S:.0f} m headlight sight distance "
-                                   f"at {v:.0f} km/h", {"k": c.k, "k_req": k_req}))
+                                   f"sag K={c.k:.1f} < {k_req:.1f} ({src}; {S:.0f} m stopping sight distance "
+                                   f"at {v:.0f} km/h)", {"k": c.k, "k_req": k_req}))
         else:
-            # crest stopping sight distance (AASHTO eq. 3-41/3-42: eye 1.08 m, object 0.60 m)
-            k_req = S * S / 658.0
-            if S > k_req * A:
-                k_req = max(2 * S - 658.0 / A, 0.0) / A
+            k_req = crit.k_crest(v)
+            src = crit.ref("k_crest")
+            if k_req is None:
+                den = 200.0 * (math.sqrt(h_eye) + math.sqrt(h_obj)) ** 2
+                k_req = S * S / den
+                if S > k_req * A:
+                    k_req = max(2 * S - den / A, 0.0) / A
+                src = crit.ref("ssd")
             if c.k is not None and c.k < k_req:
                 out.append(Finding("crest_ssd", c.start, c.end, "Both",
-                                   f"crest K={c.k:.1f} < {k_req:.1f} for {S:.0f} m stopping sight distance "
-                                   f"at {v:.0f} km/h", {"k": c.k, "k_req": k_req}))
+                                   f"crest K={c.k:.1f} < {k_req:.1f} ({src}; {S:.0f} m stopping sight distance "
+                                   f"at {v:.0f} km/h)", {"k": c.k, "k_req": k_req}))
     return out
 
 

@@ -153,6 +153,15 @@ class RsdDock(QDockWidget):
         self.spn_e = spin(0, 12, 4, " %", 0.5)
         self.spn_clear = spin(0.6, 3.0, 1.0, " m", 0.1)
         self.spn_from = spin(-1e6, 1e6, 0, " m", 100); self.spn_to = spin(-1e6, 1e6, 0, " m", 100)
+        self.cmb_crit = QComboBox()
+        self.btn_crit = QPushButton("Add…")
+        self.btn_crit.setToolTip("Add a criteria file (JSON) for another manual; see docs/criteria in the repository")
+        self._load_criteria_list()
+        self.chk_psd_red = QCheckBox("Reduced PSD for no-overtaking (RDM 1.3 Table 3.20)")
+        self.chk_psd_red.setChecked(True)
+        cr = QHBoxLayout(); cr.addWidget(self.cmb_crit, 1); cr.addWidget(self.btn_crit)
+        af.addRow("Design criteria", cr)
+        af.addRow("", self.chk_psd_red)
         af.addRow("Warn if curve speed below design by", self.spn_warn)
         af.addRow("Chevrons if below by", self.spn_chev)
         af.addRow("Sharp turn (W19/W21) if below by", self.spn_sharp)
@@ -193,6 +202,48 @@ class RsdDock(QDockWidget):
         brow.addWidget(self.btn_legend); brow.addWidget(self.btn_renum)
         sl_.addLayout(brow)
         tabs.addTab(sw, "Signs")
+
+        # ---------------- Linear tab (markings, road studs, barriers)
+        lw = QWidget(); ll_ = QVBoxLayout(lw)
+        lf = QFormLayout()
+        self.cmb_litem = QComboBox()
+        self.spn_lfrom = QDoubleSpinBox(); self.spn_lto = QDoubleSpinBox()
+        for sp in (self.spn_lfrom, self.spn_lto):
+            sp.setRange(-1e6, 1e6); sp.setDecimals(1); sp.setSuffix(" m"); sp.setSingleStep(10)
+        self.cmb_lside = QComboBox()
+        for lab, v in (("Centre", "C"), ("Left", "L"), ("Right", "R")):
+            self.cmb_lside.addItem(lab, v)
+        self.cmb_lref = QComboBox()
+        self.spn_loff = QDoubleSpinBox(); self.spn_loff.setRange(-50, 50); self.spn_loff.setDecimals(2)
+        self.spn_loff.setSuffix(" m"); self.spn_loff.setSingleStep(0.05)
+        self.chk_lnoot = QCheckBox("No-overtaking section (closer stud interval)")
+        lr = QHBoxLayout(); lr.addWidget(self.spn_lfrom); lr.addWidget(QLabel("to")); lr.addWidget(self.spn_lto)
+        lf.addRow("Item", self.cmb_litem)
+        lf.addRow("Chainage (internal)", lr)
+        lf.addRow("Side", self.cmb_lside)
+        lf.addRow("Offset from", self.cmb_lref)
+        lf.addRow("Offset", self.spn_loff)
+        lf.addRow("", self.chk_lnoot)
+        ll_.addLayout(lf)
+        self.btn_ladd = QPushButton("Add run")
+        ll_.addWidget(self.btn_ladd)
+        self.tbl_lines = QTableWidget(0, 6)
+        self.tbl_lines.setHorizontalHeaderLabels(["Item", "From", "To", "Side", "Qty", "Status"])
+        hl = self.tbl_lines.horizontalHeader()
+        for c in range(6):
+            hl.setSectionResizeMode(c, QHeaderView.Stretch if c == 0 else QHeaderView.ResizeToContents)
+        self.tbl_lines.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl_lines.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_lines.verticalHeader().setVisible(False)
+        ll_.addWidget(QLabel("Double-click a run to zoom to it. Edit stations, side or offset in the "
+                             "attribute table; the run is redrawn."))
+        ll_.addWidget(self.tbl_lines, 1)
+        lb = QHBoxLayout()
+        self.btn_ldel = QPushButton("Delete selected")
+        self.btn_laccept = QPushButton("Accept proposed")
+        lb.addWidget(self.btn_ldel); lb.addWidget(self.btn_laccept)
+        ll_.addLayout(lb)
+        tabs.addTab(lw, "Linear")
         self.tabs = tabs
         self.setWidget(w)
 
@@ -213,6 +264,7 @@ class RsdDock(QDockWidget):
         self.btn_recalc.clicked.connect(lambda: self.store and self.store.recompute_all())
         self.btn_renum.clicked.connect(self.renumber)
         self.btn_propose.clicked.connect(self.run_auto)
+        self.btn_crit.clicked.connect(self.add_criteria_file)
         self.btn_report.clicked.connect(self.export_report)
         self.btn_accept.clicked.connect(lambda: self.store and self.store.accept_proposals())
         self.btn_reject.clicked.connect(lambda: self.store and self.store.remove_proposals())
@@ -220,6 +272,11 @@ class RsdDock(QDockWidget):
         self.btn_legend.clicked.connect(self.edit_legend)
         self.cmb_cat.currentIndexChanged.connect(lambda _: self._filter(self.search.text()))
         self.tbl_signs.cellDoubleClicked.connect(self._zoom_to)
+        self.tbl_lines.cellDoubleClicked.connect(self._zoom_line)
+        self.btn_ladd.clicked.connect(self.add_line_run)
+        self.btn_ldel.clicked.connect(self.delete_line_runs)
+        self.btn_laccept.clicked.connect(lambda: self.store and self.store.lines.accept_proposals())
+        self.cmb_lside.currentIndexChanged.connect(self._line_side_changed)
         self._set_enabled(False)
 
     # ------------------------------------------------------------------ state
@@ -248,6 +305,16 @@ class RsdDock(QDockWidget):
         self.store = store
         store.add_to_project()
         store.changed.connect(self.refresh)
+        self._fill_linear_controls()
+        crit = store.meta.get("criteria")
+        if crit:
+            i = self.cmb_crit.findData(crit)
+            if i >= 0:
+                self.cmb_crit.setCurrentIndex(i)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Road Furniture Designer", f"This project uses criteria '{crit}', which is not available here; "
+                    f"add its file on the Auto tab.", MSG_WARNING, 8)
         store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
                                                                             MSG_LEVELS.get(l, MSG_INFO), 5))
         al = store.al
@@ -345,6 +412,7 @@ class RsdDock(QDockWidget):
                 if c == 2:
                     cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.tbl.setItem(r, c, cell)
+        self._refresh_lines()
         faces = sorted(self.store.signs.getFeatures(), key=lambda f: (f["station_int"] or 0, f["side"] or "", f.id()))
         self.tbl_signs.setRowCount(len(faces))
         for r, f in enumerate(faces):
@@ -367,6 +435,77 @@ class RsdDock(QDockWidget):
             self.lst_issues.addItem(f"{i.level.upper()}  {tag}: {i.message}")
         if not sl.issues:
             self.lst_issues.addItem("No issues.")
+
+    # ------------------------------------------------------------------ linear furniture
+    def _fill_linear_controls(self):
+        lc = self.store.lines.cat
+        self.cmb_litem.clear()
+        for c in lc.categories():
+            for it in lc.by_category(c):
+                self.cmb_litem.addItem(f"{it.code}  {it.name}", it.code)
+        self.cmb_lref.clear()
+        self.cmb_lref.addItem("Centreline", None)
+        for code in (self.store.al.edges.codes() if self.store.al.edges else []):
+            self.cmb_lref.addItem(code, code)
+        al = self.store.al
+        for sp in (self.spn_lfrom, self.spn_lto):
+            sp.setRange(al.sta_start, al.sta_end)
+        self.spn_lfrom.setValue(al.sta_start); self.spn_lto.setValue(al.sta_end)
+        self._line_side_changed()
+
+    def _line_side_changed(self, *_):
+        centre = self.cmb_lside.currentData() == "C"
+        self.cmb_lref.setEnabled(not centre)
+        if centre:
+            self.cmb_lref.setCurrentIndex(0)
+
+    def add_line_run(self):
+        from .rfd.linear import Run
+        if self.store is None:
+            return
+        side = self.cmb_lside.currentData()
+        try:
+            self.store.lines.add_run(Run(self.cmb_litem.currentData(), self.spn_lfrom.value(), self.spn_lto.value(),
+                                         side=side, offset=self.spn_loff.value(),
+                                         edge_ref=self.cmb_lref.currentData() if side != "C" else None,
+                                         no_overtaking=self.chk_lnoot.isChecked()))
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
+        self.store.lines.layer.triggerRepaint()
+
+    def delete_line_runs(self):
+        rows = sorted({i.row() for i in self.tbl_lines.selectedIndexes()})
+        ids = [self.tbl_lines.item(r, 0).data(Qt.UserRole) for r in rows]
+        if ids:
+            self.store.lines._set_status_or_delete(ids)
+
+    def _refresh_lines(self):
+        feats = sorted(self.store.lines.layer.getFeatures(), key=lambda f: (f["item_code"] or "", f["sta_from"] or 0))
+        self.tbl_lines.setRowCount(len(feats))
+        for r, f in enumerate(feats):
+            q = f["quantity"]
+            for c, v in enumerate([f"{f['item_code']} {f['description'] or ''}", f["ch_from"], f["ch_to"],
+                                   (f["side"] or "") + (f" {f['edge_ref']}" if f["edge_ref"] else ""),
+                                   f"{q:g} {f['unit'] or ''}" if isinstance(q, (int, float)) else "",
+                                   f["status"]]):
+                cell = QTableWidgetItem("" if v is None else str(v))
+                cell.setData(Qt.UserRole, f.id())
+                self.tbl_lines.setItem(r, c, cell)
+
+    def _zoom_line(self, row, _col):
+        fid = self.tbl_lines.item(row, 0).data(Qt.UserRole)
+        lyr = self.store.lines.layer
+        f = lyr.getFeature(fid)
+        if not f.isValid() or f.geometry().isEmpty():
+            return
+        from qgis.core import QgsCoordinateTransform
+        xf = QgsCoordinateTransform(lyr.crs(), self.iface.mapCanvas().mapSettings().destinationCrs(),
+                                    QgsProject.instance())
+        bb = xf.transformBoundingBox(f.geometry().boundingBox())
+        bb.grow(20)
+        self.iface.mapCanvas().setExtent(bb)
+        lyr.selectByIds([fid])
+        self.iface.mapCanvas().refresh()
 
     def _zoom_to(self, row, _col):
         fid = self.tbl_signs.item(row, 0).data(Qt.UserRole)
@@ -394,6 +533,48 @@ class RsdDock(QDockWidget):
         if ok:
             self.store.set_fields(fid, {"legend": text.strip() or None})
 
+    CRIT_DIRS_KEY = "RoadFurnitureDesigner/criteria_dirs"
+
+    def _load_criteria_list(self, select=None):
+        from qgis.core import QgsSettings
+        from .rfd import criteria as C
+        dirs = QgsSettings().value(self.CRIT_DIRS_KEY, []) or []
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        for d in dirs:
+            C.add_search_dir(d)
+        cur = select or self.cmb_crit.currentData()
+        self.cmb_crit.clear()
+        for cid, cname in C.list_criteria():
+            self.cmb_crit.addItem(cname, cid)
+        i = self.cmb_crit.findData(cur) if cur else -1
+        if i >= 0:
+            self.cmb_crit.setCurrentIndex(i)
+
+    def add_criteria_file(self):
+        import json
+        from qgis.core import QgsSettings
+        from .rfd import criteria as C
+        p, _ = QFileDialog.getOpenFileName(self, "Add design criteria file", "", "Criteria (*.json)")
+        if not p:
+            return
+        try:
+            c = C.Criteria.load(p)
+        except (ValueError, OSError, json.JSONDecodeError) as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", f"Not a valid criteria file: {e}",
+                                                MSG_WARNING, 8)
+            return
+        d = os.path.dirname(os.path.abspath(p))
+        s = QgsSettings()
+        dirs = s.value(self.CRIT_DIRS_KEY, []) or []
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        if d not in dirs:
+            s.setValue(self.CRIT_DIRS_KEY, dirs + [d])
+        self._load_criteria_list(select=c.id)
+        self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                            f"Criteria '{c.name}' added (folder {d} is now searched).", MSG_INFO, 5)
+
     def auto_config(self):
         from .rfd.autoplace import AutoConfig
         return AutoConfig(curves=self.chk_r_curves.isChecked(), grades=self.chk_r_grades.isChecked(),
@@ -401,9 +582,12 @@ class RsdDock(QDockWidget):
                           chevron_margin=self.spn_chev.value(), sharp_margin=self.spn_sharp.value(),
                           default_e=self.spn_e.value(), clearance=self.spn_clear.value(),
                           edge_ref=self.cmb_ref.currentData(),
+                          criteria=self.cmb_crit.currentData(), psd_reduced=self.chk_psd_red.isChecked(),
                           start=self.spn_from.value(), end=self.spn_to.value())
 
     def run_auto(self):
+        if self.store.meta.get("criteria") != self.cmb_crit.currentData():
+            self.store.set_meta(criteria=self.cmb_crit.currentData())
         n, findings = self.store.auto_propose(self.auto_config(), restrict=self.chk_restrict.isChecked())
         self.lst_findings.clear()
         names = {"curve": "Curve", "grade_descent": "Steep descent", "grade_ascent": "Steep ascent",

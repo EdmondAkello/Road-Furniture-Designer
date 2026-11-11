@@ -401,7 +401,8 @@ def draw_sheet(p: QPainter, d: ReportData, s0: float, s1: float, page: int, page
         x += 40 + QFontMetrics(_font(12)).horizontalAdvance(txt)
     p.setPen(QColor(COL["muted"])); p.setFont(_font(10))
     p.drawText(QRectF(left, y + 18, W - left - M, 14), int(Qt.AlignmentFlag.AlignLeft),
-               "Sight distances: AASHTO 2011 defaults (verify against RDM 1.3).")
+               f"Criteria: {d.cfg.crit.name}. Sight distances {d.cfg.crit.ref('ssd')} / {d.cfg.crit.ref('psd')}; "
+               f"K {d.cfg.crit.ref('k_crest')} / {d.cfg.crit.ref('k_sag')}.")
 
 
 # --------------------------------------------------------------------------- tables
@@ -549,7 +550,7 @@ def write_xlsx(path, d):
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.table import Table, TableStyleInfo
-    from .rfd.autoplace import F_MAX, SSD, interp
+    crit = d.cfg.crit
     al = d.al
     wb = Workbook()
 
@@ -585,7 +586,7 @@ def write_xlsx(path, d):
                               "Curve speed (km/h)", "Design speed (km/h)", "Speed drop", "Warning"],
           [[format_station(al.display_station(c.start), 0), format_station(al.display_station(c.end), 0),
             round(c.radius, 1), "Left" if c.left else "Right", round(c.deflection, 1), c.e_pct,
-            round(interp(F_MAX, c.v_curve), 3), round(c.v_curve, 1), c.v_approach,
+            round(crit.f_max(c.v_curve), 3), round(c.v_curve, 1), c.v_approach,
             round(c.v_approach - c.v_curve, 1),
             "yes" if c.v_approach - c.v_curve >= d.cfg.warn_margin else ""] for c in d.curves],
           [10, 10, 10, 7, 14, 7, 7, 16, 16, 10, 9])
@@ -594,7 +595,7 @@ def write_xlsx(path, d):
     if al.profile is not None:
         for c in al.profile.curves:
             v = al.speed_at(c.pvi_station) or 0
-            S = interp(SSD, v) if v else None
+            S = crit.ssd(v) if v else None
             rows.append([format_station(al.display_station(c.pvi_station), 0), c.kind, round(c.length, 1),
                          round(c.grade_in, 2), round(c.grade_out, 2), round(c.a, 2),
                          round(c.k, 1) if c.k else None, v or None, S])
@@ -609,8 +610,12 @@ def write_xlsx(path, d):
         ("Steep grades", "RDM 6.2 4.6.4: W30 descent > 5 %, W31 ascent > 10 %"),
         ("Chevrons", "RDM 6.2 4.6.1 / Table 4.2 spacing, outside of the curve"),
         ("No overtaking", "RDM 6.2 3.11: both ends, both directions, distance plate, END plate"),
-        ("Curve speed", "V^2 = 127 R (e + f); f max from AASHTO 2011 Table 3-7 (default; verify against RDM 1.3)"),
-        ("Sight distances", "AASHTO 2011 SSD / PSD tables, eye 1.08 m, object 0.60 / 1.08 m (defaults; verify against RDM 1.3)"),
+        ("Criteria", crit.name),
+        ("Curve speed", f"V^2 = 127 R (e + f); f max from {crit.ref('side_friction')}"),
+        ("Stopping sight distance", f"{crit.ref('ssd')}; eye {crit.eye_height:g} m, object {crit.object_height:g} m"),
+        ("Passing sight distance", f"{crit.ref('psd')}{' (reduced values)' if d.cfg.psd_reduced and crit.is_kenya else ''}; "
+                                   f"eye {crit.eye_height:g} m, object {crit.psd_object_height:g} m"),
+        ("Crest / sag K", f"{crit.ref('k_crest')} / {crit.ref('k_sag')}"),
         ("Generated", dt.datetime.now().strftime("%Y-%m-%d %H:%M"))]:
         ws.append(list(line))
     ws.column_dimensions["A"].width = 18; ws.column_dimensions["B"].width = 110

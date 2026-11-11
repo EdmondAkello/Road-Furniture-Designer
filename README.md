@@ -1,6 +1,6 @@
 # Road Furniture Designer (RFD), v0.7.0
 
-Place traffic signs by clicking along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
+Place traffic signs and linear road furniture (markings, road studs, barriers) along a road alignment in QGIS. For every sign, the tool works out the chainage, offset, side, facing and post number from the LandXML alignment, and recomputes them whenever the sign is moved. The inventory updates live as you work. Signs go to Civil 3D as a georeferenced DXF that pastes into the project drawing at the true coordinates.
 
 ```
  QGIS: pick sign / auto-place ─► rsd_signs (GeoPackage) ─► live inventory and checks (dock)
@@ -19,8 +19,8 @@ Place traffic signs by clicking along a road alignment in QGIS. For every sign, 
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 37 tests passing.
-- **QGIS plugin:** 27 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
+- **Core:** 50 tests passing.
+- **QGIS plugin:** 33 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
@@ -93,7 +93,16 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 - sags short of headlight sight distance
 - crests short of stopping sight distance
 
-**Thresholds and defaults:** every threshold is on the Auto tab. Side friction and the sight distances (SSD, PSD) are AASHTO 2011 defaults, because RDM 6.2 doesn't give them; check them against RDM 1.3. RDM 6.2 leaves sharp turn versus bend to the Engineer's discretion; the speed-drop margins are that judgement, made explicit.
+**Thresholds and defaults:** every threshold is on the Auto tab. Side friction, stopping and passing sight distance and the crest/sag K values come from RDM 1.3 (2025) Tables 5.1, 3.13, 3.16, 3.20, 6.1 and 6.4 (criteria set `kenya_rdm_2025`, eye 1.05 m, object 0.20 m, overtaking target 1.3 m). No-overtaking uses the reduced PSD (325 m at 80 km/h). The older AASHTO 2011 values remain available as criteria set `aashto_2011`. Other manuals (AASHTO editions, Tanzania, project-specific values) can be added as criteria files without code changes; see [docs/criteria](docs/criteria/README.md). RDM 6.2 leaves sharp turn versus bend to the Engineer's discretion; the speed-drop margins are that judgement, made explicit.
+
+## Linear furniture (Linear tab)
+
+Road markings, road studs and barriers are stored as **runs** in the `rsd_lines` layer. Each run has an item code, a start and end station, a side, and an offset. The offset is measured from a corridor edge (for example ETW) or from the centreline. A run follows its edge where the road widens. Its geometry, chainage, length and quantity are rebuilt whenever one of those fields changes, so you can edit runs in the attribute table.
+
+- **Catalogue** (`rfd/data/furniture_linear.json`): RDM 6.1 line codes with mark, gap and width per Tables 4.1–4.3 (rural at 80 km/h and above, urban below). LM01/LM02 centre, LM03/LM04 lane, LM07 broken edge, LM24/LM25 continuous centre, LM26/LM27 edge, LM28 combined line (CLS), LM30/LM32 double lines. Road studs at the Table 13.2 intervals (12 m normal, 9 m no-overtaking). W-beam guardrail with end terminals. Add or replace items with your own JSON file in a folder listed in `RFD_FURNITURE_PATH`.
+- **Quantities:** markings in metres of run and m² painted, studs by number, barriers in metres plus 2 terminals per run. The inventory gains a `Linear` sheet (Excel Table `RSD_Linear`), and its rows feed `RSD_Quantities` through SUMIFS formulas.
+- **DXF:** runs are drawn in world coordinates on `RSD-MARK-*`, `RSD-STUD-*` and `RSD-BARRIER-*` layers. Broken lines use metre linetypes (e.g. `RSD_3_9`), and markings are drawn at their painted width. Each entity carries `RSD` XDATA (run UUID, code, stations).
+- **Coming next:** markings proposed from the RDM 6.1 rules (centre and edge lines, CLS no-overtaking from the sight scan, studs), then barriers from the RDM 1.3 Fig 12.4 warrant and clear zone.
 
 ## Corridor restriction
 
