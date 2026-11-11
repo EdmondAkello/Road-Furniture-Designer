@@ -477,9 +477,11 @@ def propose(al, cfg: AutoConfig) -> Tuple[List[Proposal], List[Finding]]:
             props.append(Proposal("P32", a, side, f.direction, "no_overtaking", f.text, group=f"no{i}s"))
             props.append(Proposal("W23", a, side, f.direction, "no_overtaking", "distance plate",
                                   legend=plate, group=f"no{i}s"))
-        if in_range(b):
+        if in_range(b):                     # RDM 6.2 3.11: the same sign with a supplementary plate 'END'
             props.append(Proposal("P32", b, side, f.direction, "no_overtaking", "end of restriction",
-                                  legend="END", group=f"no{i}e"))
+                                  group=f"no{i}e"))
+            props.append(Proposal("END", b, side, f.direction, "no_overtaking", "END plate",
+                                  group=f"no{i}e"))
     return props, findings
 
 

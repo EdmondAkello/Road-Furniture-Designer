@@ -593,6 +593,21 @@
    "page": 26
   },
   {
+   "code": "P22",
+   "name": "Pedestrianised Street",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "3.36",
+   "page": 26
+  },
+  {
    "code": "P23",
    "name": "Weight Restriction",
    "category": "Prohibitory",
@@ -3488,6 +3503,60 @@
    "icon": "generated sample face (manual figure is a design drawing: see IM13_design.svg)"
   },
   {
+   "code": "IM16",
+   "name": "300 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.16",
+   "page": 85
+  },
+  {
+   "code": "IM17",
+   "name": "200 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.17",
+   "page": 85
+  },
+  {
+   "code": "IM18",
+   "name": "100 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "sizes": [
+    "600",
+    "750",
+    "900",
+    "1200"
+   ],
+   "default_size": "750",
+   "size_rule": "expressway",
+   "legend": null,
+   "mirror": false,
+   "figure": "8.18",
+   "page": 85
+  },
+  {
    "code": "IM19",
    "name": "Direction Sign for Expressway Exit Slip Road",
    "category": "Expressway",
@@ -4273,6 +4342,37 @@
    "mirror": false,
    "figure": "10.42",
    "page": 102
+  },
+  {
+   "code": "RW41",
+   "name": "End of Construction",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "figure": "10.43",
+   "page": 102
+  },
+  {
+   "code": "END",
+   "sizes": [
+    "custom"
+   ],
+   "default_size": "custom",
+   "size_rule": null,
+   "legend": null,
+   "mirror": false,
+   "name": "Supplementary plate 'END' (end of restriction)",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "figure": "3.46",
+   "page": 28,
+   "note": "RDM 6.2 3.11 (no overtaking, P32) and 3.6 (clearway, P14): the end of the restriction is the same sign with a supplementary plate reading END, on the same post. The manual gives the plate no code; the artwork is the identical END plate of Figure 10.43 (RW41)."
   }
  ],
  "posts": {

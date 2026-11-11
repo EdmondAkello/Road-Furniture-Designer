@@ -57,10 +57,25 @@ def list_of_figures(doc):
     return out
 
 
+# List-of-figures entries the parser cannot read (no "Sign" before the code, or the code only in the
+# figure's own caption in the body); codes as in the body captions of the 2025 edition.
+LOF_EXTRA = {
+    "3.36": ("P22", "Pedestrianised Street"),
+    "5.19": ("I5-a", "Design of Direction Sign for Class A Road (One Destination, With Route Number)"),
+    "8.16": ("IM16", "300 m Countdown Marker"),
+    "8.17": ("IM17", "200 m Countdown Marker"),
+    "8.18": ("IM18", "100 m Countdown Marker"),
+    "10.43": ("RW41", "End of Construction"),
+}
+
+
 def fix_codes(lof):
     """Resolve the manual's own numbering clashes (documented in the catalogue)."""
     notes = {}
     fixed = {}
+    lof = dict(lof)
+    for fig, entry in LOF_EXTRA.items():
+        lof.setdefault(fig, entry)
     for fig, (code, name) in lof.items():
         ch = int(fig.split(".")[0])
         if ch == 8 and code.startswith("M"):           # expressway signs are IM1..IM28

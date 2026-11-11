@@ -354,6 +354,17 @@
    "note": ""
   },
   {
+   "code": "P22",
+   "name": "Pedestrianised Street",
+   "category": "Prohibitory",
+   "shape": "rectangle",
+   "figure": "3.36",
+   "page": 26,
+   "aspect": 0.541,
+   "mirror": false,
+   "note": ""
+  },
+  {
    "code": "P23",
    "name": "Weight Restriction",
    "category": "Prohibitory",
@@ -2202,6 +2213,39 @@
    "note": ""
   },
   {
+   "code": "IM16",
+   "name": "300 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "figure": "8.16",
+   "page": 85,
+   "aspect": 0.587,
+   "mirror": false,
+   "note": ""
+  },
+  {
+   "code": "IM17",
+   "name": "200 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "figure": "8.17",
+   "page": 85,
+   "aspect": 0.587,
+   "mirror": false,
+   "note": ""
+  },
+  {
+   "code": "IM18",
+   "name": "100 m Countdown Marker",
+   "category": "Expressway",
+   "shape": "rectangle",
+   "figure": "8.18",
+   "page": 85,
+   "aspect": 0.587,
+   "mirror": false,
+   "note": ""
+  },
+  {
    "code": "IM19",
    "name": "Direction Sign for Expressway Exit Slip Road",
    "category": "Expressway",
@@ -2695,6 +2739,17 @@
    "aspect": 1.0,
    "mirror": false,
    "note": ""
+  },
+  {
+   "code": "RW41",
+   "name": "End of Construction",
+   "category": "Road Works",
+   "shape": "rectangle",
+   "figure": "10.43",
+   "page": 102,
+   "aspect": 1.816,
+   "mirror": false,
+   "note": ""
   }
  ],
  "missing": [
@@ -2707,6 +2762,11 @@
    "5.12",
    "I2-b",
    "Design of Route Direction Sign ("
+  ],
+  [
+   "5.19",
+   "I5-a",
+   "Design of Direction Sign for Class A Road (One Destination, With Route Number)"
   ],
   [
    "8.8",
