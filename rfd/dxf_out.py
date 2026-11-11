@@ -510,10 +510,12 @@ def write_linear(doc, msp, al, runs, cat):
                 c.set_xdata(APPID, xd)
             continue
         d = it.dims(v) if it.is_marking else {}
-        # composite lines (CLS) are drawn left to right in chainage direction: the first kind on the left.
-        # Which direction the prohibition applies to is set in step 2 (marking rules).
+        # composite lines (CLS): first kind on the left of chainage direction (traffic keeps left, so the
+        # continuous line there prohibits forward traffic); a flipped run prohibits backward traffic
         kinds = it.composite or (["line"] * max(1, it.lines if it.is_marking else 1))
         spacing = float(d.get("spacing") or 0.1) + float(d.get("width") or 0.1)
+        if r.flip:
+            kinds = kinds[::-1]
         nlines = len(kinds)
         for j, kind in enumerate(kinds):
             shift = (j - (nlines - 1) / 2.0) * spacing

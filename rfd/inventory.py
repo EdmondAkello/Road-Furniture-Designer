@@ -78,6 +78,8 @@ def line_rows(runs, lcat, al):
         qty = q["count"] if it.is_point_series else round(q["length"], 2)
         pat = it.pattern(v) if it.is_marking else (f"{q['spacing']:g} m interval" if "spacing" in q else "")
         disp = al.display_station if al is not None else (lambda s: s)
+        if it.composite and it.is_marking:
+            pat += "; continuous line " + ("right" if r.flip else "left") + " of chainage direction"
         rows.append([n, r.code, it.name, it.category, pat, format_station(disp(r.sta_start)),
                      format_station(disp(r.sta_end)), round(disp(r.sta_start), 3), round(disp(r.sta_end), 3),
                      round(r.length, 2), r.side, round(r.offset, 2), r.edge_ref or None, qty,

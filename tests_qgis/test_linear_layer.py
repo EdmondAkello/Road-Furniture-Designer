@@ -93,3 +93,28 @@ def test_old_project_gets_lines_layer(store):
     st.add_to_project()
     assert st.lines.layer.isValid()
     assert QgsProject.instance().mapLayer(st.lines.layer.id()) is not None
+
+
+def test_propose_markings_roundtrip(tmp_path):
+    from examples.make_demo_road import PROFILE_XML, corridor_xml
+    from road_furniture_designer.rfd.markings import MarkingConfig
+    QgsProject.instance().clear()
+    els = build()
+    xml = tmp_path / "road.xml"
+    xml.write_text(to_landxml(els, extra=PROFILE_XML + corridor_xml(sum(e.length for e in els))))
+    store = SignStore.create(str(tmp_path / "signs.gpkg"), str(xml), "DEMO-RD", CRS, "Test")
+    store.add_to_project()
+    store.lines.add_run(Run("GR-W", 50, 150, side="R", offset=4.0, status="proposed", rule="barrier"))
+    n, findings, skipped = store.lines.auto_propose_markings(MarkingConfig(road_class="B"))
+    assert n >= 3 and not skipped
+    codes = {f["item_code"] for f in store.lines.layer.getFeatures()}
+    assert {"LM02", "LM27", "GR-W"} <= codes
+    n2, _, _ = store.lines.auto_propose_markings(MarkingConfig(road_class="B"))       # replaces, not duplicates
+    assert n2 == n and store.lines.layer.featureCount() == n + 1
+    assert all(not f.geometry().isEmpty() for f in store.lines.layer.getFeatures())
+    store.lines.accept_proposals()
+    dxf = str(tmp_path / "o.dxf")
+    store.export_civil3d(str(tmp_path / "o.json"), dxf)
+    import ezdxf
+    msp = ezdxf.readfile(dxf).modelspace()
+    assert len(msp.query('LWPOLYLINE[layer=="RSD-MARK-LM27"]')) >= 2

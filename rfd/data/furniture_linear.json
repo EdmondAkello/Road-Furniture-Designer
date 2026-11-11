@@ -51,6 +51,8 @@
 
     {"code": "RRS-C", "category": "Road stud", "name": "Road stud, centre line (yellow-yellow, bi-directional)", "colour": "yellow",
      "spacing": 12.0, "spacing_no_overtaking": 9.0, "unit": "No.", "ref": "RDM 6.1 Table 13.2"},
+    {"code": "RRS-CLS", "category": "Road stud", "name": "Road stud, combined line system (yellow, bi-directional)", "colour": "yellow",
+     "spacing": 6.0, "unit": "No.", "ref": "RDM 6.1 section 4.5.1"},
     {"code": "RRS-E", "category": "Road stud", "name": "Road stud, edge line (white-white, bi-directional)", "colour": "white",
      "spacing": 12.0, "spacing_no_overtaking": 9.0, "unit": "No.", "ref": "RDM 6.1 Table 13.2"},
     {"code": "RRS-L", "category": "Road stud", "name": "Road stud, lane line (white-white)", "colour": "white",

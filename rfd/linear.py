@@ -140,6 +140,8 @@ class Run:
     edge_ref: Optional[str] = None
     status: str = "approved"       # approved | proposed
     no_overtaking: bool = False    # road studs at the closer no-overtaking interval
+    flip: bool = False             # composite lines (CLS): continuous line on the right of chainage direction,
+                                   # i.e. overtaking prohibited for traffic running against chainage
     rule: str = ""
     reason: str = ""
     remarks: str = ""
