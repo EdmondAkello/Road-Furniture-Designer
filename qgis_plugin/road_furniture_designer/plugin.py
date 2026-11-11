@@ -16,7 +16,9 @@ class RoadFurnitureDesignerPlugin:
         self.action = QAction(QIcon(os.path.join(os.path.dirname(__file__), "icon.svg")),
                               "Road Furniture Designer", self.iface.mainWindow())
         self.action.setCheckable(True)
-        self.action.toggled.connect(self.toggle)
+        # triggered (a click), not toggled: the dock reporting itself hidden (tabbed behind another
+        # panel, squeezed by a resize) only unticks the button and never hides the dock
+        self.action.triggered.connect(self.toggle)
         self.iface.addToolBarIcon(self.action)
         self.iface.addPluginToMenu("Road Furniture Designer", self.action)
         QgsProject.instance().readProject.connect(self._project_loaded)
@@ -31,7 +33,12 @@ class RoadFurnitureDesignerPlugin:
 
     def toggle(self, on):
         if on:
-            self._ensure_dock().show()
+            d = self._ensure_dock()
+            if d.isFloating() and not d.isVisible():
+                d.setFloating(False)          # a lost floating dock comes back docked
+            d.show()
+            d.raise_()                        # brings it to the front when tabbed behind another panel
+            self.action.setChecked(True)
         elif self.dock:
             self.dock.hide()
 

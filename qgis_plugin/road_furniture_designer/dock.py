@@ -7,8 +7,8 @@ from qgis.PyQt.QtCore import QSize, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDockWidget, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QTabWidget, QTableWidget,
+    QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QTabWidget, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget)
 from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
 
@@ -401,6 +401,8 @@ class RsdDock(QDockWidget):
         jl.addLayout(jb)
         tabs.addTab(jw, "Junctions")
         self.tabs = tabs
+        self._scroll_tabs(tabs)
+        lay.setContentsMargins(4, 4, 4, 4)
         self.setWidget(w)
 
         from .maptool import PlaceRunTool
@@ -465,6 +467,90 @@ class RsdDock(QDockWidget):
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
         self.spn_loff.setEnabled(False)
         self._set_enabled(False)
+
+    @staticmethod
+    def _scroll_tabs(tabs):
+        """Each tab scrolls inside the dock, so the dock never needs more height than the screen gives it.
+
+        Without this the dock's minimum height is the tallest tab's (the Auto tab is over 900 px), the
+        bottom buttons fall off a 1080p screen and Qt may squeeze the dock out when a neighbouring
+        panel is resized."""
+        for i in range(tabs.count()):
+            page, label = tabs.widget(i), tabs.tabText(i)
+            sa = QScrollArea()
+            sa.setWidgetResizable(True)
+            sa.setFrameShape(QFrame.NoFrame)
+            sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            tabs.removeTab(i)
+            sa.setWidget(page)
+            tabs.insertTab(i, sa, label)
+        for lw in tabs.findChildren(QListWidget) + tabs.findChildren(QTableWidget):
+            lw.setMinimumHeight(90)             # lists keep a usable height when the tab scrolls
+        RsdDock._narrow(tabs)
+        tabs.setUsesScrollButtons(True)
+        tabs.setCurrentIndex(0)
+
+    # captions too long for a narrow dock: short text on the widget, the full one as its tooltip
+    SHORT = {
+        "Keep inside the corridor (RDM 0.6–3.0 m beyond the edge)": "Keep inside the corridor (RDM 2.4)",
+        "Add to an existing post (click on it)": "Add to an existing post",
+        "Curves: bend / sharp-turn warnings, series + distance plate, chevrons": "Curves: warnings, plates, chevrons",
+        "Steep grades: W30 descent > 5 %, W31 ascent > 10 % (RDM 4.6.4)": "Steep grades: W30 / W31",
+        "No overtaking where crest sight distance < passing sight distance": "No overtaking where sight < PSD",
+        "Reduced PSD for no-overtaking (RDM 1.3 Table 3.20)": "Reduced PSD (RDM 1.3 Table 3.20)",
+        "Combined line prohibits traffic against chainage": "CLS: no overtaking against chainage",
+        "Also where the warrant leaves it to judgement": "Also where left to judgement",
+        "No-overtaking section (closer stud interval)": "No-overtaking section (closer studs)",
+        "Fixed offset (else taken from the click)": "Fixed offset",
+        "Bar markings on the approaches (Table 2.3)": "Bar markings on the approaches",
+        "Guide lines (edges, kerb returns, Rc arcs)": "Guide lines",
+        "Road furniture report (PDF + PNG sheets + Excel)…": "Road furniture report…",
+        "Export to Civil 3D (package + DXF)…": "Export to Civil 3D…",
+        "Remove selected feature (with its signs and markings)": "Remove selected feature",
+        "Remove selected zone (with its signs)": "Remove selected zone",
+    }
+
+    @staticmethod
+    def _narrow(root):
+        """Let every tab shrink to about 360 px wide: combos, captions, form rows and labels."""
+        from qgis.PyQt.QtWidgets import QAbstractButton
+
+        for cb in root.findChildren(QComboBox):
+            cb.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            cb.setMinimumContentsLength(12)
+            cb.setMinimumWidth(120)             # Qt keeps the old minimum size hint after a policy change
+            cb.currentTextChanged.connect(cb.setToolTip)
+            cb.setToolTip(cb.currentText())
+        for b in root.findChildren(QAbstractButton):
+            full = b.text()
+            if full in RsdDock.SHORT:
+                b.setText(RsdDock.SHORT[full])
+                b.setToolTip(full + (("\n" + b.toolTip()) if b.toolTip() else ""))
+        for lab in root.findChildren(QLabel):
+            lab.setWordWrap(True)               # hover read-outs and results arrive later, often long
+        for fl in root.findChildren(QFormLayout):
+            fl.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        from qgis.PyQt.QtWidgets import QBoxLayout, QLayout
+
+        def refresh():                          # drop minimum sizes cached before the changes
+            for lay in root.findChildren(QLayout):
+                lay.invalidate()
+            for w in root.findChildren(QWidget):
+                w.updateGeometry()
+        refresh()
+        for row in root.findChildren(QHBoxLayout):
+            if row.minimumSize().width() > RsdDock.ROW_MAX:
+                row.setDirection(QBoxLayout.TopToBottom)    # side-by-side buttons stack when too wide
+        refresh()
+
+    ROW_MAX = 340
+
+    def page(self, label):
+        """The content widget of a tab (inside its scroll area)."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == label:
+                return self.tabs.widget(i).widget()
+        return None
 
     # ------------------------------------------------------------------ state
     def _set_enabled(self, on):
