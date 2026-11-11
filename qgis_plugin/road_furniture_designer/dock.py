@@ -217,22 +217,32 @@ class RsdDock(QDockWidget):
         for sp in (self.spn_lfrom, self.spn_lto):
             sp.setRange(-1e6, 1e6); sp.setDecimals(1); sp.setSuffix(" m"); sp.setSingleStep(10)
         self.cmb_lside = QComboBox()
-        for lab, v in (("Centre", "C"), ("Left", "L"), ("Right", "R")):
+        for lab, v in (("From click (map)", "click"), ("Centre", "C"), ("Left", "L"), ("Right", "R")):
             self.cmb_lside.addItem(lab, v)
         self.cmb_lref = QComboBox()
         self.spn_loff = QDoubleSpinBox(); self.spn_loff.setRange(-50, 50); self.spn_loff.setDecimals(2)
         self.spn_loff.setSuffix(" m"); self.spn_loff.setSingleStep(0.05)
+        self.chk_lfix = QCheckBox("Fixed offset (else taken from the click)")
         self.chk_lnoot = QCheckBox("No-overtaking section (closer stud interval)")
+        self.chk_lflip = QCheckBox("Combined line prohibits traffic against chainage")
         lr = QHBoxLayout(); lr.addWidget(self.spn_lfrom); lr.addWidget(QLabel("to")); lr.addWidget(self.spn_lto)
         lf.addRow("Item", self.cmb_litem)
         lf.addRow("Chainage (internal)", lr)
         lf.addRow("Side", self.cmb_lside)
         lf.addRow("Offset from", self.cmb_lref)
         lf.addRow("Offset", self.spn_loff)
+        lf.addRow("", self.chk_lfix)
         lf.addRow("", self.chk_lnoot)
+        lf.addRow("", self.chk_lflip)
         ll_.addLayout(lf)
-        self.btn_ladd = QPushButton("Add run")
-        ll_.addWidget(self.btn_ladd)
+        lb0 = QHBoxLayout()
+        self.btn_ldraw = QPushButton("Draw on map (click start, then end)")
+        self.btn_ldraw.setCheckable(True)
+        self.btn_ladd = QPushButton("Add run at chainages")
+        lb0.addWidget(self.btn_ldraw); lb0.addWidget(self.btn_ladd)
+        ll_.addLayout(lb0)
+        self.lbl_lhover = QLabel("")
+        ll_.addWidget(self.lbl_lhover)
         mg = QGroupBox("Propose markings and studs (RDM 6.1)")
         mf = QFormLayout(mg)
         self.cmb_mclass = QComboBox()
@@ -290,9 +300,54 @@ class RsdDock(QDockWidget):
         lb.addWidget(self.btn_ldel); lb.addWidget(self.btn_laccept); lb.addWidget(self.btn_lreject)
         ll_.addLayout(lb)
         tabs.addTab(lw, "Linear")
+
+        # ---------------- Calming tab (humps, tables, bumps, bar markings, crossings)
+        cw_ = QWidget(); cl_ = QVBoxLayout(cw_)
+        cf = QFormLayout()
+        from .rfd.features import KINDS
+        self.cmb_fkind = QComboBox()
+        for k, lab in KINDS.items():
+            self.cmb_fkind.addItem(lab, k)
+        self.spn_fspeed = QDoubleSpinBox(); self.spn_fspeed.setRange(20, 50); self.spn_fspeed.setSingleStep(5)
+        self.spn_fspeed.setDecimals(0); self.spn_fspeed.setValue(30); self.spn_fspeed.setSuffix(" km/h")
+        self.spn_fwidth = QDoubleSpinBox(); self.spn_fwidth.setRange(1, 6); self.spn_fwidth.setSingleStep(0.5)
+        self.spn_fwidth.setValue(3.0); self.spn_fwidth.setSuffix(" m")
+        self.chk_fbars = QCheckBox("Bar markings on the approaches (Table 2.3)"); self.chk_fbars.setChecked(True)
+        self.chk_fsigns = QCheckBox("Warning signs on both approaches"); self.chk_fsigns.setChecked(True)
+        self.cmb_fdir = QComboBox()
+        for lab, v in (("Both directions", "both"), ("Forward traffic only", "forward"), ("Backward traffic only", "backward")):
+            self.cmb_fdir.addItem(lab, v)
+        self.spn_fsta = QDoubleSpinBox(); self.spn_fsta.setRange(-1e6, 1e6); self.spn_fsta.setDecimals(1)
+        self.spn_fsta.setSuffix(" m")
+        cf.addRow("Feature", self.cmb_fkind)
+        cf.addRow("Hump crossing speed", self.spn_fspeed)
+        cf.addRow("Crossing width", self.spn_fwidth)
+        cf.addRow("Bar markings for", self.cmb_fdir)
+        cf.addRow("", self.chk_fbars)
+        cf.addRow("", self.chk_fsigns)
+        cl_.addLayout(cf)
+        fb = QHBoxLayout()
+        self.btn_fplace = QPushButton("Place on map"); self.btn_fplace.setCheckable(True)
+        self.btn_fadd = QPushButton("Add at chainage")
+        fb.addWidget(self.btn_fplace); fb.addWidget(self.spn_fsta); fb.addWidget(self.btn_fadd)
+        cl_.addLayout(fb)
+        self.lbl_fhover = QLabel("Signs, hump markings and bar sets are added as proposals with the feature.")
+        self.lbl_fhover.setWordWrap(True)
+        cl_.addWidget(self.lbl_fhover)
+        self.lst_features = QListWidget()
+        cl_.addWidget(self.lst_features, 1)
+        self.btn_fdel = QPushButton("Remove selected feature (with its signs and markings)")
+        cl_.addWidget(self.btn_fdel)
+        tabs.addTab(cw_, "Calming")
         self.tabs = tabs
         self.setWidget(w)
 
+        from .maptool import PlaceRunTool
+        self.run_tool = PlaceRunTool(iface.mapCanvas(), lambda: self.store, self.run_settings)
+        self.run_tool.hover.connect(self._run_hover)
+        self.run_tool.placed.connect(self._run_placed)
+        self.run_tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t, MSG_WARNING, 5))
+        self.run_tool.deactivated.connect(lambda: (self.btn_ldraw.setChecked(False), self.btn_fplace.setChecked(False)))
         self.tool = PlaceSignTool(iface.mapCanvas(), lambda: self.store, self.settings)
         self.tool.hover.connect(self.lbl_hover.setText)
         self.tool.placed.connect(lambda t: self.lbl_last.setText("Placed: " + t))
@@ -326,6 +381,13 @@ class RsdDock(QDockWidget):
         self.btn_lreject.clicked.connect(lambda: self.store and self.store.lines.remove_proposals())
         self.btn_mprop.clicked.connect(self.propose_markings)
         self.btn_bprop.clicked.connect(self.propose_barriers)
+        self.btn_ldraw.toggled.connect(lambda on: self._toggle_run_tool(on, "run"))
+        self.btn_fplace.toggled.connect(lambda on: self._toggle_run_tool(on, "feature"))
+        self.btn_fadd.clicked.connect(self.add_feature_at)
+        self.btn_fdel.clicked.connect(self.remove_feature)
+        self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
+        self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
+        self.spn_loff.setEnabled(False)
         self._set_enabled(False)
 
     # ------------------------------------------------------------------ state
@@ -463,6 +525,7 @@ class RsdDock(QDockWidget):
                     cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.tbl.setItem(r, c, cell)
         self._refresh_lines()
+        self._refresh_features()
         faces = sorted(self.store.signs.getFeatures(), key=lambda f: (f["station_int"] or 0, f["side"] or "", f.id()))
         self.tbl_signs.setRowCount(len(faces))
         for r, f in enumerate(faces):
@@ -498,7 +561,7 @@ class RsdDock(QDockWidget):
         for code in (self.store.al.edges.codes() if self.store.al.edges else []):
             self.cmb_lref.addItem(code, code)
         al = self.store.al
-        for sp in (self.spn_lfrom, self.spn_lto):
+        for sp in (self.spn_lfrom, self.spn_lto, self.spn_fsta):
             sp.setRange(al.sta_start, al.sta_end)
         self.spn_lfrom.setValue(al.sta_start); self.spn_lto.setValue(al.sta_end)
         self._line_side_changed()
@@ -514,11 +577,15 @@ class RsdDock(QDockWidget):
         if self.store is None:
             return
         side = self.cmb_lside.currentData()
+        if side == "click":
+            self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                                "Choose Centre, Left or Right to add a run by chainage", MSG_WARNING, 5)
+            return
         try:
             self.store.lines.add_run(Run(self.cmb_litem.currentData(), self.spn_lfrom.value(), self.spn_lto.value(),
                                          side=side, offset=self.spn_loff.value(),
                                          edge_ref=self.cmb_lref.currentData() if side != "C" else None,
-                                         no_overtaking=self.chk_lnoot.isChecked()))
+                                         no_overtaking=self.chk_lnoot.isChecked(), flip=self.chk_lflip.isChecked()))
         except ValueError as e:
             self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
         self.store.lines.layer.triggerRepaint()
@@ -575,6 +642,90 @@ class RsdDock(QDockWidget):
         if notes:
             msg += " Note: " + "; ".join(notes)
         self.iface.messageBar().pushMessage("Road Furniture Designer", msg, MSG_WARNING if notes else MSG_INFO, 10)
+
+    # ------------------------------------------------------------------ map tool for runs and features
+    def run_settings(self):
+        mode = getattr(self, "_run_mode", "run")
+        return {"mode": mode, "code": self.cmb_litem.currentData(), "side": self.cmb_lside.currentData(),
+                "edge_ref": self.cmb_lref.currentData(),
+                "lock_offset": self.spn_loff.value() if self.chk_lfix.isChecked() else None,
+                "no_overtaking": self.chk_lnoot.isChecked(), "flip": self.chk_lflip.isChecked(),
+                "kind": self.cmb_fkind.currentData(), "feature_cfg": self.feature_config(),
+                "auto_cfg": self.auto_config()}
+
+    def feature_config(self):
+        from .rfd.features import FeatureConfig
+        return FeatureConfig(criteria=self.cmb_crit.currentData(), desired_speed=self.spn_fspeed.value(),
+                             crossing_width=self.spn_fwidth.value(), bar_markings=self.chk_fbars.isChecked(),
+                             signs=self.chk_fsigns.isChecked(), road_class=self.cmb_mclass.currentData(),
+                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData())
+
+    def _toggle_run_tool(self, on, mode):
+        canvas = self.iface.mapCanvas()
+        if on:
+            if self.store is None:
+                (self.btn_ldraw if mode == "run" else self.btn_fplace).setChecked(False)
+                return
+            other = self.btn_fplace if mode == "run" else self.btn_ldraw
+            other.blockSignals(True); other.setChecked(False); other.blockSignals(False)
+            self.btn_place.setChecked(False)
+            self._run_mode = mode
+            self.run_tool.cancel()
+            canvas.setMapTool(self.run_tool)
+        elif canvas.mapTool() is self.run_tool and getattr(self, "_run_mode", None) == mode:
+            canvas.unsetMapTool(self.run_tool)
+
+    def _run_hover(self, text):
+        (self.lbl_lhover if getattr(self, "_run_mode", "run") == "run" else self.lbl_fhover).setText(text)
+
+    def _run_placed(self, text):
+        self._run_hover(text)
+        self.refresh()
+
+    def add_feature_at(self):
+        if self.store is None:
+            return
+        try:
+            d = self.store.add_feature(self.cmb_fkind.currentData(), self.spn_fsta.value(), self.feature_config(),
+                                       self.auto_config())
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
+            return
+        notes = [f.text for f in d.findings]
+        self.lbl_fhover.setText((d.summary or "") + (" - " + "; ".join(notes) if notes else ""))
+        self.refresh()
+
+    def _refresh_features(self):
+        from .rfd.alignment import format_station
+        self.lst_features.clear()
+        feats = sorted(self.store.features().items(), key=lambda kv: kv[1]["station"] or 0)
+        for gid, g in feats:
+            main = next((c for c in g["codes"] if c not in ("BAR-SET", "BM04")), (g["codes"] or ["signs"])[0])
+            it = QListWidgetItem(f"{format_station(self.store.al.display_station(g['station'] or 0), 0)}  {main}  "
+                                 f"({g['runs']} items, {g['signs']} signs)")
+            it.setData(Qt.UserRole, gid)
+            self.lst_features.addItem(it)
+
+    def remove_feature(self):
+        it = self.lst_features.currentItem()
+        if it is not None:
+            self.store.remove_feature(it.data(Qt.UserRole))
+            self.store.lines.layer.triggerRepaint(); self.store.signs.triggerRepaint()
+
+    def _zoom_feature(self, item):
+        gid = item.data(Qt.UserRole)
+        ids = [f.id() for f in self.store.lines.layer.getFeatures() if f["rule"] == f"feature:{gid}"]
+        if ids:
+            from qgis.core import QgsCoordinateTransform
+            lyr = self.store.lines.layer
+            bb = None
+            for f in lyr.getFeatures(ids):
+                b = f.geometry().boundingBox()
+                bb = b if bb is None else (bb.combineExtentWith(b) or bb)
+            xf = QgsCoordinateTransform(lyr.crs(), self.iface.mapCanvas().mapSettings().destinationCrs(),
+                                        QgsProject.instance())
+            bb = xf.transformBoundingBox(bb); bb.grow(30)
+            self.iface.mapCanvas().setExtent(bb); self.iface.mapCanvas().refresh()
 
     def delete_line_runs(self):
         rows = sorted({i.row() for i in self.tbl_lines.selectedIndexes()})

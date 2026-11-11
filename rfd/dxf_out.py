@@ -470,7 +470,8 @@ STUD_RADIUS = 0.1
 
 
 def _linear_layer(doc, it) -> str:
-    kind = {"Marking": "MARK", "Road stud": "STUD", "Barrier": "BARRIER"}.get(it.category, "LINEAR")
+    kind = {"Marking": "MARK", "Road stud": "STUD", "Barrier": "BARRIER", "Transverse marking": "MARK",
+            "Traffic calming": "CALM"}.get(it.category, "LINEAR")
     lay = f"RSD-{kind}-" + "".join(c if c.isalnum() or c in "-_" else "_" for c in it.code)
     if lay not in doc.layers:
         doc.layers.add(lay, color=LINEAR_COLOURS.get(it.colour, 6))
@@ -498,6 +499,11 @@ def write_linear(doc, msp, al, runs, cat):
         v = al.speed_at((r.sta_start + r.sta_end) / 2)
         xd = [(1000, "rsd-line/0.1"), (1000, r.uuid), (1000, r.code),
               (1040, r.sta_start), (1040, r.sta_end), (1000, r.side)]
+        if it.transverse:
+            for pts in geometry(al, r):
+                pl = msp.add_lwpolyline(pts[:-1], close=True, dxfattribs={"layer": lay})
+                pl.set_xdata(APPID, xd)
+            continue
         if it.is_point_series:
             q = run_quantities(r, it, v)
             n, sp = q["count"], q["spacing"]

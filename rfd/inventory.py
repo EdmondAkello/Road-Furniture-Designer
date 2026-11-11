@@ -75,7 +75,7 @@ def line_rows(runs, lcat, al):
         it = lcat[r.code]
         v = al.speed_at((r.sta_start + r.sta_end) / 2) if al is not None else None
         q = run_quantities(r, it, v)
-        qty = q["count"] if it.is_point_series else round(q["length"], 2)
+        qty = q["count"] if (it.is_point_series or it.transverse) else round(q["length"], 2)
         pat = it.pattern(v) if it.is_marking else (f"{q['spacing']:g} m interval" if "spacing" in q else "")
         disp = al.display_station if al is not None else (lambda s: s)
         if it.composite and it.is_marking:
@@ -83,7 +83,7 @@ def line_rows(runs, lcat, al):
         rows.append([n, r.code, it.name, it.category, pat, format_station(disp(r.sta_start)),
                      format_station(disp(r.sta_end)), round(disp(r.sta_start), 3), round(disp(r.sta_end), 3),
                      round(r.length, 2), r.side, round(r.offset, 2), r.edge_ref or None, qty,
-                     "No." if it.is_point_series else it.unit,
+                     "No." if (it.is_point_series or it.transverse) else it.unit,
                      round(q["area"], 2) if "area" in q else None, q.get("terminals"), r.remarks or None, r.uuid])
     return rows
 

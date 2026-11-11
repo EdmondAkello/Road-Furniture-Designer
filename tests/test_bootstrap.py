@@ -253,3 +253,40 @@ def test_random_barriers(seed):
                 f"{tag} section {f.station:.0f} lacks run-out"
     again, _ = B.propose_barriers(al, cfg)
     assert [(r.side, r.sta_start, r.sta_end) for r in runs] == [(r.side, r.sta_start, r.sta_end) for r in again]
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_random_features(seed):
+    """Random traffic calming features on random roads: every item and sign stays on the road, the hump
+    sits centred on its chainage, bar sets never overlap the hump or each other, one rule per feature."""
+    from rfd.features import KINDS, FeatureConfig, design_feature
+    al, rng = random_road(seed)
+    for _ in range(8):
+        kind = rng.choice(list(KINDS))
+        sta = al.sta_start + rng.uniform(0, al.length)
+        cfg = FeatureConfig(desired_speed=rng.choice([20, 25, 30, 42, 50, 60]), crossing_width=rng.choice([2, 3, 4, 5]),
+                            bar_markings=rng.random() < 0.8, directions=rng.choice(["both", "forward", "backward"]),
+                            road_class=rng.choice(["", "A", "C"]), carriageway=rng.choice([None, 6.0, 11.0]))
+        d = design_feature(al, kind, sta, cfg)
+        tag = f"seed {seed} {kind} at {sta:.0f}:"
+        rules = {r.rule for r in d.runs} | {p.rule for p in d.signs}
+        assert len(rules) <= 1, tag
+        for r in d.runs:
+            assert al.sta_start - 1e-6 <= r.sta_start < r.sta_end <= al.sta_end + 1e-6, tag
+            assert r.side == "C" and r.width and r.width > 0 and r.status == "proposed" and r.reason, tag
+            assert LCAT[r.code].transverse, tag
+        for p in d.signs:
+            assert al.sta_start - 1e-6 <= p.station <= al.sta_end + 1e-6, tag
+            assert (p.side, p.facing) in (("L", "Forward"), ("R", "Backward")) and p.code in SCAT.signs, tag
+            assert (p.station < sta) == (p.facing == "Forward"), tag
+        main = [r for r in d.runs if r.code in ("HUMP-C", "HUMP-T", "TABLE", "BUMP")]
+        if main and main[0].sta_start > al.sta_start and main[0].sta_end < al.sta_end:
+            assert (main[0].sta_start + main[0].sta_end) / 2 == pytest.approx(sta), tag
+        bars = sorted((r for r in d.runs if r.code == "BAR-SET"), key=lambda r: r.sta_start)
+        for a, b in zip(bars, bars[1:]):
+            assert b.sta_start >= a.sta_end - 1e-6, f"{tag} bar sets overlap"
+        for b in bars:
+            for m in main:
+                assert b.sta_end <= m.sta_start + 1e-6 or b.sta_start >= m.sta_end - 1e-6, f"{tag} bars on the hump"
+        if kind == "speed_bump" and (al.speed_at(sta) or 80) >= 50:
+            assert not d.runs and any(f.kind == "feature_error" for f in d.findings), tag

@@ -56,10 +56,15 @@ class LinearItem:
     spacing: Optional[float] = None               # road studs: interval (m)
     spacing_no_overtaking: Optional[float] = None
     terminal: Optional[str] = None                # barriers: terminal item counted at each end
+    transverse: bool = False                      # laid across the road (humps, bar sets, crossings): counted
+                                                  # per run; the run length is its footprint along the road
+    area_factor: object = None                    # transverse painted share of footprint x width, or "bars"
+    bars: int = 6                                 # "bars": painted area = bars x bar_width x width
+    bar_width: float = 0.3
 
     @property
     def is_marking(self) -> bool:
-        return bool(self.rural or self.urban)
+        return bool(self.rural or self.urban) and not self.transverse
 
     @property
     def is_point_series(self) -> bool:
@@ -140,6 +145,7 @@ class Run:
     edge_ref: Optional[str] = None
     status: str = "approved"       # approved | proposed
     no_overtaking: bool = False    # road studs at the closer no-overtaking interval
+    width: Optional[float] = None  # transverse items: width across the road (m)
     flip: bool = False             # composite lines (CLS): continuous line on the right of chainage direction,
                                    # i.e. overtaking prohibited for traffic running against chainage
     rule: str = ""
@@ -193,6 +199,12 @@ def geometry(al, run: Run, step: float = 5.0) -> List[List[Tuple[float, float]]]
     run = clamp_run(al, run)
     if run.length <= 0:
         return []
+    if getattr(run, "width", None) and run.side == "C":           # transverse item: its footprint outline
+        h = run.width / 2.0
+        c = run.offset
+        ring = [al.point_at(run.sta_start, c - h)[:2], al.point_at(run.sta_end, c - h)[:2],
+                al.point_at(run.sta_end, c + h)[:2], al.point_at(run.sta_start, c + h)[:2]]
+        return [ring + [ring[0]]]
     joins = [al.sta_start + c for c in getattr(al, "_cum", [])]     # element joins (TS, SC, ...)
     parts, cur = [], []
     for s in stations(run, step, joins):
@@ -226,6 +238,13 @@ def run_quantities(run: Run, item: LinearItem, speed: Optional[float] = None) ->
         sp = item.spacing_no_overtaking if (run.no_overtaking and item.spacing_no_overtaking) else item.spacing
         q["count"] = int(math.floor(L / sp + 1e-9)) + 1 if L > 0 else 0
         q["spacing"] = sp
+    if item.transverse:
+        q["count"] = 1
+        w = float(run.width or 0.0)
+        if item.area_factor == "bars":
+            q["area"] = item.bars * item.bar_width * w
+        elif isinstance(item.area_factor, (int, float)):
+            q["area"] = float(item.area_factor) * L * w
     if item.terminal:
         q["terminals"] = 2
     return q
@@ -251,8 +270,10 @@ def summarise(runs: List[Run], cat: LinearCatalogue, al=None) -> List[Tuple[str,
     order = {c: i for i, c in enumerate(cat.categories())}
     for (catg, code, pat), a in sorted(acc.items(), key=lambda kv: (order.get(kv[0][0], 99), kv[0][1], kv[0][2])):
         it = cat[code]
-        if it.is_point_series:
+        if it.is_point_series or it.transverse:
             rows.append((catg, code, it.name, pat, "No.", a["count"]))
+            if it.transverse and a["area"] > 0:
+                rows.append((catg, code, it.name + " (painted area)", pat, "m2", round(a["area"], 1)))
             continue
         rows.append((catg, code, it.name, pat, "m", round(a["length"], 1)))
         if it.is_marking:

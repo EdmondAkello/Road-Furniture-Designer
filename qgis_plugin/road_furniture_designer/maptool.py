@@ -128,3 +128,165 @@ class PlaceSignTool(QgsMapToolEmitPoint):
         self.band.reset(GEOM_LINE)
         self.mark.reset(GEOM_POINT)
         super().deactivate()
+
+
+class PlaceRunTool(QgsMapToolEmitPoint):
+    """Draw linear furniture by clicking along the road, or place a traffic calming feature.
+
+    Run mode: first click sets the start (chainage, side and offset), second click the end.
+    The offset is measured from the chosen corridor edge (or the centreline), or fixed.
+    Feature mode: one click places a hump, table, bump, bar markings or crossing at that chainage.
+    Right-click or Esc cancels a started run; a second right-click leaves the tool."""
+    hover = pyqtSignal(str)
+    placed = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, canvas, store_getter, settings_getter):
+        super().__init__(canvas)
+        self.canvas = canvas
+        self._store = store_getter
+        self._settings = settings_getter
+        self.start = None                     # (station, side, offset_from_ref)
+        self.band = QgsRubberBand(canvas, GEOM_LINE)
+        self.band.setColor(QColor(0, 160, 120, 220))
+        self.band.setWidth(3)
+        self.mark = QgsRubberBand(canvas, GEOM_POINT)
+        self.mark.setColor(QColor(0, 160, 120, 230))
+        self.mark.setIconSize(10)
+        self.setCursor(Qt.CrossCursor)
+
+    def _xf(self, to_layer=True):
+        st = self._store()
+        a, b = self.canvas.mapSettings().destinationCrs(), st.signs.crs()
+        return QgsCoordinateTransform(a, b, QgsProject.instance()) if to_layer else \
+            QgsCoordinateTransform(b, a, QgsProject.instance())
+
+    def resolve(self, layer_pt):
+        """(station, side, offset from the reference, signed offset from centreline, text) for a click."""
+        st = self._store()
+        s = self._settings()
+        sta, disp, off, side, in_range = st.locate(layer_pt.x(), layer_pt.y())
+        if not in_range:
+            return None
+        from .rfd.alignment import format_station
+        if s.get("mode") == "feature" or s.get("side") == "C":
+            o = s.get("lock_offset") or 0.0
+            return sta, "C", o, o, f"Ch {format_station(disp, 2)}   centre" + (f" {o:+.2f} m" if o else "")
+        if s.get("side") in ("L", "R"):
+            side = s["side"]
+        ref = s.get("edge_ref")
+        ro = st.al.edges.offset(ref, side, sta) if (ref and st.al.edges) else None
+        if ref and ro is None:
+            return sta, side, None, None, f"Ch {format_station(disp, 2)}   no {ref} edge here"
+        base = ro or 0.0
+        rel = s["lock_offset"] if s.get("lock_offset") is not None else abs(off) - base
+        signed = (base + rel) * (1 if side == "R" else -1)
+        return sta, side, rel, signed, (f"Ch {format_station(disp, 2)}   {'Right' if side == 'R' else 'Left'} "
+                                        f"{rel:+.2f} m from {ref or 'centreline'}")
+
+    def _preview(self, sta, side, rel):
+        st = self._store()
+        s = self._settings()
+        from .rfd.linear import Run, geometry
+        self.band.reset(GEOM_LINE)
+        if self.start is None or rel is None:
+            return
+        a = self.start
+        if a[2] is None:
+            return
+        try:
+            r = Run(s.get("code") or "LM01", a[0], sta, side=a[1], offset=a[2],
+                    edge_ref=s.get("edge_ref") if a[1] != "C" else None)
+            for part in geometry(st.al, r, step=max(2.0, (abs(sta - a[0]) / 200) or 2.0))[:1]:
+                xf = self._xf(False)
+                for i, (x, y) in enumerate(part):
+                    self.band.addPoint(xf.transform(QgsPointXY(x, y)), i == len(part) - 1)
+        except ValueError:
+            pass
+
+    def canvasMoveEvent(self, e):
+        if self._store() is None:
+            return
+        lp = self._xf().transform(e.mapPoint())
+        res = self.resolve(lp)
+        self.mark.reset(GEOM_POINT)
+        if res is None:
+            self.hover.emit("Beyond the alignment ends")
+            return
+        sta, side, rel, signed, text = res
+        if signed is not None:
+            x, y, _ = self._store().al.point_at(sta, signed)
+            self.mark.addPoint(self._xf(False).transform(QgsPointXY(x, y)), True)
+        self._preview(sta, side, rel)
+        if self.start is not None:
+            text += f"   length {abs(sta - self.start[0]):.1f} m"
+        self.hover.emit(text)
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.cancel()
+
+    def cancel(self):
+        self.start = None
+        self.band.reset(GEOM_LINE)
+
+    def canvasReleaseEvent(self, e):
+        if self._store() is None:
+            return
+        if e.button() == Qt.RightButton:
+            if self.start is not None:
+                self.cancel()
+            else:
+                self.canvas.unsetMapTool(self)
+            return
+        if e.button() == Qt.LeftButton:
+            self.click(self._xf().transform(e.mapPoint()))
+
+    def click(self, layer_pt):
+        st = self._store()
+        s = self._settings()
+        res = self.resolve(layer_pt)
+        if res is None:
+            self.failed.emit("Beyond the alignment ends")
+            return None
+        sta, side, rel, _signed, _ = res
+        from .rfd.alignment import format_station
+        if s.get("mode") == "feature":
+            try:
+                d = st.add_feature(s["kind"], sta, s.get("feature_cfg"), s.get("auto_cfg"))
+            except ValueError as ex:
+                self.failed.emit(str(ex))
+                return None
+            notes = [f.text for f in d.findings]
+            self.placed.emit(f"{d.summary or s['kind']} at {format_station(st.al.display_station(sta), 1)}: "
+                             f"{len(d.runs)} items, {len(d.signs)} signs" + (" - " + "; ".join(notes) if notes else ""))
+            return d
+        if rel is None:
+            self.failed.emit(f"No {s.get('edge_ref')} edge at this chainage")
+            return None
+        if self.start is None:
+            self.start = (sta, side, rel)
+            self.placed.emit(f"Start {format_station(st.al.display_station(sta), 1)} - click the end")
+            return None
+        from .rfd.linear import Run
+        a = self.start
+        self.cancel()
+        if abs(sta - a[0]) < 0.5:
+            self.failed.emit("Start and end are the same chainage")
+            return None
+        try:
+            fid = st.lines.add_run(Run(s["code"], a[0], sta, side=a[1], offset=a[2],
+                                       edge_ref=s.get("edge_ref") if a[1] != "C" else None,
+                                       no_overtaking=bool(s.get("no_overtaking")), flip=bool(s.get("flip"))))
+        except ValueError as ex:
+            self.failed.emit(str(ex))
+            return None
+        f = st.lines.layer.getFeature(fid)
+        self.placed.emit(f"{f['item_code']} {f['ch_from']}-{f['ch_to']} {f['side']}: {f['quantity']:g} {f['unit']}")
+        st.lines.layer.triggerRepaint()
+        return fid
+
+    def deactivate(self):
+        self.cancel()
+        self.mark.reset(GEOM_POINT)
+        super().deactivate()
