@@ -2,7 +2,13 @@ import pytest
 
 from rfd.alignment import Alignment
 from rfd.corridor import Edges
-from rfd.markings import (MarkingConfig, _clean, _close_gaps, _segments, horizontal_sight, propose_markings)
+from rfd.autoplace import AutoConfig, analyse, horizontal_sight
+from rfd.markings import MarkingConfig as _MC, _clean, _close_gaps, _segments, propose_markings
+
+
+def MarkingConfig(**kw):            # the Table 4.4 rules, tested here; the default PSD basis is tested below
+    kw.setdefault("basis", "table_4_4")
+    return _MC(**kw)
 from rfd.profile import VerticalProfile
 from tests.test_autoplace import road
 
@@ -105,3 +111,48 @@ def test_bend_visibility_and_speed_split():
     al.speeds = [(0.0, 100.0), (1200.0, 50.0)]
     runs, _ = propose_markings(al, MarkingConfig(edges=False))
     assert sorted((r.sta_start, r.sta_end) for r in runs) == [(0, 1200), (1200, 3000)]
+
+
+def zones_of(runs):
+    f = sorted((r.sta_start, r.sta_end) for r in runs if r.code in ("LM32", "LM24") or (r.code == "LM28" and not r.flip))
+    b = sorted((r.sta_start, r.sta_end) for r in runs if r.code in ("LM32", "LM24") or (r.code == "LM28" and r.flip))
+    def merge(x):
+        out = []
+        for a, c in x:
+            if out and a - out[-1][1] < 1e-6:
+                out[-1][1] = c
+            else:
+                out.append([a, c])
+        return [tuple(t) for t in out]
+    return merge(f), merge(b)
+
+
+def test_psd_basis_matches_the_no_overtaking_signs():
+    pr = VerticalProfile("p", [(0, 100, 0), (1500, 190, 100), (3000, 100, 0), (4500, 130, 300), (6000, 100, 0)])
+    al = straight(length=6000.0, profile=pr, eps=5.0)
+    auto = AutoConfig(curves=False, grades=False)
+    signs = {d: sorted((f.start, f.end) for f in analyse(al, auto) if f.kind == "no_overtaking" and f.direction == d)
+             for d in ("Forward", "Backward")}
+    assert signs["Forward"] and signs["Backward"]
+    runs, findings = propose_markings(al, _MC.from_auto(auto, road_class="B"))
+    f, b = zones_of(runs)
+    assert f == pytest.approx(signs["Forward"]) and b == pytest.approx(signs["Backward"])
+    assert any("Passing sight distance of 325 m" in r.reason for r in runs if r.code in ("LM28", "LM32"))
+    # the Table 4.4 basis gives shorter zones on the same road
+    t_runs, _ = propose_markings(al, MarkingConfig(road_class="B"))
+    solid = lambda rs: sum(r.length for r in rs if r.code in ("LM28", "LM32"))
+    assert 0 < solid(t_runs) < solid(runs)
+    # normal (not reduced) PSD lengthens both alike
+    auto2 = AutoConfig(curves=False, grades=False, psd_reduced=False)
+    runs2, _ = propose_markings(al, _MC.from_auto(auto2, road_class="B"))
+    assert solid(runs2) > solid(runs)
+
+
+def test_opposite_zones_closer_than_the_merge_gap_meet():
+    from rfd.autoplace import no_overtaking_zones
+    pr = VerticalProfile("p", [(0, 100, 0), (1500, 190, 100), (3000, 100, 0)])
+    al = straight(profile=pr)
+    z = no_overtaking_zones(al, AutoConfig())
+    allz = sorted(z["Forward"] + z["Backward"])
+    for (a0, a1), (b0, b1) in zip(allz, allz[1:]):
+        assert b0 <= a1 + 1e-6 or b0 - a1 > 100          # overlapping/touching, or a real overtaking length

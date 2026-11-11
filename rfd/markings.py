@@ -1,19 +1,18 @@
 """Longitudinal markings and road studs proposed from RDM 6.1 (2025).
 
-Centre line (sections 4.2, 4.5): broken line where overtaking is allowed; where the
-visibility for a direction falls below the critical value of Table 4.4 that direction
-gets a continuous line - combined line (LM28) for one direction, double continuous
-(LM32) for both. Visibility is scanned along the design profile from an eye 1.05 m high
-to a target of the same height, and optionally round bends against a sight obstruction
-at a given offset from the centreline.
+Centre line (sections 4.2, 4.5): broken line where overtaking is allowed; a direction
+that may not overtake gets a continuous line - combined line (LM28) for one direction,
+double continuous (LM32) for both.
 
-  - a continuous line needed over 20-50 m is laid as 50 m; shorter needs are dropped
-  - continuous lines for one direction closer together than the critical value are joined
-  - a gap between continuous sections shorter than the visibility distance is closed
-    (4.5.2), so no broken element is shorter than the visibility distance
-  - carriageway under 5.5 m: no centre line; a single continuous line (LM24) where
-    visibility is restricted (4.5.5)
+Where overtaking is prohibited is decided by the geometric criteria (basis "psd", the
+default): the zones where the passing sight distance is not available, exactly as used
+for the no-overtaking signs (autoplace.no_overtaking_zones), so signs and markings agree.
+Basis "table_4_4" uses the RDM 6.1 Table 4.4 critical value instead (eye and target
+1.05 m; needs of 20-50 m laid as 50 m, lines closer than the critical value joined, gaps
+under the visibility distance closed). It gives much shorter zones than the signs.
 
+Carriageway under 5.5 m: no centre line; a single continuous line (LM24) where
+overtaking is prohibited (4.5.5).
 Edge lines (4.2.3): continuous at the edge of the travelled way, both sides.
 Road studs (13.3, Table 13.2, 4.5.1): 6 m on the combined line system, 9 m on edge lines
 through no-overtaking sections, 12 m elsewhere.
@@ -28,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from . import criteria as _crit
-from .autoplace import Finding, sight_distances, sight_profile
+from .autoplace import AutoConfig, Finding, horizontal_sight, no_overtaking_zones, sight_distances
 from .linear import RURAL_SPEED, Run
 
 HIGHER_CLASSES = ("A", "B", "UA")
@@ -38,7 +37,14 @@ DROP_BELOW = 20.0           # m, a continuous line needed over less than this is
 
 @dataclass
 class MarkingConfig:
-    road_class: str = ""                # A, B, C, D, E, UA, UC, UL; "" -> Table 4.4 row by design speed
+    basis: str = "psd"                  # psd: continuous line where the passing sight distance of the geometric
+                                        #      criteria is not available - the same zones as the no-overtaking signs
+                                        # table_4_4: RDM 6.1 Table 4.4 critical value (markings only; shorter zones)
+    psd_reduced: bool = True            # psd basis: as the Auto tab (RDM 1.3 Table 3.20 reduced values)
+    zone_merge_gap: float = 100.0       # psd basis: as the Auto tab
+    min_zone_length: float = 60.0       # psd basis: as the Auto tab
+    road_class: str = ""                # A, B, C, D, E, UA, UC, UL; "" -> by design speed (line weights, studs,
+                                        # and the Table 4.4 row)
     centre: bool = True
     edges: bool = True
     studs: str = "auto"                 # none | no_overtaking | all | auto (all on class A, else no-overtaking)
@@ -57,41 +63,24 @@ class MarkingConfig:
         return _crit.get(self.criteria)
 
     @property
+    def auto(self) -> AutoConfig:
+        """The sign rules' configuration that gives the same no-overtaking zones."""
+        return AutoConfig(criteria=self.criteria, psd_reduced=self.psd_reduced, sight_offset=self.sight_offset,
+                          zone_merge_gap=self.zone_merge_gap, min_zone_length=self.min_zone_length,
+                          start=self.start, end=self.end, step=self.step)
+
+    @classmethod
+    def from_auto(cls, auto: AutoConfig, **kw) -> "MarkingConfig":
+        return cls(criteria=auto.criteria, psd_reduced=auto.psd_reduced, sight_offset=auto.sight_offset,
+                   zone_merge_gap=auto.zone_merge_gap, min_zone_length=auto.min_zone_length,
+                   start=auto.start, end=auto.end, step=auto.step, **kw)
+
+    @property
     def higher(self) -> Optional[bool]:
         return (self.road_class.upper() in HIGHER_CLASSES) if self.road_class else None
 
 
 # --------------------------------------------------------------------------- visibility
-def horizontal_sight(pts, stations, direction, offset, max_d):
-    """Sight distance round bends: the chord from the eye may not pass more than
-    ``offset`` m inside the centreline (checked at its quarter points)."""
-    n = len(stations)
-    out = []
-    for i in range(n):
-        seen = max_d
-        j = i + 2 * direction
-        xi, yi = pts[i]
-        while 0 <= j < n:
-            d = abs(stations[j] - stations[i])
-            if d > max_d:
-                break
-            xj, yj = pts[j]
-            L = math.hypot(xj - xi, yj - yi) or 1e-9
-            blocked = False
-            for q in (0.25, 0.5, 0.75):
-                k = i + int(round((j - i) * q))
-                xk, yk = pts[k]
-                if abs((xj - xi) * (yk - yi) - (yj - yi) * (xk - xi)) / L > offset:
-                    blocked = True
-                    break
-            if blocked:
-                seen = d
-                break
-            j += direction
-        out.append(seen)
-    return out
-
-
 def _flag_runs(st, flags):
     runs, cur = [], None
     for s, f in zip(st, flags):
@@ -182,6 +171,12 @@ def centre_states(al, cfg: MarkingConfig):
     """([(start, end, state)], lo, hi, note) for the centre line; state '' | 'F' | 'B' | 'FB'."""
     lo = max(al.sta_start, cfg.start if cfg.start is not None else al.sta_start)
     hi = min(al.sta_end, cfg.end if cfg.end is not None else al.sta_end)
+    if cfg.basis == "psd":
+        note = ""
+        if al.profile is None:
+            note = "no design profile in the LandXML: visibility over crests not checked"
+        z = no_overtaking_zones(al, cfg.auto)
+        return _segments(lo, hi, [list(r) for r in z["Forward"]], [list(r) for r in z["Backward"]]), lo, hi, note
     crit = cfg.crit
     v_of = lambda s: al.speed_at(s) or 80.0
     vis_at = lambda s: crit.marking_visibility(v_of(s), cfg.road_class)[0]
@@ -261,7 +256,13 @@ def propose_markings(al, cfg: MarkingConfig = None) -> Tuple[List[Run], List[Fin
                     add("RRS-C", a, b, "marking_studs", "Centre line studs at 12 m (RDM 6.1 Table 13.2)")
                 continue
             who = {"F": "forward traffic", "B": "backward traffic", "FB": "both directions"}[state]
-            why = f"Visibility under the critical value of {crt:.0f} m for {who} ({ref})"
+            if cfg.basis == "psd":
+                need = crit.psd(al.speed_at((a + b) / 2) or 80.0, cfg.psd_reduced)
+                why = f"Passing sight distance of {need:.0f} m not available for {who} ({crit.ref('psd')})"
+                short = f"passing sight distance < {need:.0f} m ({crit.ref('psd')})"
+            else:
+                why = f"Visibility under the critical value of {crt:.0f} m for {who} ({ref})"
+                short = f"visibility < {crt:.0f} m ({ref})"
             if narrow:
                 add("LM24", a, b, "marking_cls", why + "; single line, carriageway under 5.5 m (4.5.5)")
             elif state == "FB":
@@ -271,7 +272,7 @@ def propose_markings(al, cfg: MarkingConfig = None) -> Tuple[List[Run], List[Fin
             if studs != "none":
                 add("RRS-CLS", a, b, "marking_studs", "Studs at 6 m on the combined line system (RDM 6.1 4.5.1)")
             findings.append(Finding("marking_cls", a, b, {"F": "Forward", "B": "Backward", "FB": "Both"}[state],
-                                    f"continuous centre line over {b - a:.0f} m: visibility < {crt:.0f} m ({ref})",
+                                    f"continuous centre line over {b - a:.0f} m: {short}",
                                     {"critical": crt, "visibility": vis}))
 
     # ---- edge lines and their studs

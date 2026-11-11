@@ -109,8 +109,26 @@ def check_markings(al, cfg, runs, findings, tag=""):
     solid = direction_lines(runs, lambda r: r.code in ("LM24", "LM28", "LM32"))
     v_of = lambda s: al.speed_at(s) or 80.0
     for (a0, a1), (b0, b1) in zip(solid, solid[1:]):
-        vis = cfg.crit.marking_visibility(v_of((a1 + b0) / 2), cfg.road_class)[0]
-        assert b0 - a1 >= vis - 1e-6, f"{tag} broken element {b0 - a1:.0f} m shorter than visibility {vis:.0f} m"
+        vis = (cfg.zone_merge_gap if cfg.basis == "psd"
+               else cfg.crit.marking_visibility(v_of((a1 + b0) / 2), cfg.road_class)[0])
+        assert b0 - a1 >= vis - 1e-6, f"{tag} broken element {b0 - a1:.0f} m shorter than {vis:.0f} m"
+    if cfg.basis == "psd" and cfg.centre and not narrow:   # markings and no-overtaking signs agree exactly
+        # (a narrow road has one continuous line for both directions, so only the union can agree)
+        from rfd.autoplace import analyse
+        fnd = [f for f in analyse(al, cfg.auto) if f.kind == "no_overtaking"]
+        for d, pick in (("Forward", lambda r: r.code in ("LM32", "LM24") or (r.code == "LM28" and not r.flip)),
+                        ("Backward", lambda r: r.code in ("LM32", "LM24") or (r.code == "LM28" and r.flip))):
+            want = sorted((f.start, f.end) for f in fnd if f.direction == d)
+            got = [tuple(x) for x in direction_lines(runs, pick)]
+            merged = []
+            for a, b in want:
+                if merged and a - merged[-1][1] < 1.0:
+                    merged[-1] = (merged[-1][0], b)
+                else:
+                    merged.append((a, b))
+            assert len(got) == len(merged), f"{tag} {d} zones {got} != signs {merged}"
+            for g, w in zip(got, merged):
+                assert abs(g[0] - w[0]) < 1.0 and abs(g[1] - w[1]) < 1.0, f"{tag} {d} zone {g} != sign zone {w}"
     for r in runs:
         it = LCAT[r.code]
         assert lo - 1e-6 <= r.sta_start < r.sta_end <= hi + 1e-6, f"{tag} run outside range {r}"
@@ -150,7 +168,8 @@ def test_random_road(seed, tmp_path):
                             studs=rng.choice(["auto", "none", "all", "no_overtaking"]),
                             sight_offset=rng.choice([0.0, 0.0, 3.0, 6.0, 12.0]),
                             carriageway=rng.choice([None, None, 5.0, 6.5, 7.0]),
-                            criteria=rng.choice(["kenya_rdm_2025", "aashto_2011"]))
+                            criteria=rng.choice(["kenya_rdm_2025", "aashto_2011"]),
+                            basis=rng.choice(["psd", "psd", "table_4_4"]), psd_reduced=rng.random() < 0.7)
         if rng.random() < 0.3:
             cfg.start = al.sta_start + al.length * 0.2
             cfg.end = al.sta_start + al.length * 0.7

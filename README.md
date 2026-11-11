@@ -19,7 +19,7 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 116 tests passing, including 60 randomly generated roads (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
+- **Core:** 118 tests passing, including 60 randomly generated roads (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
 - **QGIS plugin:** 34 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
@@ -103,9 +103,9 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
 - **Quantities:** markings in metres of run and m² painted, studs by number, barriers in metres plus 2 terminals per run. The inventory gains a `Linear` sheet (Excel Table `RSD_Linear`), and its rows feed `RSD_Quantities` through SUMIFS formulas.
 - **DXF:** runs are drawn in world coordinates on `RSD-MARK-*`, `RSD-STUD-*` and `RSD-BARRIER-*` layers. Broken lines use metre linetypes (e.g. `RSD_3_9`), and markings are drawn at their painted width. Each entity carries `RSD` XDATA (run UUID, code, stations).
 - **Propose markings (RDM 6.1):** the Linear tab proposes the centre line, edge lines and studs for review, in the same proposed/accept/remove way as signs.
-  - *Centre line:* broken (LM01, or LM02 on class A/B) where overtaking is allowed. Where the visibility for a direction is below the Table 4.4 critical value, that direction gets a continuous line: the combined line LM28 for one direction, double continuous LM32 for both. Visibility is scanned along the design profile from an eye 1.05 m high to a 1.05 m target. Set "Sight obstruction on bends" to also check round bends against a cut face or wall at that offset from the centreline.
-  - *Table 4.4 notes:* a continuous line needed over 20–50 m is laid as 50 m, lines for one direction closer than the critical value are joined, and a gap between continuous sections shorter than the visibility distance is closed (4.5.2).
-  - *Narrow roads:* under 5.5 m of carriageway there is no broken centre line and no double line; a single continuous line LM24 is used where visibility is restricted (4.2.1, 4.5.5).
+  - *Centre line:* broken (LM01, or LM02 on class A/B) where overtaking is allowed. A direction that may not overtake gets a continuous line: the combined line LM28 for one direction, double continuous LM32 for both.
+  - *One basis for signs and markings:* the geometric criteria govern. The continuous line covers exactly the no-overtaking zones used for the P32 signs: where the passing sight distance (RDM 1.3 Table 3.20) is not available along the profile and, if "Sight obstruction on bends" is set on the Auto tab, round bends. Zones of opposite directions closer than 100 m are extended to meet, so no short overtaking length is left between them. The RDM 6.1 Table 4.4 critical value gives far shorter zones than the passing sight distance; it remains in the core as `basis="table_4_4"` but is not the default.
+  - *Narrow roads:* under 5.5 m of carriageway there is no broken centre line and no double line; a single continuous line LM24 is used where overtaking is prohibited (4.2.1, 4.5.5).
   - *Edge lines:* continuous LM26 (LM27 on class A/B) on the ETW edge, both sides. Where the LandXML has no corridor, give a carriageway width and they are placed at half that width from the centreline.
   - *Studs:* 6 m on the combined line system (4.5.1), 9 m on edge lines through no-overtaking sections and 12 m elsewhere (Table 13.2). By default studs go everywhere on class A and only on no-overtaking sections otherwise.
   - *Not covered yet:* breaks through junctions, splayed and hatched double lines on sharp bends (Figure 4.6), lane lines on multi-lane roads.

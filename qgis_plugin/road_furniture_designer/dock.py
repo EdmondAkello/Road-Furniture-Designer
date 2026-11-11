@@ -162,6 +162,12 @@ class RsdDock(QDockWidget):
         cr = QHBoxLayout(); cr.addWidget(self.cmb_crit, 1); cr.addWidget(self.btn_crit)
         af.addRow("Design criteria", cr)
         af.addRow("", self.chk_psd_red)
+        self.spn_msight = QDoubleSpinBox(); self.spn_msight.setRange(0, 30); self.spn_msight.setDecimals(1)
+        self.spn_msight.setSuffix(" m"); self.spn_msight.setSpecialValueText("Off (crests only)")
+        self.spn_msight.setToolTip("Distance from the centreline to whatever blocks the view on the inside of bends "
+                                   "(cut face, wall, vegetation), for the no-overtaking signs and centre line. "
+                                   "0 checks visibility over crests only.")
+        af.addRow("Sight obstruction on bends", self.spn_msight)
         af.addRow("Warn if curve speed below design by", self.spn_warn)
         af.addRow("Chevrons if below by", self.spn_chev)
         af.addRow("Sharp turn (W19/W21) if below by", self.spn_sharp)
@@ -237,21 +243,20 @@ class RsdDock(QDockWidget):
         for lab, v in (("Auto (all on class A, else no-overtaking sections)", "auto"),
                        ("No-overtaking sections only", "no_overtaking"), ("Everywhere", "all"), ("None", "none")):
             self.cmb_mstuds.addItem(lab, v)
-        self.spn_msight = QDoubleSpinBox(); self.spn_msight.setRange(0, 30); self.spn_msight.setDecimals(1)
-        self.spn_msight.setSuffix(" m"); self.spn_msight.setSpecialValueText("Off (crests only)")
-        self.spn_msight.setToolTip("Distance from the centreline to whatever blocks the view on the inside of bends "
-                                   "(cut face, wall, vegetation). 0 checks visibility over crests only.")
-        mf.addRow("Road class (Table 4.4)", self.cmb_mclass)
+        mf.addRow("Road class", self.cmb_mclass)
         mf.addRow("Road studs", self.cmb_mstuds)
         self.spn_mwidth = QDoubleSpinBox(); self.spn_mwidth.setRange(0, 30); self.spn_mwidth.setDecimals(2)
         self.spn_mwidth.setSuffix(" m"); self.spn_mwidth.setSingleStep(0.5)
         self.spn_mwidth.setSpecialValueText("From the corridor (ETW)")
         self.spn_mwidth.setToolTip("Carriageway width between edge lines. Needed when the LandXML has no corridor "
                                    "edges; otherwise it overrides the measured width for the 5.5 m check.")
-        mf.addRow("Sight obstruction on bends", self.spn_msight)
         mf.addRow("Carriageway width", self.spn_mwidth)
         self.btn_mprop = QPushButton("Propose markings")
         mf.addRow(self.btn_mprop)
+        note = QLabel("The continuous centre line follows the no-overtaking zones of the Auto tab "
+                      "(criteria, PSD, sight obstruction, chainage range), so it agrees with the signs.")
+        note.setWordWrap(True)
+        mf.addRow(note)
         ll_.addWidget(mg)
         self.tbl_lines = QTableWidget(0, 6)
         self.tbl_lines.setHorizontalHeaderLabels(["Item", "From", "To", "Side", "Qty", "Status"])
@@ -503,11 +508,11 @@ class RsdDock(QDockWidget):
         self.store.lines.layer.triggerRepaint()
 
     def marking_config(self):
+        """Markings take their no-overtaking zones from the Auto tab settings, so they match the signs."""
         from .rfd.markings import MarkingConfig
-        return MarkingConfig(road_class=self.cmb_mclass.currentData(), studs=self.cmb_mstuds.currentData(),
-                             sight_offset=self.spn_msight.value(),
-                             carriageway=self.spn_mwidth.value() or None, criteria=self.cmb_crit.currentData(),
-                             start=self.spn_from.value(), end=self.spn_to.value())
+        return MarkingConfig.from_auto(self.auto_config(), road_class=self.cmb_mclass.currentData(),
+                                       studs=self.cmb_mstuds.currentData(),
+                                       carriageway=self.spn_mwidth.value() or None)
 
     def propose_markings(self):
         if self.store is None:
@@ -632,6 +637,7 @@ class RsdDock(QDockWidget):
                           default_e=self.spn_e.value(), clearance=self.spn_clear.value(),
                           edge_ref=self.cmb_ref.currentData(),
                           criteria=self.cmb_crit.currentData(), psd_reduced=self.chk_psd_red.isChecked(),
+                          sight_offset=self.spn_msight.value(),
                           start=self.spn_from.value(), end=self.spn_to.value())
 
     def run_auto(self):
