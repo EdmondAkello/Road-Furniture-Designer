@@ -14,13 +14,13 @@ from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFi
 
 from .compat import WKB_MULTILINESTRING
 from .rfd.alignment import format_station
-from .rfd.linear import LinearCatalogue, Run, geometry, run_quantities, summarise
+from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, run_quantities, summarise
 
 LAYER = "rsd_lines"
 LINE_FIELDS = [
     ("line_uuid", QVariant.String), ("item_code", QVariant.String),
     ("sta_from", QVariant.Double), ("sta_to", QVariant.Double), ("side", QVariant.String),
-    ("offset_m", QVariant.Double), ("edge_ref", QVariant.String), ("no_overtaking", QVariant.Int),
+    ("offset_m", QVariant.Double), ("edge_ref", QVariant.String), ("no_overtaking", QVariant.Int), ("flip", QVariant.Int),
     ("status", QVariant.String), ("rule", QVariant.String), ("reason", QVariant.String),
     ("remarks", QVariant.String),
     # derived
@@ -29,7 +29,7 @@ LINE_FIELDS = [
     ("length_m", QVariant.Double), ("quantity", QVariant.Double), ("unit", QVariant.String),
     ("speed_kmh", QVariant.Double),
 ]
-TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "edge_ref", "no_overtaking")
+TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "edge_ref", "no_overtaking", "flip")
 
 
 def _fields():
@@ -81,7 +81,7 @@ class LineStore(QObject):
         return Run(val("item_code", ""), float(val("sta_from", 0.0)), float(val("sta_to", 0.0)),
                    side=val("side", "C") or "C", offset=float(val("offset_m", 0.0)),
                    edge_ref=val("edge_ref") or None, status=val("status", "approved") or "approved",
-                   no_overtaking=bool(val("no_overtaking", 0)), rule=val("rule", "") or "",
+                   no_overtaking=bool(val("no_overtaking", 0)), flip=bool(val("flip", 0)), rule=val("rule", "") or "",
                    reason=val("reason", "") or "", remarks=val("remarks", "") or "",
                    uuid=val("line_uuid") or Run("x", 0, 0).uuid)
 
@@ -102,10 +102,12 @@ class LineStore(QObject):
         q = run_quantities(run, it, v)
         qty = q.get("count", q["length"])
         vals = {"line_uuid": run.uuid, "item_code": run.code, "sta_from": round(lo, 3), "sta_to": round(hi, 3),
-                "side": run.side, "offset_m": run.offset, "edge_ref": run.edge_ref, "no_overtaking": int(run.no_overtaking),
+                "side": run.side, "offset_m": run.offset, "edge_ref": run.edge_ref, "no_overtaking": int(run.no_overtaking), "flip": int(run.flip),
                 "status": run.status, "rule": run.rule, "reason": run.reason, "remarks": run.remarks,
                 "description": it.name, "category": it.category, "colour": it.colour,
-                "pattern": it.pattern(v) if it.is_marking else (f"{q['spacing']:g} m interval" if "spacing" in q else ""),
+                "pattern": (it.pattern(v) + ((" (no overtaking against chainage)" if run.flip else
+                                              " (no overtaking with chainage)") if it.composite else ""))
+                if it.is_marking else (f"{q['spacing']:g} m interval" if "spacing" in q else ""),
                 "ch_from": format_station(self.al.display_station(lo), 0),
                 "ch_to": format_station(self.al.display_station(hi), 0),
                 "length_m": round(q["length"], 2), "quantity": round(qty, 2),
@@ -133,14 +135,29 @@ class LineStore(QObject):
         return fid
 
     def add_runs(self, runs):
-        n, skipped = 0, []
+        """Add many runs in one write. Returns (number added, [messages for skipped runs])."""
+        feats, skipped = [], []
         for r in runs:
             try:
-                self.add_run(r)
-                n += 1
+                geom, vals = self.derive(r)
             except ValueError as e:
                 skipped.append(str(e))
-        return n, skipped
+                continue
+            f = QgsFeature(self.layer.fields())
+            f.setGeometry(geom)
+            for n, x in vals.items():
+                f.setAttribute(n, x)
+            feats.append(f)
+        if feats:
+            if self.layer.isEditable():
+                self._busy = True
+                self.layer.addFeatures(feats)
+                self._busy = False
+            else:
+                self.layer.dataProvider().addFeatures(feats)
+                self.layer.reload()
+            self.changed.emit()
+        return len(feats), skipped
 
     def recompute(self, fid):
         f = self.layer.getFeature(fid)
@@ -184,7 +201,7 @@ class LineStore(QObject):
             if f["status"] == "proposed" and not include_proposed:
                 continue
             if f["item_code"] in self.cat:
-                out.append(self.run_of(f))
+                out.append(clamp_run(self.al, self.run_of(f)))
         return sorted(out, key=lambda r: (r.code, r.sta_start))
 
     def summary(self, include_proposed=True):
@@ -220,6 +237,16 @@ class LineStore(QObject):
 
     def accept_proposals(self, fids=None):
         return self._set_status_or_delete(fids or self.proposals(), "approved")
+
+    def auto_propose_markings(self, cfg=None):
+        """Replace the proposed markings and studs with the RDM 6.1 proposals."""
+        from .rfd.markings import propose_markings
+        self.remove_proposals("marking")
+        runs, findings = propose_markings(self.al, cfg)
+        n, skipped = self.add_runs(runs)
+        self.last_findings = findings
+        self.layer.triggerRepaint()
+        return n, findings, skipped
 
     # ------------------------------------------------------------------ style
     def style(self):

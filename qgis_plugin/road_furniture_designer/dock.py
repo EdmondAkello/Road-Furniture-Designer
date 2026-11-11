@@ -162,6 +162,12 @@ class RsdDock(QDockWidget):
         cr = QHBoxLayout(); cr.addWidget(self.cmb_crit, 1); cr.addWidget(self.btn_crit)
         af.addRow("Design criteria", cr)
         af.addRow("", self.chk_psd_red)
+        self.spn_msight = QDoubleSpinBox(); self.spn_msight.setRange(0, 30); self.spn_msight.setDecimals(1)
+        self.spn_msight.setSuffix(" m"); self.spn_msight.setSpecialValueText("Off (crests only)")
+        self.spn_msight.setToolTip("Distance from the centreline to whatever blocks the view on the inside of bends "
+                                   "(cut face, wall, vegetation), for the no-overtaking signs and centre line. "
+                                   "0 checks visibility over crests only.")
+        af.addRow("Sight obstruction on bends", self.spn_msight)
         af.addRow("Warn if curve speed below design by", self.spn_warn)
         af.addRow("Chevrons if below by", self.spn_chev)
         af.addRow("Sharp turn (W19/W21) if below by", self.spn_sharp)
@@ -227,6 +233,31 @@ class RsdDock(QDockWidget):
         ll_.addLayout(lf)
         self.btn_ladd = QPushButton("Add run")
         ll_.addWidget(self.btn_ladd)
+        mg = QGroupBox("Propose markings and studs (RDM 6.1)")
+        mf = QFormLayout(mg)
+        self.cmb_mclass = QComboBox()
+        self.cmb_mclass.addItem("By design speed", "")
+        for c in ("A", "B", "C", "D", "E", "UA", "UC", "UL"):
+            self.cmb_mclass.addItem(f"Class {c}", c)
+        self.cmb_mstuds = QComboBox()
+        for lab, v in (("Auto (all on class A, else no-overtaking sections)", "auto"),
+                       ("No-overtaking sections only", "no_overtaking"), ("Everywhere", "all"), ("None", "none")):
+            self.cmb_mstuds.addItem(lab, v)
+        mf.addRow("Road class", self.cmb_mclass)
+        mf.addRow("Road studs", self.cmb_mstuds)
+        self.spn_mwidth = QDoubleSpinBox(); self.spn_mwidth.setRange(0, 30); self.spn_mwidth.setDecimals(2)
+        self.spn_mwidth.setSuffix(" m"); self.spn_mwidth.setSingleStep(0.5)
+        self.spn_mwidth.setSpecialValueText("From the corridor (ETW)")
+        self.spn_mwidth.setToolTip("Carriageway width between edge lines. Needed when the LandXML has no corridor "
+                                   "edges; otherwise it overrides the measured width for the 5.5 m check.")
+        mf.addRow("Carriageway width", self.spn_mwidth)
+        self.btn_mprop = QPushButton("Propose markings")
+        mf.addRow(self.btn_mprop)
+        note = QLabel("The continuous centre line follows the no-overtaking zones of the Auto tab "
+                      "(criteria, PSD, sight obstruction, chainage range), so it agrees with the signs.")
+        note.setWordWrap(True)
+        mf.addRow(note)
+        ll_.addWidget(mg)
         self.tbl_lines = QTableWidget(0, 6)
         self.tbl_lines.setHorizontalHeaderLabels(["Item", "From", "To", "Side", "Qty", "Status"])
         hl = self.tbl_lines.horizontalHeader()
@@ -241,7 +272,8 @@ class RsdDock(QDockWidget):
         lb = QHBoxLayout()
         self.btn_ldel = QPushButton("Delete selected")
         self.btn_laccept = QPushButton("Accept proposed")
-        lb.addWidget(self.btn_ldel); lb.addWidget(self.btn_laccept)
+        self.btn_lreject = QPushButton("Remove proposed")
+        lb.addWidget(self.btn_ldel); lb.addWidget(self.btn_laccept); lb.addWidget(self.btn_lreject)
         ll_.addLayout(lb)
         tabs.addTab(lw, "Linear")
         self.tabs = tabs
@@ -277,6 +309,8 @@ class RsdDock(QDockWidget):
         self.btn_ldel.clicked.connect(self.delete_line_runs)
         self.btn_laccept.clicked.connect(lambda: self.store and self.store.lines.accept_proposals())
         self.cmb_lside.currentIndexChanged.connect(self._line_side_changed)
+        self.btn_lreject.clicked.connect(lambda: self.store and self.store.lines.remove_proposals())
+        self.btn_mprop.clicked.connect(self.propose_markings)
         self._set_enabled(False)
 
     # ------------------------------------------------------------------ state
@@ -473,6 +507,26 @@ class RsdDock(QDockWidget):
             self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
         self.store.lines.layer.triggerRepaint()
 
+    def marking_config(self):
+        """Markings take their no-overtaking zones from the Auto tab settings, so they match the signs."""
+        from .rfd.markings import MarkingConfig
+        return MarkingConfig.from_auto(self.auto_config(), road_class=self.cmb_mclass.currentData(),
+                                       studs=self.cmb_mstuds.currentData(),
+                                       carriageway=self.spn_mwidth.value() or None)
+
+    def propose_markings(self):
+        if self.store is None:
+            return
+        with _busy():
+            n, findings, skipped = self.store.lines.auto_propose_markings(self.marking_config())
+        cls = [f for f in findings if f.kind == "marking_cls"]
+        notes = [f.text for f in findings if f.kind == "marking_note"] + skipped
+        msg = (f"{n} marking and stud runs proposed; continuous centre line over "
+               f"{sum(f.end - f.start for f in cls):.0f} m in {len(cls)} sections.")
+        if notes:
+            msg += " Note: " + "; ".join(notes)
+        self.iface.messageBar().pushMessage("Road Furniture Designer", msg, MSG_WARNING if notes else MSG_INFO, 10)
+
     def delete_line_runs(self):
         rows = sorted({i.row() for i in self.tbl_lines.selectedIndexes()})
         ids = [self.tbl_lines.item(r, 0).data(Qt.UserRole) for r in rows]
@@ -583,6 +637,7 @@ class RsdDock(QDockWidget):
                           default_e=self.spn_e.value(), clearance=self.spn_clear.value(),
                           edge_ref=self.cmb_ref.currentData(),
                           criteria=self.cmb_crit.currentData(), psd_reduced=self.chk_psd_red.isChecked(),
+                          sight_offset=self.spn_msight.value(),
                           start=self.spn_from.value(), end=self.spn_to.value())
 
     def run_auto(self):

@@ -88,6 +88,7 @@ class AutoConfig:
     step: float = 5.0                # m sampling for grades / sight distance
     criteria: str = _crit.DEFAULT_ID # design criteria file (rfd/data/criteria)
     psd_reduced: bool = True         # RDM 1.3 Table 3.20: reduced passing sight distance in constrained cases
+    sight_offset: float = 0.0        # m from centreline to the sight obstruction inside bends; 0 = profile only
 
     @property
     def crit(self):
@@ -231,6 +232,79 @@ def sight_distances(stations, z, direction, h_eye, h_obj, max_d):
     return out if direction > 0 else out[::-1]
 
 
+def horizontal_sight(pts, stations, direction, offset, max_d):
+    """Sight distance round bends: the chord from the eye may not pass more than
+    ``offset`` m inside the centreline (checked at its quarter points)."""
+    n = len(stations)
+    out = []
+    for i in range(n):
+        seen = max_d
+        j = i + 2 * direction
+        xi, yi = pts[i]
+        while 0 <= j < n:
+            d = abs(stations[j] - stations[i])
+            if d > max_d:
+                break
+            xj, yj = pts[j]
+            L = math.hypot(xj - xi, yj - yi) or 1e-9
+            blocked = False
+            for q in (0.25, 0.5, 0.75):
+                k = i + int(round((j - i) * q))
+                xk, yk = pts[k]
+                if abs((xj - xi) * (yk - yi) - (yj - yi) * (xk - xi)) / L > offset:
+                    blocked = True
+                    break
+            if blocked:
+                seen = d
+                break
+            j += direction
+        out.append(seen)
+    return out
+
+
+def no_overtaking_zones(al, cfg: AutoConfig):
+    """{'Forward': [(start, end)], 'Backward': [...]}: where the passing sight distance is not available.
+
+    The one source for both the no-overtaking signs and the continuous centre line, so they
+    always agree. Sight distance is scanned along the design profile (eye to the passing
+    target height of the criteria) and, when ``sight_offset`` is set, round bends. Zones of
+    one direction closer than ``zone_merge_gap`` are merged; a gap shorter than that between
+    zones of opposite directions is closed by extending both to its middle, so no short
+    overtaking length is left between two prohibitions."""
+    pr = al.profile
+    if pr is None and cfg.sight_offset <= 0:
+        return {"Forward": [], "Backward": []}
+    st = _stations(al, cfg)
+    if len(st) < 2:
+        return {"Forward": [], "Backward": []}
+    crit = cfg.crit
+    v_of = lambda s: al.speed_at(s) or 80.0
+    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
+    max_need = max(psd_of(s) for s in st) + cfg.step
+    z = sight_profile(pr, st) if pr is not None else None
+    pts = [al.point_at(s)[:2] for s in st] if cfg.sight_offset > 0 else None
+    zones = {}
+    for direction, sign in (("Forward", 1), ("Backward", -1)):
+        sd = (sight_distances(st, z, sign, crit.eye_height, crit.psd_object_height, max_need)
+              if z is not None else [max_need] * len(st))
+        if pts:
+            sd = [min(a, b) for a, b in zip(sd, horizontal_sight(pts, st, sign, cfg.sight_offset, max_need))]
+        flags = [d < psd_of(s) for s, d in zip(st, sd)]
+        zones[direction] = [list(r) for r in _runs(st, flags, cfg.zone_merge_gap, cfg.min_zone_length, cfg.step)]
+    # close short gaps between zones of opposite directions
+    allz = sorted([(r, "Forward") for r in zones["Forward"]] + [(r, "Backward") for r in zones["Backward"]],
+                  key=lambda t: t[0][0])
+    reach = None                                  # zone reaching farthest so far
+    for r, d in allz:
+        if reach is not None and reach[0][1] < r[0] and r[0] - reach[0][1] <= cfg.zone_merge_gap and reach[1] != d:
+            mid = (reach[0][1] + r[0]) / 2
+            reach[0][1] = mid
+            r[0] = mid
+        if reach is None or r[1] > reach[0][1]:
+            reach = (r, d)
+    return {k: [tuple(r) for r in v] for k, v in zones.items()}
+
+
 def analyse(al, cfg: AutoConfig) -> List[Finding]:
     """Geometry findings used for proposals and for the report."""
     out: List[Finding] = []
@@ -244,6 +318,16 @@ def analyse(al, cfg: AutoConfig) -> List[Finding]:
                                    f"R={c.radius:.0f} m, e={c.e_pct:.1f}%: curve speed {c.v_curve:.0f} km/h "
                                    f"vs {c.v_approach:.0f} km/h design (drop {drop:.0f})",
                                    {"group": c, "drop": drop}))
+    v_of = lambda s: al.speed_at(s) or 80.0
+    crit = cfg.crit
+    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
+    if cfg.no_overtaking:
+        for direction, zs in no_overtaking_zones(al, cfg).items():
+            for a, b in zs:
+                out.append(Finding("no_overtaking", a, b, direction,
+                                   f"passing sight distance < {psd_of(a):.0f} m over {b - a:.0f} m "
+                                   f"({crit.ref('psd')}{', reduced' if cfg.psd_reduced and crit.is_kenya else ''})",
+                                   {"psd": psd_of(a)}))
     if al.profile is None:
         return out
     st = _stations(al, cfg)
@@ -262,17 +346,6 @@ def analyse(al, cfg: AutoConfig) -> List[Finding]:
     v_of = lambda s: al.speed_at(s) or 80.0
     crit = cfg.crit
     psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
-    if cfg.no_overtaking:
-        z = sight_profile(pr, st)
-        max_need = max(psd_of(s) for s in st)
-        for direction, sign in (("Forward", 1), ("Backward", -1)):
-            sd = sight_distances(st, z, sign, crit.eye_height, crit.psd_object_height, max_need + cfg.step)
-            flags = [d < psd_of(s) for s, d in zip(st, sd)]
-            for a, b in _runs(st, flags, cfg.zone_merge_gap, cfg.min_zone_length, cfg.step):
-                out.append(Finding("no_overtaking", a, b, direction,
-                                   f"passing sight distance < {psd_of(a):.0f} m over {b - a:.0f} m "
-                                   f"({crit.ref('psd')}{', reduced' if cfg.psd_reduced and crit.is_kenya else ''})",
-                                   {"psd": psd_of(a)}))
     # report-only checks on the vertical curves: K against the criteria tables where given
     # (RDM 1.3 Tables 6.1 / 6.4), else from the SSD with the headlight / eye-object formulas
     h_eye, h_obj = crit.eye_height, crit.object_height

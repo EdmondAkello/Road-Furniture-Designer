@@ -488,10 +488,11 @@ def _dash_linetype(doc, mark: float, gap: float) -> str:
 def write_linear(doc, msp, al, runs, cat):
     """Draw linear furniture runs. Multi-line items (double lines, CLS) are drawn line by line."""
     from dataclasses import replace
-    from .linear import geometry, run_quantities, signed_offset
+    from .linear import clamp_run, geometry, run_quantities, signed_offset
     for r in runs:
         if r.code not in cat:
             continue
+        r = clamp_run(al, r)
         it = cat[r.code]
         lay = _linear_layer(doc, it)
         v = al.speed_at((r.sta_start + r.sta_end) / 2)
@@ -510,10 +511,12 @@ def write_linear(doc, msp, al, runs, cat):
                 c.set_xdata(APPID, xd)
             continue
         d = it.dims(v) if it.is_marking else {}
-        # composite lines (CLS) are drawn left to right in chainage direction: the first kind on the left.
-        # Which direction the prohibition applies to is set in step 2 (marking rules).
+        # composite lines (CLS): first kind on the left of chainage direction (traffic keeps left, so the
+        # continuous line there prohibits forward traffic); a flipped run prohibits backward traffic
         kinds = it.composite or (["line"] * max(1, it.lines if it.is_marking else 1))
         spacing = float(d.get("spacing") or 0.1) + float(d.get("width") or 0.1)
+        if r.flip:
+            kinds = kinds[::-1]
         nlines = len(kinds)
         for j, kind in enumerate(kinds):
             shift = (j - (nlines - 1) / 2.0) * spacing
