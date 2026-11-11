@@ -18,7 +18,7 @@ from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsGeometry
 _app = QgsApplication([], True)
 _app.initQgis()
 
-from roadsign_designer.store import SignStore  # noqa: E402
+from road_furniture_designer.store import SignStore  # noqa: E402
 from examples.make_demo_road import build, to_landxml  # noqa: E402
 
 CRS = QgsCoordinateReferenceSystem("EPSG:21037")   # Arc 1960 / UTM 37S
@@ -138,7 +138,7 @@ def test_exports_and_readback(store, tmp_path):
     pkg = json.loads((tmp_path / "pkg.json").read_text())
     assert {f["sign_code"] for f in pkg["faces"]} == {"W20", "W24-a", "P5"}
     # simulate the engineer moving the curve sign in Civil 3D and rotating the speed sign
-    from roadsign_designer.rsd.dxf_out import readback_dxf
+    from road_furniture_designer.rfd.dxf_out import readback_dxf
     rb = readback_dxf(str(tmp_path / "pkg.dxf"))
     target = store.signs.getFeature(ids[0])["face_uuid"]
     for s in rb["signs"]:
@@ -166,7 +166,7 @@ def test_reopen_adopts_layers(store):
 def test_dock_place_via_tool(store, tmp_path):
     from qgis.gui import QgsMapCanvas, QgsMessageBar
     from qgis.PyQt.QtWidgets import QMainWindow
-    from roadsign_designer.dock import RsdDock
+    from road_furniture_designer.dock import RsdDock
 
     class Iface:
         def __init__(self):
@@ -255,7 +255,7 @@ def test_exports_include_legend(store, tmp_path):
     assert by["I1-A"]["block_name"].startswith("RSD_I1-A_")             # own block with the legend text
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "p.dxf")
-    from roadsign_designer.rsd.dxf_out import sign_block_of
+    from road_furniture_designer.rfd.dxf_out import sign_block_of
     names = {sign_block_of(doc, e)[0] for e in doc.modelspace().query("INSERT")}
     assert names == {by["I1-A"]["block_name"], "RSD_W20_M"}
     assert len(doc.blocks.get("RSD_W20_M").query("HATCH")) > 0          # real artwork, not a placeholder
@@ -321,7 +321,7 @@ def test_moving_updates_clearance(corridor_store):
 def test_dock_offset_from_edge(corridor_store):
     from qgis.gui import QgsMapCanvas, QgsMessageBar
     from qgis.PyQt.QtWidgets import QMainWindow
-    from roadsign_designer.dock import RsdDock
+    from road_furniture_designer.dock import RsdDock
 
     class Iface:
         def __init__(self):
@@ -343,7 +343,7 @@ def _sharp_road_store(tmp_path):
     from examples.make_demo_road import corridor_xml
     QgsProject.instance().clear()
     import math as _m
-    from rsd.alignment import Line, Arc
+    from rfd.alignment import Line, Arc
     l1 = Line((260000.0, 9950000.0), (260600.0, 9950000.0))
     arc = Arc(l1.p1, (260600.0, 9949900.0), 100.0, False, 100.0 * _m.pi / 2)
     p, h = arc.end_point, arc.end_heading
@@ -362,7 +362,7 @@ def _sharp_road_store(tmp_path):
 
 def test_auto_propose_accept_and_exports(tmp_path):
     st = _sharp_road_store(tmp_path)
-    from rsd.autoplace import AutoConfig
+    from rfd.autoplace import AutoConfig
     n, findings = st.auto_propose(AutoConfig(grades=False, no_overtaking=False))
     assert n > 0 and any(f.kind == "curve" for f in findings)
     props = st.proposals()
@@ -384,7 +384,7 @@ def test_auto_propose_accept_and_exports(tmp_path):
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "p1.dxf")
     ins = [e for e in doc.modelspace().query("INSERT")]
-    from roadsign_designer.rsd.dxf_out import sign_block_of
+    from road_furniture_designer.rfd.dxf_out import sign_block_of
     sc = [sign_block_of(doc, e)[1] for e in ins]
     assert all(v in (pytest.approx(10.0), pytest.approx(6.0), pytest.approx(7.0)) for v in sc)   # 10 mm at 1:1000 (legends 0.6x)
     # re-running the rules does not duplicate accepted signs
@@ -413,7 +413,7 @@ def test_legend_block_and_old_project_migration(tmp_path, corridor_store):
     st.export_civil3d(str(tmp_path / "l.json"), str(tmp_path / "l.dxf"))
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "l.dxf")
-    from roadsign_designer.rsd.dxf_out import sign_block_of
+    from road_furniture_designer.rfd.dxf_out import sign_block_of
     name = [sign_block_of(doc, e)[0] for e in doc.modelspace().query("INSERT")
             if sign_block_of(doc, e)[0].startswith("RSD_I1-A_")][0]
     texts = [t.dxf.text for t in doc.blocks.get(name).query("TEXT")]
@@ -432,7 +432,7 @@ def test_legend_block_and_old_project_migration(tmp_path, corridor_store):
 def test_report_outputs(tmp_path):
     st = _sharp_road_store(tmp_path)
     st.auto_propose()
-    from roadsign_designer.report import ReportData, write_pdf, write_pngs, write_xlsx
+    from road_furniture_designer.report import ReportData, write_pdf, write_pngs, write_xlsx
     d = ReportData(st, title="Test report")
     n = write_pdf(str(tmp_path / "r.pdf"), d, sheet_len=500)
     pngs = write_pngs(str(tmp_path / "sheets"), d, sheet_len=500)
@@ -449,10 +449,10 @@ def test_report_plan_sheets_and_title_block(tmp_path):
     st = _sharp_road_store(tmp_path)
     st.auto_propose(); st.accept_proposals()
     st.set_meta(prepared_by="EA", checked_by="XY", approved_by="")
-    from roadsign_designer.store import SignStore
+    from road_furniture_designer.store import SignStore
     st2 = SignStore.open(st.gpkg)
     assert st2.meta["prepared_by"] == "EA" and st2.meta["checked_by"] == "XY"
-    from roadsign_designer.report import ReportData, pages, write_pngs
+    from road_furniture_designer.report import ReportData, pages, write_pngs
     d = ReportData(st2, title="Road Signage", plan_scale=1000)
     items = pages(d, 500)
     plans = [i for i in items if i[0] == "plan"]

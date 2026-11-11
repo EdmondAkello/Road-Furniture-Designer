@@ -3,8 +3,8 @@ import sys
 
 from openpyxl import load_workbook
 
-from rsd.catalogue import Catalogue
-from rsd.signlist import COLUMNS, FIRST_ROW, make_template
+from rfd.catalogue import Catalogue
+from rfd.signlist import COLUMNS, FIRST_ROW, make_template
 
 # post_ref, chainage, offset, side, facing, code, size, post, fdn, skew, mirror, legend, road_class, remarks
 ROWS = [

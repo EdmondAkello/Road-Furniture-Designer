@@ -24,10 +24,10 @@ from qgis.PyQt.QtGui import QColor
 
 from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_CREATE_LAYER, FW_NO_ERROR, LABEL_OVER_POINT, MARKER_ARROWHEAD,
                      PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT)
-from .rsd.alignment import format_station, landxml_crs, parse_landxml
-from .rsd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
-from .rsd.legend import face_svg
-from .rsd.records import (auto_facing, build_signlist, face_azimuth_deg, facing_from_rotation)
+from .rfd.alignment import format_station, landxml_crs, parse_landxml
+from .rfd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
+from .rfd.legend import face_svg
+from .rfd.records import (auto_facing, build_signlist, face_azimuth_deg, facing_from_rotation)
 
 SVG_DIR = SIGNS_DIR
 
@@ -88,13 +88,13 @@ class SignStore(QObject):
         if not als:
             raise ValueError(f"Alignment '{meta['alignment']}' not found in {lx}")
         self.al = als[0]
-        self.signs = QgsVectorLayer(f"{gpkg}|layername=rsd_signs", "RSD signs", "ogr")
-        self.alignment_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_alignment", "RSD alignment", "ogr")
-        self.chainage_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_chainage", "RSD chainage", "ogr")
-        self.edges_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_edges", "RSD road edges", "ogr")
-        self.vcurve_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_vcurves", "RSD vertical curves", "ogr")
+        self.signs = QgsVectorLayer(f"{gpkg}|layername=rsd_signs", "RFD signs", "ogr")
+        self.alignment_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_alignment", "RFD alignment", "ogr")
+        self.chainage_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_chainage", "RFD chainage", "ogr")
+        self.edges_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_edges", "RFD road edges", "ogr")
+        self.vcurve_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_vcurves", "RFD vertical curves", "ogr")
         if not self.signs.isValid():
-            raise ValueError(f"{gpkg} is not an RSD project (no rsd_signs layer)")
+            raise ValueError(f"{gpkg} is not a Road Furniture Designer project (no rsd_signs layer)")
         self._busy = False
         self._migrate(self.signs)
         self._bind(self.signs)
@@ -196,7 +196,7 @@ class SignStore(QObject):
     def open(cls, gpkg):
         ml = QgsVectorLayer(f"{gpkg}|layername=rsd_meta", "meta", "ogr")
         if not ml.isValid():
-            raise ValueError(f"{gpkg} is not an RSD project (no rsd_meta table)")
+            raise ValueError(f"{gpkg} is not a Road Furniture Designer project (no rsd_meta table)")
         meta = {f["key"]: f["value"] for f in ml.getFeatures()}
         return cls(gpkg, meta)
 
@@ -232,7 +232,7 @@ class SignStore(QObject):
         if all(found.values()):
             self.style()               # re-point icon paths (plugin or project may have moved)
             return
-        grp = root.findGroup("RoadSign Designer") or root.insertGroup(0, "RoadSign Designer")
+        grp = root.findGroup("Road Furniture Designer") or root.insertGroup(0, "Road Furniture Designer")
         for lyr in (self.signs, self.vcurve_layer, self.chainage_layer, self.edges_layer, self.alignment_layer):
             if lyr.isValid() and not project.mapLayer(lyr.id()):
                 project.addMapLayer(lyr, False)
@@ -432,7 +432,7 @@ class SignStore(QObject):
                 _, ro = self.edge_info(sta, side, edge_ref)
                 total = abs(lock_offset) + (ro or 0.0)          # offset measured from the chosen edge
             if restrict and self.al.edges:
-                from .rsd.corridor import clamp_offset
+                from .rfd.corridor import clamp_offset
                 total, _note = clamp_offset(self.al.edges, side, sta, total, edge_ref or self.default_edge_ref())
             if lock_offset is not None or restrict:
                 x, y, _ = self.al.point_at(sta, total * (1 if side == "R" else -1))
@@ -650,7 +650,7 @@ class SignStore(QObject):
 
     def auto_propose(self, cfg=None, restrict=True):
         """Run the RDM rules and add the results as proposed signs (previous proposals replaced)."""
-        from .rsd.autoplace import AutoConfig, propose, space_out
+        from .rfd.autoplace import AutoConfig, propose, space_out
         cfg = cfg or AutoConfig()
         self.remove_proposals()
         props, findings = propose(self.al, cfg)
@@ -698,7 +698,7 @@ class SignStore(QObject):
         return rows, sl
 
     def export_inventory(self, xlsx_path):
-        from .rsd.inventory import write_inventory
+        from .rfd.inventory import write_inventory
         sl = self.signlist(include_proposed=False)
         write_inventory(xlsx_path, sl, self.cat, self.meta.get("project", ""),
                         csv_path=os.path.splitext(xlsx_path)[0] + ".csv")
@@ -729,13 +729,13 @@ class SignStore(QObject):
             return []
 
     def export_civil3d(self, json_path, dxf_path=None, plan_scale=2500.0):
-        from .rsd.package import build_package, write_package
+        from .rfd.package import build_package, write_package
         sl = self.signlist(include_proposed=False)
         if not sl.ok:
             raise ValueError("Fix the errors in the Checks list before exporting to Civil 3D")
         write_package(json_path, build_package(sl, self.al, self.cat, self.meta.get("project", ""), self.crs_info()))
         if dxf_path:
-            from .rsd.dxf_out import write_dxf
+            from .rfd.dxf_out import write_dxf
             write_dxf(dxf_path, sl, self.al, self.cat, plan_scale=plan_scale, crs=self.crs_info(),
                       source=self.landxml_path, others=self.other_alignments())
         return sl

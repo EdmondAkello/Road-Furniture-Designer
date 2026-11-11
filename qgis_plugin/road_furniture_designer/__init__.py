@@ -9,5 +9,5 @@ if os.path.isdir(_EXT) and _EXT not in sys.path:
 
 
 def classFactory(iface):
-    from .plugin import RoadSignDesignerPlugin
-    return RoadSignDesignerPlugin(iface)
+    from .plugin import RoadFurnitureDesignerPlugin
+    return RoadFurnitureDesignerPlugin(iface)

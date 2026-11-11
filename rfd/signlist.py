@@ -41,7 +41,7 @@ def make_template(path: str, cat: Catalogue, alignment_name: str = "", project: 
     wb = Workbook()
     ws = wb.active
     ws.title = "Signs"
-    ws["A1"] = "RoadSign Designer - Sign List"
+    ws["A1"] = "Road Furniture Designer - Sign List"
     ws["A1"].font = Font(bold=True, size=14)
     ws["A2"] = "Alignment"
     ws["B2"] = alignment_name

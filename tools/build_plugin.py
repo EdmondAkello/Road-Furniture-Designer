@@ -1,13 +1,13 @@
 """Copy the core into the plugin folder and zip it for QGIS (Plugins > Install from ZIP)."""
 import os, shutil, sys, zipfile
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PLUG = os.path.join(ROOT, "qgis_plugin", "roadsign_designer")
+PLUG = os.path.join(ROOT, "qgis_plugin", "road_furniture_designer")
 
 
 def sync_core():
-    dst = os.path.join(PLUG, "rsd")
+    dst = os.path.join(PLUG, "rfd")
     shutil.rmtree(dst, ignore_errors=True)
-    shutil.copytree(os.path.join(ROOT, "rsd"), dst,
+    shutil.copytree(os.path.join(ROOT, "rfd"), dst,
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "cli.py", "__main__.py"))
 
 

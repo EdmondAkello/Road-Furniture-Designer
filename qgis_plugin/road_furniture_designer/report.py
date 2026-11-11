@@ -21,8 +21,8 @@ from qgis.PyQt.QtGui import (QBrush, QColor, QFont, QFontMetrics, QImage, QPageL
                              QPainterPath, QPdfWriter, QPen, QPolygonF)
 from qgis.PyQt.QtSvg import QSvgRenderer
 
-from .rsd.alignment import format_station
-from .rsd.autoplace import AutoConfig, analyse, curve_groups
+from .rfd.alignment import format_station
+from .rfd.autoplace import AutoConfig, analyse, curve_groups
 
 W, H = 1600.0, 1131.0          # logical page (A3 landscape proportions)
 M = 30.0
@@ -47,38 +47,34 @@ FRAME_M = 16.0
 TB_H = 64.0                    # title block strip at the bottom of every page
 TOP = 92.0                     # content starts below the header
 BOTTOM = H - FRAME_M - TB_H    # ... and ends above the title block
-HH_PURPLE = "#4b4a9f"
+TITLE_COLOUR = "#2b3a67"
 
 
-def draw_hh_logo(p, r: QRectF):
-    """Howard Humphreys mark (two H's in a purple block), drawn as vectors so it stays crisp."""
-    u = min(r.width() / 52.0, r.height() / 27.0)
-    ox, oy = r.right() - 52 * u, r.top() + (r.height() - 27 * u) / 2
-    p.save()
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QColor(HH_PURPLE)); p.drawRect(QRectF(ox, oy, 52 * u, 27 * u))
-    p.setBrush(QColor("#ffffff"))
-    for x, y, w, h in ((25, 0, 2, 27), (11, 0, 2, 9), (11, 17, 2, 10), (38, 0, 3, 9), (38, 17, 3, 10), (11, 12, 30, 2)):
-        p.drawRect(QRectF(ox + x * u, oy + y * u, w * u, h * u))
-    p.restore()
+def logo_path():
+    """Company logo for the report frame: an image file set in QGIS settings
+    (RoadFurnitureDesigner/report_logo). No logo when none is set."""
+    try:
+        from qgis.core import QgsSettings
+        st = QgsSettings()
+        path = st.value("RoadFurnitureDesigner/report_logo", "", type=str) or \
+            st.value("RoadSignDesigner/report_logo", "", type=str)
+    except Exception:
+        return ""
+    return path if path and os.path.exists(path) else ""
 
 
 def draw_logo(p, r: QRectF):
-    """Company logo: an image set in QGIS settings (RoadSignDesigner/report_logo), else the HH mark."""
-    path = ""
-    try:
-        from qgis.core import QgsSettings
-        path = QgsSettings().value("RoadSignDesigner/report_logo", "", type=str)
-    except Exception:
-        pass
-    if path and os.path.exists(path):
-        img = QImage(path)
-        if not img.isNull():
-            sc = min(r.width() / img.width(), r.height() / img.height())
-            w, h = img.width() * sc, img.height() * sc
-            p.drawImage(QRectF(r.right() - w, r.top() + (r.height() - h) / 2, w, h), img)
-            return
-    draw_hh_logo(p, r)
+    """Draw the configured logo in r (right-aligned). Returns False when no logo is set."""
+    path = logo_path()
+    if not path:
+        return False
+    img = QImage(path)
+    if img.isNull():
+        return False
+    sc = min(r.width() / img.width(), r.height() / img.height())
+    w, h = img.width() * sc, img.height() * sc
+    p.drawImage(QRectF(r.right() - w, r.top() + (r.height() - h) / 2, w, h), img)
+    return True
 
 
 def draw_frame(p, d, heading, drawing, page, pages, scale_text="NTS"):
@@ -88,7 +84,7 @@ def draw_frame(p, d, heading, drawing, page, pages, scale_text="NTS"):
     p.setBrush(Qt.BrushStyle.NoBrush)
     p.setPen(QPen(QColor(COL["ink"]), 2.2)); p.drawRect(outer)
     # header
-    p.setPen(QColor(HH_PURPLE)); p.setFont(_font(21, True))
+    p.setPen(QColor(TITLE_COLOUR)); p.setFont(_font(21, True))
     p.drawText(QRectF(FRAME_M + 14, FRAME_M + 10, W - 400, 28), int(Qt.AlignmentFlag.AlignLeft), heading)
     p.setPen(QColor(COL["muted"])); p.setFont(_font(13))
     sub = "  ·  ".join(x for x in (d.project, d.al.name, drawing) if x)
@@ -96,7 +92,7 @@ def draw_frame(p, d, heading, drawing, page, pages, scale_text="NTS"):
     draw_logo(p, QRectF(W - FRAME_M - 14 - 120, FRAME_M + 8, 120, 46))
     p.setPen(QColor(COL["muted"])); p.setFont(_font(9))
     p.drawText(QRectF(W - FRAME_M - 14 - 400, FRAME_M + 56, 400, 12), int(Qt.AlignmentFlag.AlignRight),
-               "RoadSign Designer · RDM 6.2 (2025) catalogue")
+               "Road Furniture Designer · RDM 6.2 (2025) catalogue")
     p.setPen(QPen(QColor(COL["ink"]), 1)); p.drawLine(QPointF(FRAME_M, TOP - 8), QPointF(W - FRAME_M, TOP - 8))
     # title block
     tb = QRectF(FRAME_M, H - FRAME_M - TB_H, W - 2 * FRAME_M, TB_H)
@@ -135,8 +131,8 @@ class ReportData:
         self.curves = curve_groups(self.al, self.cfg) if self.cfg.curves else []
         self.title = title
         self.project = store.meta.get("project", "")
-        from .rsd.corridor import edge_polylines
-        from .rsd.legend import face_svg as _face_svg
+        from .rfd.corridor import edge_polylines
+        from .rfd.legend import face_svg as _face_svg
         self.edges = edge_polylines(self.al)
         try:
             self.others = store.other_alignments()
@@ -506,7 +502,7 @@ def write_pdf(path, d, sheet_len=1000.0):
                               else QPageLayout.Landscape)
     writer.setResolution(200)
     writer.setTitle(d.title)
-    writer.setCreator("RoadSign Designer")
+    writer.setCreator("Road Furniture Designer")
     p = QPainter(writer)
     vp = p.viewport()
     sc = vp.width() / W
@@ -553,7 +549,7 @@ def write_xlsx(path, d):
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.table import Table, TableStyleInfo
-    from .rsd.autoplace import F_MAX, SSD, interp
+    from .rfd.autoplace import F_MAX, SSD, interp
     al = d.al
     wb = Workbook()
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RoadSign Designer {{VERSION}} — User Guide and Technical Manual (Experimental · Demo)</title>
+<title>Road Furniture Designer {{VERSION}} — User Guide and Technical Manual (Experimental · Demo)</title>
 <link rel="stylesheet" href="guide.css">
 </head>
 <body>
@@ -11,16 +11,14 @@
 <!-- ============================== COVER ============================== -->
 <section class="cover">
   <div class="hero" style="background-image: url(figures/fig_report_plan.png); background-position: 55% 30%; background-size: 160%;"></div>
-  <img class="hhmark" src="hh_mark.svg" alt="Howard Humphreys">
   <div class="text">
-    <div class="badges"><span class="badge exp">Experimental</span><span class="badge demo">Demo edition</span><span class="badge dev">In development for Howard Humphreys</span></div>
+    <div class="badges"><span class="badge exp">Experimental</span></div>
     <div class="kicker">QGIS plugin · Version {{VERSION}}</div>
-    <h1>RoadSign Designer</h1>
+    <h1>Road Furniture Designer</h1>
     <div class="sub">User Guide and Technical Manual</div>
     <div class="meta">
       <b>Author</b><span>Edmond Akello</span>
-      <b>Contact</b><span>akelloedmond@gmail.com</span>
-      <b>Developed for</b><span>Howard Humphreys (East Africa) Ltd, Roads and Transportation Department</span>
+      <b>Licence</b><span>GNU General Public License v2 or later</span>
       <b>Status</b><span>Experimental, in development</span>
       <b>QGIS</b><span>3.44 LTR (tests run headless on 3.34)</span>
       <b>Civil 3D</b><span>2026 and later, by copy and paste from a georeferenced DXF</span>
@@ -29,7 +27,7 @@
       <b>Edition</b><span>{{DATE}}</span>
     </div>
   </div>
-  <div class="foot">Internal working document. RoadSign Designer is under development for Howard Humphreys (East Africa) Ltd; behaviour, defaults and outputs may change between versions. Check every sign against RDM 6.2 and the project's design criteria before issue.</div>
+  <div class="foot">Road Furniture Designer is experimental and under active development; behaviour, defaults and outputs may change between versions. Check every item against the Road Design Manual and the project's design criteria before issue.</div>
 </section>
 
 <!-- ============================== CONTENTS ============================== -->
@@ -37,7 +35,7 @@
 <div class="toc">
   <div class="part-title">Part 1 · Getting started</div>
   <a href="#edition"><span>1</span>About this edition</a>
-  <a href="#overview"><span>2</span>What RoadSign Designer does</a>
+  <a href="#overview"><span>2</span>What Road Furniture Designer does</a>
   <a href="#install"><span>3</span>Installing the plugin</a>
   <a href="#quick"><span>4</span>Quick start</a>
   <div class="part-title">Part 2 · Working in QGIS</div>
@@ -71,10 +69,10 @@
 
 <!-- ============================== PART 1 ============================== -->
 <h1 class="part"><span class="num">Part 1</span>Getting started</h1>
-<p class="part-intro">What RoadSign Designer is for, what this edition can and cannot do yet, and how to get from a Civil 3D LandXML to a signed road in a few minutes.</p>
+<p class="part-intro">What Road Furniture Designer is for, what this edition can and cannot do yet, and how to get from a Civil 3D LandXML to a signed road in a few minutes.</p>
 
 <h2 id="edition"><span class="sec">1</span>About this edition</h2>
-<div class="edition"><b>Experimental · Demo edition · In development for HH</b>
+<div class="edition"><b>Experimental</b>
 This guide describes version {{VERSION}}, an experimental build prepared to demonstrate the workflow. Every figure comes from the Olkaria LOT 3 design alignment, used here as demonstration data. The tool is not yet released for project use: treat its proposals as a first draft for an engineer to review, not as a design.</div>
 <p>What has been checked so far:</p>
 <ul>
@@ -88,7 +86,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li>The auto-placement rules follow RDM 6.2, but the sight-distance and side-friction values are AASHTO 2011 defaults until they are checked against RDM Part 1.3 (section 21).</li>
 </ul>
 
-<div class="warn"><b>Results depend on the Civil 3D model</b>RoadSign Designer only knows what the LandXML tells it. Its chainages, proposals, checks and report are as good as the design work in Civil 3D and the export settings, so before relying on the output make sure that:
+<div class="warn"><b>Results depend on the Civil 3D model</b>Road Furniture Designer only knows what the LandXML tells it. Its chainages, proposals, checks and report are as good as the design work in Civil 3D and the export settings, so before relying on the output make sure that:
 <ul style="margin:1.5mm 0 0">
   <li><b>Design speeds</b> are defined along the alignment (design criteria / speed stations), including any changes in speed zone. Where none are exported the tool assumes 80 km/h throughout.</li>
   <li><b>Superelevation</b> is calculated and applied to the alignment. Where it is missing, curve speeds use 4 %.</li>
@@ -98,8 +96,8 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li><b>The LandXML export</b> includes the alignment with its profiles, the design speeds and superelevation, and the corridor cross-sections. Check the dock's summary after opening a project: it lists the design speeds, road edges, vertical curves and superelevation found, and shows in red anything missing and the default used instead.</li>
 </ul></div>
 
-<h2 id="overview"><span class="sec">2</span>What RoadSign Designer does</h2>
-<p>Placing traffic signs in Civil 3D and then counting them for the schedules is slow, manual work. RoadSign Designer moves both jobs into QGIS, next to the road alignment:</p>
+<h2 id="overview"><span class="sec">2</span>What Road Furniture Designer does</h2>
+<p>Placing traffic signs in Civil 3D and then counting them for the schedules is slow, manual work. Road Furniture Designer moves both jobs into QGIS, next to the road alignment:</p>
 <div class="flow">
   <div><b>1 · LandXML</b>Alignment, profile, speeds, superelevation and corridor edges from Civil 3D.</div>
   <div><b>2 · Place</b>Click signs on the map, or let the engine propose them from RDM 6.2.</div>
@@ -118,8 +116,8 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 
 <h2 id="install"><span class="sec">3</span>Installing the plugin</h2>
 <ol class="steps">
-  <li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b> and choose <code>roadsign_designer.zip</code>.</li>
-  <li>Enable <b>RoadSign Designer</b>. A dock opens with the <b>Place</b>, <b>Inventory</b>, <b>Auto</b> and <b>Signs</b> tabs; the toolbar button reopens it.</li>
+  <li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b> and choose <code>road_furniture_designer.zip</code>.</li>
+  <li>Enable <b>Road Furniture Designer</b>. A dock opens with the <b>Place</b>, <b>Inventory</b>, <b>Auto</b> and <b>Signs</b> tabs; the toolbar button reopens it.</li>
   <li>Nothing else needs installing. The libraries used for exports (openpyxl, ezdxf and their dependencies) are pure Python and ship inside the plugin's <code>ext_libs</code> folder, so the plugin works where <code>pip</code> is blocked.</li>
 </ol>
 <div class="note"><b>Updating</b>Install the new ZIP over the old one and restart QGIS. Existing sign projects open in newer versions; missing fields are added automatically.</div>
@@ -143,11 +141,11 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 <table>
   <thead><tr><th>Layer</th><th>Contents</th></tr></thead>
   <tbody>
-    <tr><td class="code">RSD signs</td><td>One point per sign face, drawn with its RDM artwork (faces on one post are stacked).</td></tr>
-    <tr><td class="code">RSD alignment</td><td>The signed alignment.</td></tr>
-    <tr><td class="code">RSD chainage</td><td>Ticks and labels every 100 m.</td></tr>
-    <tr><td class="code">RSD road edges</td><td>Corridor edges from the LandXML cross-sections, coloured by code (ETW, EPS, Hinge, Ditch_In, Ditch_Out, Daylight).</td></tr>
-    <tr><td class="code">RSD vertical curves</td><td>Crest and sag PVIs with length, K and A.</td></tr>
+    <tr><td class="code">RFD signs</td><td>One point per sign face, drawn with its RDM artwork (faces on one post are stacked).</td></tr>
+    <tr><td class="code">RFD alignment</td><td>The signed alignment.</td></tr>
+    <tr><td class="code">RFD chainage</td><td>Ticks and labels every 100 m.</td></tr>
+    <tr><td class="code">RFD road edges</td><td>Corridor edges from the LandXML cross-sections, coloured by code (ETW, EPS, Hinge, Ditch_In, Ditch_Out, Daylight).</td></tr>
+    <tr><td class="code">RFD vertical curves</td><td>Crest and sag PVIs with length, K and A.</td></tr>
   </tbody>
 </table>
 <p>The sign layer takes the LandXML's coordinate system when the file declares one. If the QGIS project uses a different CRS the plugin says so; QGIS reprojects on the fly, but keeping both the same avoids confusion when exchanging with Civil 3D.</p>
@@ -272,13 +270,13 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li><b>Plan scale</b> for the plan layout sheets: Auto (1:2500, or 1:1000 for roads under 1.2 km), a fixed scale from 1:500 to 1:5000, or no plan sheets.</li>
   <li><b>Prepared by, Checked by, Approved by</b> for the title blocks. The names are kept with the project and offered again next time.</li>
 </ul>
-<p>It writes an A3 landscape PDF, a PNG per plan and long-section sheet, and an Excel workbook. Every page sits in the same frame: a border, the title with the HH logo at the top right, and a title block with Project, Alignment, Drawing, Scale, Prepared / Checked / Approved by, Date and Sheet. To use another logo, point the QGIS setting <code>RoadSignDesigner/report_logo</code> at an image file.</p>
+<p>It writes an A3 landscape PDF, a PNG per plan and long-section sheet, and an Excel workbook. Every page sits in the same frame: a border, the title, and a title block with Project, Alignment, Drawing, Scale, Prepared / Checked / Approved by, Date and Sheet. To add a logo at the top right, point the QGIS setting <code>RoadFurnitureDesigner/report_logo</code> at an image file.</p>
 
 <h3>Plan layout sheets</h3>
 <figure><img src="figures/fig_report_plan.png"><figcaption><b>Figure 7.</b> Plan sheet 3 of 18 for Olkaria LOT 3 at 1:2500 (CH 1+910 to 2+683): corridor edges, chainages, signs upright beside the road with leaders to their posts, match lines, north arrow, scale bar, the sheet's sign list and a key plan.</figcaption></figure>
 <ul>
   <li>Each sheet is turned so the road runs left to right. Sheet lengths adapt to the road: on straights a sheet covers about 950 m at 1:2500; on tight curves it is shortened so the road and the signs either side still fit. Olkaria's 16.7 km fits on 18 sheets.</li>
-  <li>Signs are drawn upright at 10 mm, as in HH plan drawings, beside the road with a leader to the post. A sign and its plate stack; back-to-back faces sit side by side; chevrons are drawn at 70 % so a series stays readable. Symbols are moved along or away from the road until they clear one another.</li>
+  <li>Signs are drawn upright at 10 mm, beside the road with a leader to the post. A sign and its plate stack; back-to-back faces sit side by side; chevrons are drawn at 70 % so a series stays readable. Symbols are moved along or away from the road until they clear one another.</li>
   <li>The LandXML's other alignments (side and link roads) are drawn and named.</li>
   <li>Match lines carry the chainage and the neighbouring sheet number.</li>
 </ul>
@@ -298,10 +296,10 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 <p><b>Export to Civil 3D (package + DXF)</b> asks for the plan scale (default 1:2500) and writes the placement package (<code>*_placement.json</code>) and a DXF of the placed signs.</p>
 <figure><img src="figures/fig_dxf.png"><figcaption><b>Figure 11.</b> The exported DXF at the Olkaria chevron curve, 1:2500: each sign a block at its post with a leader to the upright face; chainages read the right way up; corridor edges and the alignment on non-plotting reference layers.</figcaption></figure>
 <ul>
-  <li><b>Size.</b> Symbols print at 10 mm, matching HH drawings: 25 m in model space at 1:2500, 10 m at 1:1000. Codes, legends and chainages print at 1.8 mm.</li>
+  <li><b>Size.</b> Symbols print at 10 mm: 25 m in model space at 1:2500, 10 m at 1:1000. Codes, legends and chainages print at 1.8 mm.</li>
   <li><b>One block per sign, at the post.</b> Each sign is a block <code>RSDC_&lt;code&gt;_&lt;id&gt;</code> inserted at the post's true coordinates. Inside it are a post marker, a leader, the sign face upright (the RDM artwork block) and the code underneath. Moving, copying or reading back acts on the post.</li>
   <li><b>Text signs.</b> Directional signs and plates get their own block with the real legend (colours, arrows, place names, route numbers, distances) at 0.6 of the symbol size.</li>
-  <li><b>Attributes and identity.</b> Every sign block carries <code>SIGN_CODE</code>, <code>LEGEND</code>, <code>DESCRIPTION</code>, <code>SIZE</code>, <code>CHAINAGE</code>, <code>OFFSET</code>, <code>SIDE</code>, <code>FACING</code>, <code>POST_REF</code>, <code>FACE_UUID</code> and <code>INSTALL_UUID</code>, with the UUIDs repeated in XDATA (application <code>RSD</code>).</li>
+  <li><b>Attributes and identity.</b> Every sign block carries <code>SIGN_CODE</code>, <code>LEGEND</code>, <code>DESCRIPTION</code>, <code>SIZE</code>, <code>CHAINAGE</code>, <code>OFFSET</code>, <code>SIDE</code>, <code>FACING</code>, <code>POST_REF</code>, <code>FACE_UUID</code> and <code>INSTALL_UUID</code>, with the UUIDs repeated in XDATA (application <code>RFD</code>).</li>
   <li><b>Reference geometry</b> (non-plotting): the signed alignment with chainages, every other alignment in the LandXML, the corridor edges by code, and a coordinate check point.</li>
 </ul>
 <figure><img src="figures/fig_dxf_legend.png"><figcaption><b>Figure 12.</b> A directional sign and a place-name sign in the DXF, with their legends as real text.</figcaption></figure>
@@ -387,7 +385,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <li><b>Coverage.</b> R, M, P, W, I, E, PD, IM and RW signs, 245 in all. Signs used both ways round have a mirrored version (<code>_M</code>). W24 chevrons are split into W24-a to W24-d.</li>
   <li><b>Numbering clashes in the manual</b>, resolved as follows: Fig 7.1 captioned P1 becomes PD1; I10 used twice, so County Boundary becomes I10B; IM4 used twice, so the expressway symbol becomes IM4S.</li>
   <li><b>Other notes.</b> Table 5.1 lists UC under both green and white faces (Table 2.6 is followed). Table 4.1's siting distances (1000, 900 and 600 m) look implausible, so the §2.4 six-second rule is used.</li>
-  <li><b>Coding.</b> RSD uses RDM 6.2 codes, and HH drawings will carry them (agreed November 2026). The Ministry's standard drawings WSCM/84/2/01 (2024) number signs differently.</li>
+  <li><b>Coding.</b> RFD uses RDM 6.2 codes on drawings and schedules. The Ministry's standard drawings WSCM/84/2/01 (2024) number signs differently.</li>
 </ul>
 
 <h2 id="layout"><span class="sec">23</span>Plan layout of symbols and sheets</h2>
@@ -416,7 +414,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
 <h2 id="limits"><span class="sec">25</span>Limitations and roadmap</h2>
 <ul>
   <li><b>Civil 3D.</b> The DXF paste works; the Dynamo link is parked.</li>
-  <li><b>HH drawing conventions.</b> Symbol sizes now match the 25 m blocks in current HH drawings at 1:2500. Block names, layers and annotation style should be matched to HH's once a DXF export of a current drawing is available.</li>
+  <li><b>Drawing conventions.</b> Symbols are 10 mm on paper (25 m at 1:2500). Block names, layers and annotation style can be matched to an office standard later.</li>
   <li><b>Quantities.</b> Post and foundation types for the QTO are still to be agreed. Sign numbering follows RDM 6.2.</li>
   <li><b>Corridor restriction.</b> Implemented as RDM's 0.6–3.0 m band inside the ditch or daylight line. A road-reserve boundary is not used yet.</li>
   <li><b>Junctions.</b> Junction signing (RDM Table A1-1) is not automated; place those signs by hand.</li>
@@ -429,7 +427,7 @@ This guide describes version {{VERSION}}, an experimental build prepared to demo
   <tbody>
     <tr><td>Export says to fix errors first</td><td>A check is at error level (for example a post inside the travelled way). Fix it on the Inventory tab's list.</td></tr>
     <tr><td>No road edges or "Offset from" list empty</td><td>The LandXML has no coded corridor sections. Export the corridor sections from Civil 3D, or use offsets from the centreline.</td></tr>
-    <tr><td>Signs pasted in the wrong place</td><td>The project drawing is in another coordinate system, in millimetres, or in a user UCS. Check the RSD CHECK POINT against the alignment.</td></tr>
+    <tr><td>Signs pasted in the wrong place</td><td>The project drawing is in another coordinate system, in millimetres, or in a user UCS. Check the RFD CHECK POINT against the alignment.</td></tr>
     <tr><td>Every sign sized for 80 km/h, or no curve warnings where expected</td><td>No design speeds or superelevation in the LandXML. Define the design criteria and speed zones in Civil 3D and export again.</td></tr>
     <tr><td>No grade or no-overtaking findings</td><td>The design profile is not attached to the alignment in the export.</td></tr>
     <tr><td>Export libraries missing</td><td>The plugin's <code>ext_libs</code> folder is missing. Reinstall from the ZIP.</td></tr>

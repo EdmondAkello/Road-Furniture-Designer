@@ -5,11 +5,11 @@ import xml.etree.ElementTree as ET
 import ezdxf
 import pytest
 
-from rsd.alignment import landxml_crs, parse_landxml
-from rsd.catalogue import Catalogue
-from rsd.dxf_out import write_dxf
-from rsd.package import build_package
-from rsd.records import build_signlist
+from rfd.alignment import landxml_crs, parse_landxml
+from rfd.catalogue import Catalogue
+from rfd.dxf_out import write_dxf
+from rfd.package import build_package
+from rfd.records import build_signlist
 from examples.make_demo_road import build, to_landxml
 
 CS = ('<CoordinateSystem desc="Arc 1960 / UTM zone 37S" epsgCode="21037" '

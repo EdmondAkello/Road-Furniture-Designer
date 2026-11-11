@@ -1,0 +1,18 @@
+[general]
+name=Road Furniture Designer
+qgisMinimumVersion=3.28
+description=Design road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual: traffic signs placed by hand or by rule, live chainage and offset, inventory for quantities, signage reports and a georeferenced DXF for Civil 3D.
+version=0.7.0
+author=Edmond Akello
+email=akelloedmond@gmail.com
+about=Click to place signs, or let the rules propose them from the alignment's curves, grades and sight distances (Kenya RDM 6.2). Chainage, offset, side and facing are derived from the alignment and kept up to date when signs move. Live inventory, Excel/CSV export for quantities, an A3 signage report with plan and long-section sheets, and a georeferenced DXF that pastes into Civil 3D at true coordinates.
+
+    Licensed under the GNU General Public License version 2 or later.
+experimental=True
+deprecated=False
+category=Vector
+icon=icon.svg
+repository=https://github.com/EdmondAkello/Road-Furniture-Designer
+tracker=https://github.com/EdmondAkello/Road-Furniture-Designer/issues
+homepage=https://github.com/EdmondAkello/Road-Furniture-Designer
+tags=road design, traffic signs, road furniture, LandXML, Civil 3D, Kenya, RDM

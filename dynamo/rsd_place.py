@@ -1,4 +1,4 @@
-# RoadSign Designer - PLACE signs in Civil 3D from a placement package (JSON).
+# Road Furniture Designer - PLACE signs in Civil 3D from a placement package (JSON).
 # Paste into a Dynamo "Python Script" node (Civil 3D 2026+, CPython3 / PythonNet3 engine).
 #
 # Inputs:

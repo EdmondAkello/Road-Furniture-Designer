@@ -6,7 +6,7 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.core import QgsProject
 
 
-class RoadSignDesignerPlugin:
+class RoadFurnitureDesignerPlugin:
     def __init__(self, iface):
         self.iface = iface
         self.dock = None
@@ -14,11 +14,11 @@ class RoadSignDesignerPlugin:
 
     def initGui(self):
         self.action = QAction(QIcon(os.path.join(os.path.dirname(__file__), "icon.svg")),
-                              "RoadSign Designer", self.iface.mainWindow())
+                              "Road Furniture Designer", self.iface.mainWindow())
         self.action.setCheckable(True)
         self.action.toggled.connect(self.toggle)
         self.iface.addToolBarIcon(self.action)
-        self.iface.addPluginToMenu("RoadSign Designer", self.action)
+        self.iface.addPluginToMenu("Road Furniture Designer", self.action)
         QgsProject.instance().readProject.connect(self._project_loaded)
 
     def _ensure_dock(self):
@@ -36,7 +36,9 @@ class RoadSignDesignerPlugin:
             self.dock.hide()
 
     def _project_loaded(self, *_):
-        gp, ok = QgsProject.instance().readEntry("RoadSignDesigner", "gpkg", "")
+        gp, ok = QgsProject.instance().readEntry("RoadFurnitureDesigner", "gpkg", "")
+        if not gp:                       # projects saved before the rename
+            gp, ok = QgsProject.instance().readEntry("RoadSignDesigner", "gpkg", "")
         if ok and gp and os.path.exists(gp):
             d = self._ensure_dock()
             if d.store is None or d.store.gpkg != gp:
@@ -51,5 +53,5 @@ class RoadSignDesignerPlugin:
             self.iface.removeDockWidget(self.dock)
             self.dock.deleteLater()
             self.dock = None
-        self.iface.removePluginMenu("RoadSign Designer", self.action)
+        self.iface.removePluginMenu("Road Furniture Designer", self.action)
         self.iface.removeToolBarIcon(self.action)

@@ -1,5 +1,5 @@
-from rsd import legend
-from rsd.catalogue import Catalogue, size_for_speed
+from rfd import legend
+from rfd.catalogue import Catalogue, size_for_speed
 
 
 def test_catalogue_is_rdm():
