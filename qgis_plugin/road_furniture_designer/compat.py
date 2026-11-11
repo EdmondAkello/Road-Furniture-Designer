@@ -46,3 +46,4 @@ PROP_ENABLED = _pick(lambda: QgsSymbolLayer.Property.LayerEnabled, lambda: QgsSy
 GEOM_CIRCLE = _pick(lambda: Qgis.MarkerShape.Circle,
                     lambda: __import__("qgis.core", fromlist=["x"]).QgsSimpleMarkerSymbolLayerBase.Circle)
 PROP_OFFSET = _pick(lambda: QgsSymbolLayer.Property.Offset, lambda: QgsSymbolLayer.PropertyOffset)
+WKB_MULTILINESTRING = _pick(lambda: Qgis.WkbType.MultiLineString, lambda: QgsWkbTypes.MultiLineString)
