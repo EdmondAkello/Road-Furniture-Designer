@@ -497,6 +497,7 @@ def test_dock_linear_tab(store):
     dock.set_store(store)
     assert dock.cmb_crit.currentData() == "kenya_rdm_2025"
     dock.cmb_litem.setCurrentIndex(dock.cmb_litem.findData("LM01"))
+    dock.cmb_lside.setCurrentIndex(dock.cmb_lside.findData("C"))
     dock.spn_lfrom.setValue(100); dock.spn_lto.setValue(400)
     dock.add_line_run()
     assert dock.tbl_lines.rowCount() == 1 and dock.tbl_lines.item(0, 4).text() == "300 m"
@@ -504,3 +505,51 @@ def test_dock_linear_tab(store):
     dock.tbl_lines.selectRow(0)
     dock.delete_line_runs()
     assert dock.tbl_lines.rowCount() == 0
+
+
+def test_draw_runs_and_place_features_on_map(store):
+    from qgis.gui import QgsMapCanvas, QgsMessageBar
+    from qgis.PyQt.QtWidgets import QMainWindow
+    from road_furniture_designer.dock import RsdDock
+
+    class Iface:
+        def __init__(self):
+            self.win = QMainWindow(); self.canvas = QgsMapCanvas(); self.bar = QgsMessageBar()
+        def mapCanvas(self): return self.canvas
+        def messageBar(self): return self.bar
+        def mainWindow(self): return self.win
+
+    iface = Iface()
+    iface.canvas.setDestinationCrs(CRS)
+    dock = RsdDock(iface)
+    dock.set_store(store)
+    # a continuous line 0.3 m left of the centreline, drawn by two clicks; offset taken from the first click
+    dock.cmb_litem.setCurrentIndex(dock.cmb_litem.findData("LM24"))
+    dock._run_mode = "run"
+    t = dock.run_tool
+    assert t.click(QgsPointXY(*click(store, 120.0, -0.3))) is None and t.start is not None
+    fid = t.click(QgsPointXY(*click(store, 260.0, -0.6)))
+    f = store.lines.layer.getFeature(fid)
+    assert f["side"] == "L" and f["offset_m"] == pytest.approx(0.3, abs=1e-3)
+    assert f["length_m"] == pytest.approx(140.0, abs=0.01)
+    # fixed offset, right side: a dual carriageway's median edge line, 7.3 m right of the centreline
+    dock.cmb_lside.setCurrentIndex(dock.cmb_lside.findData("R"))
+    dock.chk_lfix.setChecked(True); dock.spn_loff.setValue(7.3)
+    t.click(QgsPointXY(*click(store, 300.0, 2.0)))
+    fid = t.click(QgsPointXY(*click(store, 500.0, 9.0)))
+    f = store.lines.layer.getFeature(fid)
+    assert f["side"] == "R" and f["offset_m"] == pytest.approx(7.3) and f["length_m"] == pytest.approx(200.0, abs=0.01)
+    # a hump by one click, then removed with its signs and markings
+    dock._run_mode = "feature"
+    dock.cmb_fkind.setCurrentIndex(dock.cmb_fkind.findData("hump_circular"))
+    d = t.click(QgsPointXY(*click(store, 650.0, 1.0)))
+    assert d is not None and any(r.code == "HUMP-C" for r in d.runs) and len(d.signs) == 2
+    assert dock.lst_features.count() == 1
+    assert sum(1 for s in store.signs.getFeatures() if (s["rule"] or "").startswith("feature:")) == 2
+    store.auto_propose()                                            # the sign rules keep feature signs
+    assert sum(1 for s in store.signs.getFeatures() if (s["rule"] or "").startswith("feature:")) == 2
+    dock.lst_features.setCurrentRow(0)
+    dock.remove_feature()
+    assert dock.lst_features.count() == 0
+    assert not [s for s in store.signs.getFeatures() if (s["rule"] or "").startswith("feature:")]
+    assert not [x for x in store.lines.layer.getFeatures() if (x["rule"] or "").startswith("feature:")]

@@ -635,8 +635,10 @@ class SignStore(QObject):
     def proposals(self):
         return [f for f in self.signs.getFeatures() if f["status"] == "proposed"]
 
-    def remove_proposals(self):
-        ids = [f.id() for f in self.proposals()]
+    def remove_proposals(self, rule_prefix=None, keep_prefix=None):
+        ids = [f.id() for f in self.proposals()
+               if (rule_prefix is None or (f["rule"] or "").startswith(rule_prefix))
+               and not (keep_prefix and (f["rule"] or "").startswith(keep_prefix))]
         if ids:
             if self.signs.isEditable():
                 self.signs.deleteFeatures(ids)
@@ -664,10 +666,19 @@ class SignStore(QObject):
         """Run the RDM rules and add the results as proposed signs (previous proposals replaced)."""
         from .rfd.autoplace import AutoConfig, propose, space_out
         cfg = cfg or AutoConfig()
-        self.remove_proposals()
+        self.remove_proposals(keep_prefix="feature:")      # traffic calming features keep their own signs
         props, findings = propose(self.al, cfg)
         existing = [(f["station_int"], f["side"], f["facing"], f["sign_code"]) for f in self.signs.getFeatures()]
         props = space_out(props, existing, self.al.speed_at)
+        added = self.place_proposals(props, cfg, restrict)
+        self.last_findings = findings
+        self.changed.emit()
+        return added, findings
+
+    def place_proposals(self, props, cfg=None, restrict=True):
+        """Add sign proposals (autoplace.Proposal) at the reference edge plus the clearance."""
+        from .rfd.autoplace import AutoConfig
+        cfg = cfg or AutoConfig()
         ref = cfg.edge_ref or self.default_edge_ref()
         hosts = {}
         added = 0
@@ -690,9 +701,50 @@ class SignStore(QObject):
                 pt = self.signs.getFeature(fid).geometry().asPoint()
                 hosts[p.group] = (pt.x(), pt.y())
             added += 1
-        self.last_findings = findings
+        return added
+
+    # ------------------------------------------------------------------ traffic calming features
+    def add_feature(self, kind, station, cfg=None, auto=None):
+        """Design a hump / table / bump / bar markings / crossing at a station and add its runs and signs."""
+        from .rfd.features import design_feature
+        d = design_feature(self.al, kind, station, cfg)
+        if d.runs:
+            self.lines.add_runs(d.runs)
+        if d.signs:
+            self.place_proposals(d.signs, auto)
         self.changed.emit()
-        return added, findings
+        return d
+
+    def features(self):
+        """{group id: (kind summary, station, n runs, n signs)} of the features in the project."""
+        out = {}
+        for f in self.lines.layer.getFeatures():
+            r = f["rule"] or ""
+            if r.startswith("feature:"):
+                g = out.setdefault(r[8:], {"runs": 0, "signs": 0, "station": f["sta_from"], "codes": []})
+                g["runs"] += 1
+                g["station"] = min(g["station"], f["sta_from"])
+                g["codes"].append(f["item_code"])
+        for f in self.signs.getFeatures():
+            r = f["rule"] or ""
+            if r.startswith("feature:"):
+                g = out.setdefault(r[8:], {"runs": 0, "signs": 0, "station": f["station_int"], "codes": []})
+                g["signs"] += 1
+        return out
+
+    def remove_feature(self, group):
+        rule = f"feature:{group}"
+        lid = [f.id() for f in self.lines.layer.getFeatures() if f["rule"] == rule]
+        sid = [f.id() for f in self.signs.getFeatures() if f["rule"] == rule]
+        self.lines._set_status_or_delete(lid)
+        if sid:
+            if self.signs.isEditable():
+                self.signs.deleteFeatures(sid)
+            else:
+                self.signs.dataProvider().deleteFeatures(sid)
+                self.signs.reload()
+        self.changed.emit()
+        return len(lid) + len(sid)
 
     def summary(self):
         """Live counts for the dock: [(group, item, description, size, count)], issues."""

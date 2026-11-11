@@ -19,8 +19,8 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 164 tests passing, including 60 randomly generated roads (and 40 with random embankments for the barrier rules) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
-- **QGIS plugin:** 35 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
+- **Core:** 198 tests passing, including 60 randomly generated roads (plus 40 with random embankments for the barrier rules and 30 with random traffic calming features) (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
+- **QGIS plugin:** 36 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025). 245 signs, with codes, names and artwork taken from the manual's figures (see "Sign catalogue"). Post and foundation types are generic and still project-defined.
@@ -117,6 +117,31 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
   - *Set-back:* 0.5 m from the ETW edge line, 0.75 m with AADT ≥ 12,000 and speed > 80 km/h (12.6.6). A verge narrower than set-back + post is flagged.
   - *Clear zone:* batters steeper than 1:3 starting inside the Table 12.1 clear zone and not shielded are listed as findings.
   - *Not covered:* roadside obstacles (Table 12.4), structures and parapets (on hold), median barriers, terminal flares.
+
+## Drawing linear furniture by hand
+
+Every proposed run can be edited, and any run can be drawn by hand. This covers dual carriageways, slip roads, median edge lines, unusual corridors, and anything else the rules don't propose. On the Linear tab, pick the item and press **Draw on map**:
+- Click the start, then click the end. The chainages come from the clicks.
+- The side and offset come from the first click. With "Offset from" set to a corridor edge, the offset is measured from that edge and the run follows the edge where the road widens. Otherwise it is measured from the centreline.
+- Tick **Fixed offset** to use a typed offset instead, for example 7.3 m right for the median edge of a dual carriageway.
+- Choose Centre, Left or Right to force the side.
+- **Add run at chainages** does the same from typed chainages.
+- Right-click or Esc cancels a run you have started.
+
+## Traffic calming and crossings (Calming tab)
+
+You decide where humps and crossings go; RFD details them to the manuals. Pick a feature, then either click **Place on map** and click the chainage, or type the chainage and press **Add at chainage**. Each feature creates the following, all as proposals:
+- **Circular hump:** radius and chord for the chosen crossing speed (RDM 6.4 Table 2.1, 100 mm rise), with the bus speed noted.
+- **Trapezoidal hump:** ramp length and gradient (Table 2.2) and a 2.5 m minimum flat top.
+- **Speed table:** 1.7 + 5.0 + 1.7 m (Figure 2.4). The raised pedestrian crossing version adds a zebra on the flat top.
+- **Speed bump:** refused where the design speed is 50 km/h or more (2.4.2).
+- **Hump markings** (BM04) on the hump.
+- **Transverse bar markings** on the approaches: 1 to 4 sets of 6 × 300 mm bars at the Table 2.3 distances for the approach speed, with 600 mm or 1 m gaps. They are yellow on class A and B roads. Bar markings can also be placed on their own ahead of any hazard.
+- **Zebra crossing:** BM01, BM02 or BM03 for a 2, 3 or 4 m crossing (RDM 6.1 9.2). A refuge island is flagged when the crossing is longer than 10.5 m.
+- **Warning signs** on both approaches at the RDM 6.2 advance distance: W64 for humps and bumps, W55 for crossings.
+- **Checks:** the feature should be visible from the stopping sight distance on the design profile. The bump speed limit, the crossing width, and items falling beyond the alignment are flagged.
+
+Quantities are counted per item, with painted areas for bars and zebras. Everything a feature creates is listed and removed together, and the sign rules on the Auto tab leave feature signs alone. Bus bays, lay-bys, vulnerable-section zigzags, stop lines and kerb details are left to the designer.
 
 ## Corridor restriction
 

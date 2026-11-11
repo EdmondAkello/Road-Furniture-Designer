@@ -20,7 +20,7 @@ LAYER = "rsd_lines"
 LINE_FIELDS = [
     ("line_uuid", QVariant.String), ("item_code", QVariant.String),
     ("sta_from", QVariant.Double), ("sta_to", QVariant.Double), ("side", QVariant.String),
-    ("offset_m", QVariant.Double), ("edge_ref", QVariant.String), ("no_overtaking", QVariant.Int), ("flip", QVariant.Int),
+    ("offset_m", QVariant.Double), ("width_m", QVariant.Double), ("edge_ref", QVariant.String), ("no_overtaking", QVariant.Int), ("flip", QVariant.Int),
     ("status", QVariant.String), ("rule", QVariant.String), ("reason", QVariant.String),
     ("remarks", QVariant.String),
     # derived
@@ -29,7 +29,7 @@ LINE_FIELDS = [
     ("length_m", QVariant.Double), ("quantity", QVariant.Double), ("unit", QVariant.String),
     ("speed_kmh", QVariant.Double),
 ]
-TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "edge_ref", "no_overtaking", "flip")
+TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "width_m", "edge_ref", "no_overtaking", "flip")
 
 
 def _fields():
@@ -81,7 +81,7 @@ class LineStore(QObject):
         return Run(val("item_code", ""), float(val("sta_from", 0.0)), float(val("sta_to", 0.0)),
                    side=val("side", "C") or "C", offset=float(val("offset_m", 0.0)),
                    edge_ref=val("edge_ref") or None, status=val("status", "approved") or "approved",
-                   no_overtaking=bool(val("no_overtaking", 0)), flip=bool(val("flip", 0)), rule=val("rule", "") or "",
+                   no_overtaking=bool(val("no_overtaking", 0)), flip=bool(val("flip", 0)), width=val("width_m") or None, rule=val("rule", "") or "",
                    reason=val("reason", "") or "", remarks=val("remarks", "") or "",
                    uuid=val("line_uuid") or Run("x", 0, 0).uuid)
 
@@ -111,7 +111,8 @@ class LineStore(QObject):
                 "ch_from": format_station(self.al.display_station(lo), 0),
                 "ch_to": format_station(self.al.display_station(hi), 0),
                 "length_m": round(q["length"], 2), "quantity": round(qty, 2),
-                "unit": "No." if it.is_point_series else it.unit, "speed_kmh": v}
+                "unit": "No." if (it.is_point_series or it.transverse) else it.unit, "speed_kmh": v,
+                "width_m": run.width}
         return geom, vals
 
     def add_run(self, run: Run) -> int:
@@ -262,7 +263,7 @@ class LineStore(QObject):
     # ------------------------------------------------------------------ style
     def style(self):
         cats = []
-        colours = {"yellow": "230,180,0", "white": "245,245,245", "grey": "90,90,90"}
+        colours = {"yellow": "230,180,0", "white": "245,245,245", "grey": "90,90,90", "black": "40,40,40"}
         for c in self.cat.categories():
             for it in self.cat.by_category(c):
                 rgb = colours.get(it.colour, "200,0,200")
