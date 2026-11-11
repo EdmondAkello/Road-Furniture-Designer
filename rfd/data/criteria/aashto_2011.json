@@ -1,4 +1,5 @@
 {
+ "schema": "rfd-criteria/1",
  "id": "aashto_2011",
  "name": "AASHTO Green Book 2011 (metric) - previous built-in defaults",
  "source": "AASHTO A Policy on Geometric Design of Highways and Streets (2011), metric Tables 3-1, 3-4, 3-7.",

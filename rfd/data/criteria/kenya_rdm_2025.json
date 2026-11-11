@@ -1,4 +1,5 @@
 {
+ "schema": "rfd-criteria/1",
  "id": "kenya_rdm_2025",
  "name": "Kenya Road Design Manual (2025): RDM 1.3 geometry, RDM 6.1 markings, RDM 6.2 signs",
  "source": "Republic of Kenya, Ministry of Roads and Transport, Road Design Manual (2025). Values from RDM 1.3 tables as transcribed in the LandXML Road & Terrain GIS Tools criteria file (same author), plus RDM 1.3 Tables 3.13, 3.20, 12.1, 12.6, Figure 12.4 and RDM 6.1 Table 4.4.",
@@ -361,5 +362,6 @@
   "eye_height": 1.05,
   "target_height": 1.05,
   "min_line": 50.0
- }
+ },
+ "barrier_warrant": "rdm13_fig12_4_barrier_warrant.json"
 }

@@ -153,13 +153,14 @@ class RsdDock(QDockWidget):
         self.spn_e = spin(0, 12, 4, " %", 0.5)
         self.spn_clear = spin(0.6, 3.0, 1.0, " m", 0.1)
         self.spn_from = spin(-1e6, 1e6, 0, " m", 100); self.spn_to = spin(-1e6, 1e6, 0, " m", 100)
-        from .rfd.criteria import list_criteria
         self.cmb_crit = QComboBox()
-        for cid, cname in list_criteria():
-            self.cmb_crit.addItem(cname, cid)
+        self.btn_crit = QPushButton("Add…")
+        self.btn_crit.setToolTip("Add a criteria file (JSON) for another manual; see docs/criteria in the repository")
+        self._load_criteria_list()
         self.chk_psd_red = QCheckBox("Reduced PSD for no-overtaking (RDM 1.3 Table 3.20)")
         self.chk_psd_red.setChecked(True)
-        af.addRow("Design criteria", self.cmb_crit)
+        cr = QHBoxLayout(); cr.addWidget(self.cmb_crit, 1); cr.addWidget(self.btn_crit)
+        af.addRow("Design criteria", cr)
         af.addRow("", self.chk_psd_red)
         af.addRow("Warn if curve speed below design by", self.spn_warn)
         af.addRow("Chevrons if below by", self.spn_chev)
@@ -221,6 +222,7 @@ class RsdDock(QDockWidget):
         self.btn_recalc.clicked.connect(lambda: self.store and self.store.recompute_all())
         self.btn_renum.clicked.connect(self.renumber)
         self.btn_propose.clicked.connect(self.run_auto)
+        self.btn_crit.clicked.connect(self.add_criteria_file)
         self.btn_report.clicked.connect(self.export_report)
         self.btn_accept.clicked.connect(lambda: self.store and self.store.accept_proposals())
         self.btn_reject.clicked.connect(lambda: self.store and self.store.remove_proposals())
@@ -256,6 +258,15 @@ class RsdDock(QDockWidget):
         self.store = store
         store.add_to_project()
         store.changed.connect(self.refresh)
+        crit = store.meta.get("criteria")
+        if crit:
+            i = self.cmb_crit.findData(crit)
+            if i >= 0:
+                self.cmb_crit.setCurrentIndex(i)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Road Furniture Designer", f"This project uses criteria '{crit}', which is not available here; "
+                    f"add its file on the Auto tab.", MSG_WARNING, 8)
         store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
                                                                             MSG_LEVELS.get(l, MSG_INFO), 5))
         al = store.al
@@ -402,6 +413,48 @@ class RsdDock(QDockWidget):
         if ok:
             self.store.set_fields(fid, {"legend": text.strip() or None})
 
+    CRIT_DIRS_KEY = "RoadFurnitureDesigner/criteria_dirs"
+
+    def _load_criteria_list(self, select=None):
+        from qgis.core import QgsSettings
+        from .rfd import criteria as C
+        dirs = QgsSettings().value(self.CRIT_DIRS_KEY, []) or []
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        for d in dirs:
+            C.add_search_dir(d)
+        cur = select or self.cmb_crit.currentData()
+        self.cmb_crit.clear()
+        for cid, cname in C.list_criteria():
+            self.cmb_crit.addItem(cname, cid)
+        i = self.cmb_crit.findData(cur) if cur else -1
+        if i >= 0:
+            self.cmb_crit.setCurrentIndex(i)
+
+    def add_criteria_file(self):
+        import json
+        from qgis.core import QgsSettings
+        from .rfd import criteria as C
+        p, _ = QFileDialog.getOpenFileName(self, "Add design criteria file", "", "Criteria (*.json)")
+        if not p:
+            return
+        try:
+            c = C.Criteria.load(p)
+        except (ValueError, OSError, json.JSONDecodeError) as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", f"Not a valid criteria file: {e}",
+                                                MSG_WARNING, 8)
+            return
+        d = os.path.dirname(os.path.abspath(p))
+        s = QgsSettings()
+        dirs = s.value(self.CRIT_DIRS_KEY, []) or []
+        if isinstance(dirs, str):
+            dirs = [dirs]
+        if d not in dirs:
+            s.setValue(self.CRIT_DIRS_KEY, dirs + [d])
+        self._load_criteria_list(select=c.id)
+        self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                            f"Criteria '{c.name}' added (folder {d} is now searched).", MSG_INFO, 5)
+
     def auto_config(self):
         from .rfd.autoplace import AutoConfig
         return AutoConfig(curves=self.chk_r_curves.isChecked(), grades=self.chk_r_grades.isChecked(),
@@ -413,6 +466,8 @@ class RsdDock(QDockWidget):
                           start=self.spn_from.value(), end=self.spn_to.value())
 
     def run_auto(self):
+        if self.store.meta.get("criteria") != self.cmb_crit.currentData():
+            self.store.set_meta(criteria=self.cmb_crit.currentData())
         n, findings = self.store.auto_propose(self.auto_config(), restrict=self.chk_restrict.isChecked())
         self.lst_findings.clear()
         names = {"curve": "Curve", "grade_descent": "Steep descent", "grade_ascent": "Steep ascent",

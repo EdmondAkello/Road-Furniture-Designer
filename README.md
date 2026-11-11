@@ -93,7 +93,7 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 - sags short of headlight sight distance
 - crests short of stopping sight distance
 
-**Thresholds and defaults:** every threshold is on the Auto tab. Side friction, stopping and passing sight distance and the crest/sag K values come from RDM 1.3 (2025) Tables 3.5, 3.13, 3.15, 3.20, 6.3 and 6.4 (criteria set `kenya_rdm_2025`, eye 1.05 m, object 0.20 m, overtaking target 1.3 m). No-overtaking uses the reduced PSD (325 m at 80 km/h). The older AASHTO 2011 values remain available as criteria set `aashto_2011`. RDM 6.2 leaves sharp turn versus bend to the Engineer's discretion; the speed-drop margins are that judgement, made explicit.
+**Thresholds and defaults:** every threshold is on the Auto tab. Side friction, stopping and passing sight distance and the crest/sag K values come from RDM 1.3 (2025) Tables 5.1, 3.13, 3.16, 3.20, 6.1 and 6.4 (criteria set `kenya_rdm_2025`, eye 1.05 m, object 0.20 m, overtaking target 1.3 m). No-overtaking uses the reduced PSD (325 m at 80 km/h). The older AASHTO 2011 values remain available as criteria set `aashto_2011`. Other manuals (AASHTO editions, Tanzania, project-specific values) can be added as criteria files without code changes; see [docs/criteria](docs/criteria/README.md). RDM 6.2 leaves sharp turn versus bend to the Engineer's discretion; the speed-drop margins are that judgement, made explicit.
 
 ## Corridor restriction
 

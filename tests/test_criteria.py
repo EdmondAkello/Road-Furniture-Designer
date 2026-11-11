@@ -30,3 +30,47 @@ def test_barrier_warrant_figure_12_4():
 def test_aashto_alternative():
     a = criteria.get("aashto_2011")
     assert a.f_max(80) == 0.14 and a.ssd(80) == 130 and a.psd(80) == 245
+
+
+# ---------------------------------------------------------------- user criteria (open schema)
+def test_user_criteria_extends_and_overrides(tmp_path, monkeypatch):
+    import json
+    from rfd import criteria as C
+    (tmp_path / "my_tz.json").write_text(json.dumps({
+        "schema": "rfd-criteria/1", "id": "tz_test", "name": "Test national manual",
+        "extends": "kenya_rdm_2025",
+        "ssd": {"60": 80, "80": 120},
+        "references": {"ssd": "Test manual Table 1"}}))
+    monkeypatch.setenv("RFD_CRITERIA_PATH", str(tmp_path))
+    C._CACHE.clear()
+    ids = dict(C.list_criteria())
+    assert "tz_test" in ids and C.list_criteria()[0][0] == C.DEFAULT_ID
+    c = C.get("tz_test")
+    assert c.ref("ssd") == "Test manual Table 1"
+    assert c.ref("psd") == C.get().ref("psd")                 # inherited reference
+    assert c.psd(80, True) == 325                             # inherited table
+    assert c.barrier_warrant(6, 2.5) == "required"            # inherited warrant curve
+    C._CACHE.clear()
+
+
+def test_user_criteria_inline_warrant_and_simple_rule(tmp_path):
+    import json
+    from rfd import criteria as C
+    p = tmp_path / "x.json"
+    p.write_text(json.dumps({"id": "x", "side_friction": {"80": 0.14}, "ssd": {"80": 130}, "psd": {"80": 245},
+                             "barrier_warrant": {"heights": [1, 10], "required_below": [2, 3]}}))
+    c = C.Criteria.load(str(p))
+    assert c.barrier_warrant(5, 2.0) == "required" and c.barrier_warrant(5, 4.0) == "not_required"
+    p.write_text(json.dumps({"id": "y", "side_friction": {"80": 0.14}, "ssd": {"80": 130}, "psd": {"80": 245},
+                             "barrier": {"simple": {"height": 3.0, "slope_n": 3.0}}}))
+    c = C.Criteria.load(str(p))
+    assert c.barrier_warrant(4, 2) == "required" and c.barrier_warrant(2, 2) == "not_required"
+
+
+def test_user_criteria_missing_tables(tmp_path):
+    import json, pytest
+    from rfd import criteria as C
+    p = tmp_path / "bad.json"
+    p.write_text(json.dumps({"id": "bad", "ssd": {"80": 1}}))
+    with pytest.raises(ValueError, match="side_friction"):
+        C.Criteria.load(str(p))

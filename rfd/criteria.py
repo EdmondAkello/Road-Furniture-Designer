@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Tuple
 
 CRITERIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "criteria")
 DEFAULT_ID = "kenya_rdm_2025"
-WARRANT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "rdm13_fig12_4_barrier_warrant.json")
 
 
 def interpolate(mapping, x: float) -> Optional[float]:
@@ -36,30 +35,94 @@ def interpolate(mapping, x: float) -> Optional[float]:
     return vals[i - 1] + t * (vals[i] - vals[i - 1])
 
 
+_USER_DIRS: List[str] = []
+REQUIRED = ("side_friction", "ssd", "psd")
+
+
+def add_search_dir(path: str) -> None:
+    """Register a folder of user criteria files (searched before the bundled ones)."""
+    if path and os.path.isdir(path) and path not in _USER_DIRS:
+        _USER_DIRS.append(path)
+        _CACHE.clear()
+
+
+def search_dirs() -> List[str]:
+    """User folders (RFD_CRITERIA_PATH, then registered), then the bundled folder."""
+    env = [d for d in os.environ.get("RFD_CRITERIA_PATH", "").split(os.pathsep) if d and os.path.isdir(d)]
+    return env + [d for d in _USER_DIRS if d not in env] + [CRITERIA_DIR]
+
+
+def _files() -> Dict[str, str]:
+    """{id: path}; a user file with the same id as a bundled one replaces it."""
+    out: Dict[str, str] = {}
+    for d in reversed(search_dirs()):            # bundled first, user folders override
+        for fn in sorted(os.listdir(d)):
+            if not fn.lower().endswith(".json"):
+                continue
+            path = os.path.join(d, fn)
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            if isinstance(data, dict) and (str(data.get("schema", "")).startswith("rfd-criteria") or "ssd" in data):
+                out[data.get("id", fn[:-5])] = path
+    return out
+
+
 def list_criteria() -> List[Tuple[str, str]]:
-    """[(id, name)] of the bundled criteria files, Kenya first."""
+    """[(id, name)] of the available criteria sets, the default first."""
     out = []
-    for fn in sorted(os.listdir(CRITERIA_DIR)):
-        if fn.endswith(".json"):
-            with open(os.path.join(CRITERIA_DIR, fn), encoding="utf-8") as fh:
-                d = json.load(fh)
-            out.append((d.get("id", fn[:-5]), d.get("name", fn[:-5])))
-    return sorted(out, key=lambda t: t[0] != DEFAULT_ID)
+    for ident, path in _files().items():
+        with open(path, encoding="utf-8") as fh:
+            out.append((ident, json.load(fh).get("name", ident)))
+    return sorted(out, key=lambda t: (t[0] != DEFAULT_ID, t[1].lower()))
+
+
+def _resolve(ident: str, seen=()) -> dict:
+    """Load a criteria file, applying "extends" (top-level keys override; references merge)."""
+    path = ident if os.path.isfile(str(ident)) else _files().get(ident)
+    if not path:
+        raise ValueError(f"Criteria set '{ident}' not found in {search_dirs()}")
+    path = os.path.abspath(path)
+    if path in seen:
+        raise ValueError(f"Circular 'extends' in criteria: {' -> '.join(seen + (path,))}")
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    data.setdefault("id", os.path.splitext(os.path.basename(path))[0])
+    base_id = data.get("extends")
+    if base_id:
+        base_path = _files().get(base_id)
+        if base_path and os.path.abspath(base_path) == path:   # user file overriding a bundled set of the same id
+            base_path = os.path.join(CRITERIA_DIR, f"{base_id}.json")
+        base = _resolve(base_path or base_id, seen + (path,))
+        refs = dict(base.get("references", {}))
+        refs.update(data.get("references", {}))
+        if "barrier_warrant" not in data and isinstance(base.get("barrier_warrant"), str):
+            data["barrier_warrant"] = _find_warrant(base["barrier_warrant"], base["_path"])
+        merged = dict(base)
+        merged.update(data)
+        merged["references"] = refs
+        data = merged
+    data["_path"] = path
+    return data
 
 
 class Criteria:
     def __init__(self, data: dict):
+        missing = [k for k in REQUIRED if not data.get(k)]
+        if missing:
+            raise ValueError(f"Criteria '{data.get('id', '?')}' is missing required tables: {', '.join(missing)}")
         self.data = data
         self.id = data.get("id", "custom")
         self.name = data.get("name", self.id)
         self.refs: Dict[str, str] = data.get("references", {})
+        self.path = data.get("_path", "")
 
     # ------------------------------------------------------------------ loading
     @classmethod
     def load(cls, ident: str = DEFAULT_ID) -> "Criteria":
-        path = ident if os.path.isfile(str(ident)) else os.path.join(CRITERIA_DIR, f"{ident}.json")
-        with open(path, encoding="utf-8") as fh:
-            return cls(json.load(fh))
+        return cls(_resolve(ident))
 
     def ref(self, key: str) -> str:
         return self.refs.get(key, self.name)
@@ -163,35 +226,61 @@ class Criteria:
                 row = r
         return float(row["visibility"]), float(row["critical"])
 
+    def warrant_curve(self) -> Optional[dict]:
+        if not hasattr(self, "_warrant"):
+            self._warrant = _load_warrant(self.data.get("barrier_warrant"), self.path)
+        return self._warrant
+
+    def barrier_warrant(self, height: float, slope_n: float) -> str:
+        """'required' / 'judgement' / 'not_required' from the set's warrant curve.
+
+        Without a curve the set's simple rule applies: barrier_simple {height, slope_n}
+        (fill higher than height on a batter steeper than 1:slope_n)."""
+        w = self.warrant_curve()
+        if w:
+            return _warrant_class(w, height, slope_n)
+        simple = self.barrier().get("simple") or {"height": 6.0, "slope_n": 4.0}
+        return "required" if (height >= simple["height"] and slope_n < simple["slope_n"]) else "not_required"
+
 
 # ---------------------------------------------------------------------- barrier warrant
-_WARRANT = None
+def _find_warrant(spec: str, base_path: str) -> str:
+    """Warrant file path: absolute, or relative to the criteria file, or in the bundled data folder."""
+    for d in (os.path.dirname(base_path), os.path.dirname(CRITERIA_DIR)):
+        p = spec if os.path.isabs(spec) else os.path.join(d, spec)
+        if os.path.isfile(p):
+            return p
+    raise ValueError(f"Barrier warrant file '{spec}' not found")
 
 
-def _warrant():
-    global _WARRANT
-    if _WARRANT is None:
-        with open(WARRANT_FILE, encoding="utf-8") as fh:
-            _WARRANT = json.load(fh)
-    return _WARRANT
+def _load_warrant(spec, base_path: str) -> Optional[dict]:
+    if not spec:
+        return None
+    if isinstance(spec, str):
+        with open(_find_warrant(spec, base_path), encoding="utf-8") as fh:
+            return json.load(fh)
+    return spec
 
 
-def barrier_warrant(height: float, slope_n: float) -> str:
-    """Embankment barrier warrant from RDM 1.3 Figure 12.4 (digitised).
-
-    height: fill height (m, hinge to toe); slope_n: batter as 1:n (horizontal per vertical).
-    Returns 'required', 'judgement' or 'not_required'."""
-    w = _warrant()
+def _warrant_class(w: dict, height: float, slope_n: float) -> str:
     hs = w["heights"]
     if height < hs[0] or slope_n <= 0:
         return "not_required"
     req = float(interpolate(dict(zip(map(str, hs), w["required_below"])), height))
-    nreq = float(interpolate(dict(zip(map(str, hs), w["not_required_above"])), height))
+    nreq = float(interpolate(dict(zip(map(str, hs), w.get("not_required_above", w["required_below"]))), height))
     if slope_n < req:
         return "required"
     if slope_n < nreq:
         return "judgement"
     return "not_required"
+
+
+def barrier_warrant(height: float, slope_n: float, crit: "Criteria" = None) -> str:
+    """Embankment barrier warrant (default: RDM 1.3 Figure 12.4, digitised).
+
+    height: fill height (m, hinge to toe); slope_n: batter as 1:n (horizontal per vertical).
+    Returns 'required', 'judgement' or 'not_required'."""
+    return (crit or get()).barrier_warrant(height, slope_n)
 
 
 _CACHE: Dict[str, Criteria] = {}
