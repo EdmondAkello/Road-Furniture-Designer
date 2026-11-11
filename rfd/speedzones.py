@@ -126,10 +126,10 @@ def _over_design(al, lo, hi, limit, step=10.0) -> Optional[Tuple[float, float, f
     return pts[0][0], min(pts[-1][0] + step, hi), min(v for _, v in pts)
 
 
-def zones_from_design_speed(al, limits=(50, 70, 80), min_length: float = 100.0) -> List[SpeedZone]:
-    """Suggested zones where the design speed equals a signed limit (50, 70 or 80 km/h by default).
-
-    The posted limit is the designer's call (built-up areas, special areas); these are proposals."""
+def zones_from_design_speed(al, limits=(50,), min_length: float = 100.0) -> List[SpeedZone]:
+    """Suggested zones where the design speed equals a signed limit: by default only the 50 km/h
+    (built-up area) sections. A rural design speed of 70 or 80 km/h does not by itself call for a
+    special limit; pass ``limits`` to include them. The posted limit is the designer's call."""
     out: List[SpeedZone] = []
     sp = sorted(getattr(al, "speeds", []) or [])
     if not sp:

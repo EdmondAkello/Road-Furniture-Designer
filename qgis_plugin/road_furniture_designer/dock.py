@@ -360,8 +360,8 @@ class RsdDock(QDockWidget):
         zb = QHBoxLayout()
         self.btn_zadd = QPushButton("Add zone")
         self.btn_zsuggest = QPushButton("Propose from design speed")
-        self.btn_zsuggest.setToolTip("Zones where the design speed is 50, 70 or 80 km/h. The posted limit is "
-                                     "your decision: check each before accepting the signs.")
+        self.btn_zsuggest.setToolTip("50 km/h (built-up area) zones where the design speed is 50 km/h. The posted "
+                                     "limit is your decision: check each before accepting the signs.")
         zb.addWidget(self.btn_zadd); zb.addWidget(self.btn_zsuggest)
         zl.addLayout(zb)
         self.lbl_zinfo = QLabel("Limit signs at both ends of the zone for each direction, repeaters at the middle "
@@ -765,7 +765,7 @@ class RsdDock(QDockWidget):
         from .rfd.speedzones import zones_from_design_speed
         zones = zones_from_design_speed(self.store.al)
         if not zones:
-            self.lbl_zinfo.setText("No design speed sections of 50, 70 or 80 km/h in the LandXML.")
+            self.lbl_zinfo.setText("No 50 km/h design speed sections in the LandXML.")
             return
         notes = []
         with _busy():
