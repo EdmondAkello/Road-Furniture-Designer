@@ -153,6 +153,14 @@ class RsdDock(QDockWidget):
         self.spn_e = spin(0, 12, 4, " %", 0.5)
         self.spn_clear = spin(0.6, 3.0, 1.0, " m", 0.1)
         self.spn_from = spin(-1e6, 1e6, 0, " m", 100); self.spn_to = spin(-1e6, 1e6, 0, " m", 100)
+        from .rfd.criteria import list_criteria
+        self.cmb_crit = QComboBox()
+        for cid, cname in list_criteria():
+            self.cmb_crit.addItem(cname, cid)
+        self.chk_psd_red = QCheckBox("Reduced PSD for no-overtaking (RDM 1.3 Table 3.20)")
+        self.chk_psd_red.setChecked(True)
+        af.addRow("Design criteria", self.cmb_crit)
+        af.addRow("", self.chk_psd_red)
         af.addRow("Warn if curve speed below design by", self.spn_warn)
         af.addRow("Chevrons if below by", self.spn_chev)
         af.addRow("Sharp turn (W19/W21) if below by", self.spn_sharp)
@@ -401,6 +409,7 @@ class RsdDock(QDockWidget):
                           chevron_margin=self.spn_chev.value(), sharp_margin=self.spn_sharp.value(),
                           default_e=self.spn_e.value(), clearance=self.spn_clear.value(),
                           edge_ref=self.cmb_ref.currentData(),
+                          criteria=self.cmb_crit.currentData(), psd_reduced=self.chk_psd_red.isChecked(),
                           start=self.spn_from.value(), end=self.spn_to.value())
 
     def run_auto(self):
