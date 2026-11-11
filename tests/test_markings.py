@@ -136,7 +136,9 @@ def test_psd_basis_matches_the_no_overtaking_signs():
     assert signs["Forward"] and signs["Backward"]
     runs, findings = propose_markings(al, _MC.from_auto(auto, road_class="B"))
     f, b = zones_of(runs)
-    assert f == pytest.approx(signs["Forward"]) and b == pytest.approx(signs["Backward"])
+    flat = lambda spans: [x for span in spans for x in span]      # pytest.approx takes flat sequences only
+    assert len(f) == len(signs["Forward"]) and len(b) == len(signs["Backward"])
+    assert flat(f) == pytest.approx(flat(signs["Forward"])) and flat(b) == pytest.approx(flat(signs["Backward"]))
     assert any("Passing sight distance of 325 m" in r.reason for r in runs if r.code in ("LM28", "LM32"))
     # the Table 4.4 basis gives shorter zones on the same road
     t_runs, _ = propose_markings(al, MarkingConfig(road_class="B"))
