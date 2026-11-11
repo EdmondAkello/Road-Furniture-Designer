@@ -59,7 +59,7 @@ SAMPLES = {
     "I2": "< Nakuru A104 18",
     "I3": "^ Nakuru A104 18\n< Molo B4 40\n> Eldoret A104 140",
     "I4": "^ Nakuru A104\n> Eldoret A104",
-    "I5": "< Elburgon C56 12\n> Molo C56 20",
+    "I5": "< Molo C56 12\n> Kericho C56 20",
     "I6": "Nakuru 18\nNairobi 175",
     "IM": "^ Nairobi A2 25\n> Thika A2 12",
     "D": "< Nakuru A104 18",
@@ -88,6 +88,7 @@ def add_derived(signs):
     dxf_path = os.path.join(DATA, "RSD_SignBlocks.dxf")
     doc = ezdxf.readfile(dxf_path)
     have = {e["code"] for e in signs}
+    changed = False
     for code, (src, fields) in DERIVED.items():
         if code in have or src not in have:
             continue
@@ -97,11 +98,13 @@ def add_derived(signs):
             blk = doc.blocks.new(name)
             for e in doc.blocks.get("RSD_" + src):
                 blk.add_entity(e.copy())
+            changed = True
         e = {"code": code, "sizes": ["custom"], "default_size": "custom", "size_rule": None, "legend": None,
              "mirror": False}
         e.update(fields)
         signs.append(e)
-    doc.saveas(dxf_path)
+    if changed:
+        doc.saveas(dxf_path)
 
 
 def default_class(code):

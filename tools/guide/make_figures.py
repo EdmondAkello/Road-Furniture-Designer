@@ -1,12 +1,15 @@
-"""Figures for the user guide and technical manual, from a real LandXML (Olkaria LOT 3 in the demo edition).
+"""Figures for the user guide and technical manual, from the synthetic guide road.
 
 Run with the QGIS Python, offscreen, after tools/build_plugin.py:
 
-    QT_QPA_PLATFORM=offscreen python tools/guide/make_figures.py <landxml> <alignment> <out folder> [project name]
+    python tools/guide/make_guide_road.py guide_road.xml
+    QT_QPA_PLATFORM=offscreen python tools/guide/make_figures.py guide_road.xml DEMO-ROAD <out folder> [project name]
 
-Builds a sign project with the auto-placement engine, a directional sign and a
-place-name plate, then writes: the map, dock screenshots, report pages (plan,
-long section, schedule, findings), a DXF view, the catalogue and legend panels.
+Builds a project on the guide road (tools/guide/make_guide_road.py): auto-placed signs, markings and
+studs, barriers on the embankment, a crossing and a hump in the 50 km/h village with its speed limit
+zone, a directional sign and a place-name plate. Then writes: map views, dock screenshots, report
+pages (plan, long section, strip diagram, schedules, checks), a DXF view and the catalogue and legend
+panels. The chainages below refer to the guide road.
 """
 import os
 import shutil
@@ -46,10 +49,23 @@ st = SignStore.create(os.path.join(work, "guide.gpkg"), lx, align, QgsCoordinate
 st.auto_propose()
 st.accept_proposals()
 P = lambda s, o: st.al.point_at(s, o)[:2]
-st.add_sign(*P(1500, -7.0), "I1-A", legend="^ Olkaria 6\n< Naivasha B3 32\n> Narok B3 120", road_class="A",
+from road_furniture_designer.rfd.autoplace import AutoConfig  # noqa: E402
+from road_furniture_designer.rfd.barriers import BarrierConfig  # noqa: E402
+from road_furniture_designer.rfd.features import FeatureConfig  # noqa: E402
+from road_furniture_designer.rfd.markings import MarkingConfig  # noqa: E402
+from road_furniture_designer.rfd.speedzones import zones_from_design_speed  # noqa: E402
+auto = AutoConfig()
+st.lines.auto_propose_markings(MarkingConfig.from_auto(auto, road_class="B"))
+st.lines.auto_propose_barriers(BarrierConfig(landxml=lx))
+for z in zones_from_design_speed(st.al):                              # the 50 km/h village
+    st.add_speed_zone(z.limit, z.start, z.end, auto)
+st.add_feature("crossing", 2950.0, FeatureConfig(), auto)
+st.add_feature("hump_circular", 3150.0, FeatureConfig(), auto)
+st.add_sign(*P(2560, -7.0), "I1-A", legend="^ Nakuru 6\n< Molo B4 32\n> Eldoret A104 120", road_class="A",
             restrict=True)
-st.add_sign(*P(1530, -7.0), "I7", legend="Olkaria", restrict=True)
-st.auto_propose()                     # leave a few proposals visible (orange) for the figures
+st.add_sign(*P(2590, -7.0), "I7", legend="Nakuru", restrict=True)
+st.accept_proposals(); st.lines.accept_proposals()
+st.auto_propose(auto)                 # leave a few proposals visible (orange) for the figures
 st.set_meta(prepared_by="E. Akello", checked_by="", approved_by="")
 st.add_to_project()
 
@@ -70,10 +86,14 @@ def render_map(extent, size, name):
     save(job.renderedImage(), name)
 
 
-x, y = P(2380, 0)
+x, y = P(740, 0)                                                      # the sharp curve
 render_map(QgsRectangle(x - 260, y - 170, x + 260, y + 170), (1600, 1050), "fig_map.png")
-x, y = P(1515, 0)
+x, y = P(2575, 0)                                                     # village entry: directional and place name
 render_map(QgsRectangle(x - 70, y - 45, x + 70, y + 45), (1400, 900), "fig_map_legend.png")
+x, y = P(3950, 0)                                                     # embankment barriers
+render_map(QgsRectangle(x - 300, y - 195, x + 300, y + 195), (1600, 1050), "fig_map_barrier.png")
+x, y = P(3050, 0)                                                     # crossing and hump in the village
+render_map(QgsRectangle(x - 160, y - 105, x + 160, y + 105), (1600, 1050), "fig_map_calming.png")
 x0, y0 = P(st.al.sta_start, 0)
 ext = st.alignment_layer.extent() if hasattr(st, "alignment_layer") else QgsRectangle(x0 - 2000, y0 - 2000, x0 + 2000, y0 + 2000)
 ext.grow(150)
@@ -99,12 +119,18 @@ dock = RsdDock(iface)
 dock.set_store(st)
 dock.resize(470, 860)
 tabs = dock.findChild(QTabWidget)
-for i, name in enumerate(["place", "inventory", "auto", "signs"]):
+names = {"Place": "place", "Inventory": "inventory", "Auto": "auto", "Signs": "signs", "Linear": "linear",
+         "Calming": "calming", "Speed limits": "speed"}
+for i in range(tabs.count()):
+    name = names.get(tabs.tabText(i))
+    if not name:
+        continue
     tabs.setCurrentIndex(i)
     if name == "auto" and hasattr(dock, "refresh_auto"):
         try:
             dock.refresh_auto()
-        except Exception:
+        # Figure script: an empty Auto list is acceptable.
+        except Exception:  # nosec B110
             pass
     dock.show(); app.processEvents()
     save(dock.grab().toImage(), f"fig_dock_{name}.png")
@@ -113,23 +139,33 @@ dock.hide()
 # ------------------------------------------------------------------ report pages
 st.accept_proposals()
 from road_furniture_designer.report import ReportData, pages, write_pngs  # noqa: E402
-d = ReportData(st, title=f"Road Signage – {project}", plan_scale=2500)
+d = ReportData(st, auto, title=f"Road Furniture – {project}", plan_scale=2500,
+               barrier_cfg=BarrierConfig(landxml=lx), feature_cfg=FeatureConfig())
 items = pages(d, 1000.0)
 pngs = write_pngs(os.path.join(work, "pages"), d, sheet_len=1000.0, scale=1.6, sheets_only=False)
 plans = [p for p in pngs if os.path.basename(p).startswith("plan_")]
 secs = [p for p in pngs if os.path.basename(p).startswith("section_")]
-others = [p for p in pngs if os.path.basename(p).startswith("page_")]
-pick = lambda lst, key: next((p for p in lst if key in os.path.basename(p)), lst[min(2, len(lst) - 1)])
-shutil.copy(pick(plans, "_1_910"), os.path.join(out, "fig_report_plan.png"))
-shutil.copy(pick(secs, "2_000"), os.path.join(out, "fig_report_section.png"))
-if others:
-    shutil.copy(others[0], os.path.join(out, "fig_report_schedule.png"))
-    kinds = [k for k, _ in items]
-    fi = kinds.index("findings") + 1 if "findings" in kinds else None
-    if fi:
-        fp = [p for p in others if p.endswith(f"page_{fi:02d}.png")]
-        if fp:
-            shutil.copy(fp[0], os.path.join(out, "fig_report_findings.png"))
+strips = [p for p in pngs if os.path.basename(p).startswith("strip_")]
+pick = lambda lst, key: next((p for p in lst if key in os.path.basename(p)), lst[min(1, len(lst) - 1)])
+shutil.copy(pick(plans, "plan_01"), os.path.join(out, "fig_report_plan.png"))
+shutil.copy(pick(secs, "1_000"), os.path.join(out, "fig_report_section.png"))
+shutil.copy(pick(strips, "strip_3_000"), os.path.join(out, "fig_report_strip.png"))
+kinds = [(k, p[0] if k == "ftable" else None) for k, p in items]
+
+
+def first_page(kind, key=None):
+    for i, (k, t) in enumerate(kinds, start=1):
+        if k == kind and (key is None or t == key):
+            fp = [p for p in pngs if p.endswith(f"page_{i:02d}.png")]
+            return fp[0] if fp else None
+
+
+for kind, key, name in (("schedule", None, "fig_report_schedule.png"), ("findings", None, "fig_report_findings.png"),
+                        ("ftable", "markings", "fig_report_markings.png"), ("ftable", "features", "fig_report_features.png"),
+                        ("ftable", "checks", "fig_report_checks.png")):
+    fp = first_page(kind, key)
+    if fp:
+        shutil.copy(fp, os.path.join(out, name))
 print("report pages:", len(items), "plan sheets:", len(plans))
 
 # ------------------------------------------------------------------ DXF view
@@ -143,7 +179,7 @@ try:
     from ezdxf.addons.drawing.config import BackgroundPolicy, Configuration
     from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
     doc = ezdxf.readfile(os.path.join(work, "p.dxf"))
-    for (s, half, name) in ((2380, 230, "fig_dxf.png"), (1515, 90, "fig_dxf_legend.png")):
+    for (s, half, name) in ((740, 230, "fig_dxf.png"), (2575, 90, "fig_dxf_legend.png")):
         fig = plt.figure(figsize=(10, 6.5)); ax = fig.add_axes([0, 0, 1, 1])
         ctx = RenderContext(doc)
         Frontend(ctx, MatplotlibBackend(ax), config=Configuration(background_policy=BackgroundPolicy.CUSTOM,
@@ -185,13 +221,13 @@ def panel(entries, cols, cell, name, title_h=0):
 
 
 cat = st.cat
-want = ["W19", "W20", "W21", "W22", "W24-a", "W30", "W31", "W5", "W1", "W40", "P1", "P32",
-        "P23", "P29", "M1", "I7", "RW1", "RW15"]
+want = ["W19", "W20", "W21", "W22", "W24-a", "W30", "W31", "W55", "W64", "P5", "P9", "P32",
+        "END", "W23", "M1", "I7", "RW1", "RW15"]
 ents = [(cat.signs[c].svg(), c, cat.signs[c].name) for c in want if c in cat.signs]
 panel(ents[:18], 6, (220, 210), "fig_catalogue.png")
-panel([(directional_svg("^ Nakuru A104 18\n< Eldoret A104 140\n> Rongai 9", "A"), "Class A road", "green, route in yellow"),
-       (directional_svg("^ Mai Mahiu 40\n> Nairobi A104 60", "EXP"), "Expressway", "blue face"),
-       (directional_svg("< Olkaria\n> Naivasha 32", "C"), "Class C/D roads", "white face"),
+panel([(directional_svg("^ Nakuru A104 18\n< Eldoret A104 140\n> Molo 9", "A"), "Class A road", "green, route in yellow"),
+       (directional_svg("^ Thika 40\n> Nairobi A2 60", "EXP"), "Expressway", "blue face"),
+       (directional_svg("< Molo\n> Nakuru 32", "C"), "Class C/D roads", "white face"),
        (plate_svg("FOR 400 M"), "W23 plate", "distance plate"),
-       (plate_svg("Olkaria"), "I7", "place name")], 5, (300, 210), "fig_legends.png")
+       (plate_svg("Nakuru"), "I7", "place name")], 5, (300, 210), "fig_legends.png")
 print("done")

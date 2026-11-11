@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Road Furniture Designer 0.8.0 — User Guide and Technical Manual</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<section class="cover">
+  <div class="hero" style="background-image: url(figures/fig_report_plan.png); background-position: 55% 30%; background-size: 160%;"></div>
+  <div class="text">
+    <div class="badges"><span class="badge exp">Experimental</span></div>
+    <div class="kicker">QGIS plugin · Version 0.8.0</div>
+    <h1>Road Furniture Designer</h1>
+    <div class="sub">User Guide and Technical Manual</div>
+    <div class="meta">
+      <b>Author</b><span>Edmond Akello</span>
+      <b>Licence</b><span>GNU General Public License v2 or later</span>
+      <b>Status</b><span>Experimental, in development</span>
+      <b>QGIS</b><span>3.28 or later (tests run headless on 3.34)</span>
+      <b>Civil 3D</b><span>2026 and later, by copy and paste from a georeferenced DXF</span>
+      <b>Standards</b><span>Kenya Road Design Manual (2025): Part 6.2 Traffic Signs, 6.1 Road Marking, 6.4 Other Traffic Control Devices, 1.3 Geometric Design</span>
+      <b>Demo data</b><span>A synthetic 4.4 km road (tools/guide/make_guide_road.py)</span>
+      <b>Edition</b><span>November 2026</span>
+    </div>
+  </div>
+  <div class="foot">Road Furniture Designer is experimental and under active development; behaviour, defaults and outputs may change between versions. Check every item against the Road Design Manual and the project's design criteria before issue.</div>
+</section>
+
+<!-- ============================== CONTENTS ============================== -->
+<h2 style="margin-top:0">Contents</h2>
+<div class="toc">
+  <div class="part-title">Part 1 · Getting started</div>
+  <a href="#edition"><span>1</span>About this edition</a>
+  <a href="#overview"><span>2</span>What Road Furniture Designer does</a>
+  <a href="#install"><span>3</span>Installing the plugin</a>
+  <a href="#quick"><span>4</span>Quick start</a>
+  <div class="part-title">Part 2 · Signs</div>
+  <a href="#project"><span>5</span>A project from a LandXML</a>
+  <a href="#place"><span>6</span>Placing signs</a>
+  <a href="#legends"><span>7</span>Legends, plates and values</a>
+  <a href="#edit"><span>8</span>Moving and editing signs</a>
+  <a href="#checks"><span>9</span>Checks while you work</a>
+  <a href="#auto"><span>10</span>Auto-placement</a>
+  <a href="#speed"><span>11</span>Speed limit zones</a>
+  <div class="part-title">Part 3 · Markings, barriers and traffic calming</div>
+  <a href="#linear"><span>12</span>Linear furniture and drawing by hand</a>
+  <a href="#markings"><span>13</span>Markings and road studs</a>
+  <a href="#barriers"><span>14</span>Safety barriers</a>
+  <a href="#calming"><span>15</span>Traffic calming and crossings</a>
+  <div class="part-title">Part 4 · Outputs</div>
+  <a href="#inventory"><span>16</span>Inventory for the QTO</a>
+  <a href="#report"><span>17</span>Road furniture report</a>
+  <a href="#fchecks"><span>18</span>Furniture checks</a>
+  <a href="#dxf"><span>19</span>DXF for Civil 3D drawings</a>
+  <a href="#georef"><span>20</span>Copy and paste at the true coordinates</a>
+  <div class="part-title">Part 5 · Technical manual</div>
+  <a href="#data"><span>21</span>Data model</a>
+  <a href="#landxml"><span>22</span>What is read from the LandXML</a>
+  <a href="#geometry"><span>23</span>Geometry methods</a>
+  <a href="#criteria"><span>24</span>Design criteria and formulas</a>
+  <a href="#catalogue"><span>25</span>The sign catalogue</a>
+  <a href="#layout"><span>26</span>Plan layout of symbols and sheets</a>
+  <a href="#validation"><span>27</span>Verification</a>
+  <a href="#limits"><span>28</span>Limitations and roadmap</a>
+  <a href="#trouble"><span>29</span>Troubleshooting</a>
+  <a href="#appendix"><span>A</span>Appendix: fields and layers</a>
+</div>
+
+<!-- ============================== PART 1 ============================== -->
+<h1 class="part"><span class="num">Part 1</span>Getting started</h1>
+<p class="part-intro">What Road Furniture Designer is for, what this edition can and cannot do yet, and how to get from a Civil 3D LandXML to a signed and marked road.</p>
+
+<h2 id="edition"><span class="sec">1</span>About this edition</h2>
+<div class="edition"><b>Experimental</b>
+This guide describes version 0.8.0. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
+<p>What has been checked:</p>
+<ul>
+  <li>281 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks; and 40 headless QGIS tests (QGIS 3.34, offscreen).</li>
+  <li>Nine alignments from private Civil 3D project exports (Arc 1960 / UTM 36S and 37S, up to 59 MB with TIN surfaces and corridor sections; project names withheld) run through the whole workflow: auto-placement, markings, barriers, features, speed zones, report, inventory and DXF.</li>
+  <li>DXF georeferencing: every exported sign maps back to its chainage and offset with no measurable difference, and signs pasted with COPYBASE and PASTEORIG landed on the alignment in a Civil 3D project drawing (section 20).</li>
+</ul>
+
+<div class="warn"><b>Results depend on the Civil 3D model</b>Road Furniture Designer only knows what the LandXML tells it. Its chainages, proposals, checks and report are as good as the design work in Civil 3D and the export settings, so before relying on the output make sure that:
+<ul style="margin:1.5mm 0 0">
+  <li><b>Design speeds</b> are defined along the alignment (design criteria / speed stations). Where none are exported the tool assumes 80 km/h throughout.</li>
+  <li><b>Superelevation</b> is calculated and applied to the alignment. Where it is missing, curve speeds use 4 %.</li>
+  <li><b>The design profile</b> (finished road level) is attached to the alignment and is the final one. Without it there are no grade, crest, sag or no-overtaking checks, and no centre line can be proposed from them.</li>
+  <li><b>The corridor</b> is built with coded points (ETW, EPS, Hinge, Ditch, Daylight) and its cross-sections are sampled along the whole road, with the existing ground. Without them signs are offset from the centreline, edge lines need a typed carriageway width, and barriers cannot be proposed.</li>
+  <li><b>The drawing's coordinate system</b> is set, so the LandXML carries it to QGIS and the DXF.</li>
+</ul>
+The dock's summary lists what was found after opening a project, and shows in red anything missing and the default used instead.</div>
+
+<h2 id="overview"><span class="sec">2</span>What Road Furniture Designer does</h2>
+<p>Placing traffic signs, markings and barriers in Civil 3D and then counting them for the schedules is slow, manual work. Road Furniture Designer moves both jobs into QGIS, next to the road alignment:</p>
+<div class="flow">
+  <div><b>1 · LandXML</b>Alignment, profile, speeds, superelevation and corridor sections from Civil 3D.</div>
+  <div><b>2 · Design</b>Signs, markings, studs, barriers, humps, crossings and speed limit zones, placed by hand or proposed from the manuals.</div>
+  <div><b>3 · Inventory</b>Chainage, offset, side, facing and quantity, kept live as items move.</div>
+  <div><b>4 · Report</b>Plan, long-section and strip sheets, schedules and checks (PDF, PNG, Excel).</div>
+  <div><b>5 · Civil 3D</b>Georeferenced DXF, pasted into the project drawing at the true coordinates.</div>
+</div>
+<p>Signs are points and linear items are runs in one GeoPackage. Their chainage, offset, side, facing, size, grade and clearance from the road edge are worked out from the alignment and recomputed whenever they move.</p>
+<p>Scope:</p>
+<ul>
+  <li><b>Automate what the alignment decides.</b> Curve and grade warnings, no-overtaking signs and lines, edge lines, studs and embankment barriers follow from the geometry and are proposed. Where a hump, a crossing or a speed limit goes is the designer's call; RFD details and signs it. Bus bays, lay-bys, structures, junction layouts, stop lines and kerbs are left to the designer.</li>
+  <li><b>A manual option for everything.</b> Every proposal can be edited or removed, and any sign or run can be placed by hand, which covers dual carriageways and unusual corridors.</li>
+  <li><b>Inventory, not a Bill.</b> Outputs are counts, lengths, areas and chainages that feed the separate QTO and Bill process. There are no rates.</li>
+  <li><b>Civil 3D 2026+ through a georeferenced DXF.</b> No compiled .NET add-in.</li>
+</ul>
+
+<h2 id="install"><span class="sec">3</span>Installing the plugin</h2>
+<ol class="steps">
+  <li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b> and choose <code>road_furniture_designer.zip</code>.</li>
+  <li>Enable <b>Road Furniture Designer</b>. A dock opens with the <b>Place</b>, <b>Inventory</b>, <b>Auto</b>, <b>Signs</b>, <b>Linear</b>, <b>Calming</b> and <b>Speed limits</b> tabs; the toolbar button reopens it.</li>
+  <li>Nothing else needs installing. The libraries used for exports (openpyxl, ezdxf and their dependencies) are pure Python and ship inside the plugin's <code>ext_libs</code> folder, so the plugin works where <code>pip</code> is blocked.</li>
+</ol>
+<div class="note"><b>Updating</b>Install the new ZIP over the old one and restart QGIS. Existing projects open in newer versions; missing fields and layers are added automatically.</div>
+
+<h2 id="quick"><span class="sec">4</span>Quick start</h2>
+<ol class="steps">
+  <li><b>New project…</b>: choose the LandXML, the alignment and where to save the GeoPackage. The layer CRS defaults to the LandXML's.</li>
+  <li><b>Auto tab → Propose signs</b>. Proposed signs appear with an orange ring. Look through them, then <b>Accept all proposals</b> or remove the ones you do not want.</li>
+  <li><b>Linear tab → Propose markings</b> and <b>Propose barriers</b>; review and accept in the same way.</li>
+  <li><b>Calming</b> and <b>Speed limits</b> tabs: add humps, crossings and speed limit zones where the design needs them.</li>
+  <li><b>Place tab</b>: add anything else (junction and direction signs, place names) by picking a sign and clicking on the map.</li>
+  <li><b>Inventory tab → Road furniture report</b>: choose the plan scale and fill in Prepared / Checked / Approved by. Read the furniture checks.</li>
+  <li><b>Inventory tab → Export to Civil 3D</b>, then paste into the project drawing (section 20).</li>
+</ol>
+<p>To try it without project data, run <code>python tools/guide/make_guide_road.py guide_road.xml</code> and open the file it writes.</p>
+
+<!-- ============================== PART 2 ============================== -->
+<h1 class="part"><span class="num">Part 2</span>Signs</h1>
+<p class="part-intro">Creating a project, placing and editing signs, writing legends, the checks that run as you work, the auto-placement engine and speed limit zones.</p>
+
+<h2 id="project"><span class="sec">5</span>A project from a LandXML</h2>
+<p><b>New project…</b> asks for the LandXML, the alignment (a file can hold several), and a GeoPackage to save. The GeoPackage is the master record: it holds the signs, the linear runs and a copy of everything derived from the LandXML that the map needs.</p>
+<table>
+  <thead><tr><th>Layer</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td class="code">RFD signs</td><td>One point per sign face, drawn with its RDM artwork (faces on one post are stacked).</td></tr>
+    <tr><td class="code">RFD linear furniture</td><td>Markings, road studs, barriers, humps, bar sets and crossings as runs along the road.</td></tr>
+    <tr><td class="code">RFD alignment, RFD chainage</td><td>The alignment, with ticks and labels every 100 m.</td></tr>
+    <tr><td class="code">RFD road edges</td><td>Corridor edges from the LandXML cross-sections, coloured by code (ETW, EPS, Hinge, Ditch_In, Ditch_Out, Daylight).</td></tr>
+    <tr><td class="code">RFD vertical curves</td><td>Crest and sag PVIs with length, K and A.</td></tr>
+  </tbody>
+</table>
+<p>The layers take the LandXML's coordinate system when the file declares one. If the QGIS project uses a different CRS the plugin says so; keeping both the same avoids confusion when exchanging with Civil 3D.</p>
+<figure class="half"><img src="figures/fig_map_overview.png"><figcaption><b>Figure 1.</b> The demonstration road after auto-placement, markings, barriers, a crossing, a hump and the village speed limit zone.</figcaption></figure>
+
+<h2 id="place"><span class="sec">6</span>Placing signs</h2>
+<figure class="dock"><img src="figures/fig_dock_place.png"><img src="figures/fig_dock_signs.png"><figcaption><b>Figure 2.</b> The Place tab (left): catalogue palette, size, facing, offset rule and legend. The Signs tab (right): every face in chainage order with its clearance from the road edge.</figcaption></figure>
+<ol class="steps">
+  <li><b>Pick a sign</b> from the palette. Filter by category or search by code or name.</li>
+  <li><b>Size.</b> <i>Auto (RDM, by design speed)</i> applies the manual's size tables using the design speed at the sign's chainage. Choose a size to override it.</li>
+  <li><b>Mirrored</b> gives the left/right version of signs the manual shows one way round (bends, side roads, chevrons).</li>
+  <li><b>Facing.</b> <i>Auto</i> follows driving on the left: a sign on the left faces up-chainage traffic, a sign on the right faces down-chainage traffic. Choose Forward or Backward to override, for example in a median.</li>
+  <li><b>Offset from</b> a road edge (EPS by default) and <b>Fix offset at</b> place the post at a set distance beyond that edge at the chainage you click.</li>
+  <li><b>Keep inside the corridor</b> (on by default) snaps the post into RDM 6.2 §2.4's band, 0.6 to 3.0 m beyond the edge, and never beyond the ditch or daylight line where those are modelled.</li>
+  <li><b>Add to an existing post</b>: click an existing sign to put another face (a plate, a back-to-back sign) on the same post.</li>
+  <li><b>Place signs on map</b>. Hovering shows chainage and offset; left-click places, right-click stops.</li>
+</ol>
+<figure><img src="figures/fig_map.png"><figcaption><b>Figure 3.</b> The sharp R 75 m curve near CH 0+740: corridor edges, chainages, the combined centre line and edge lines, the curve warnings and the chevrons placed by the engine.</figcaption></figure>
+
+<h2 id="legends"><span class="sec">7</span>Legends, plates and values</h2>
+<p>Directional signs, town and county signs and text plates carry text that changes from job to job. Type the legend before placing, or select the sign on the Signs tab and use <b>Edit legend…</b>. One destination per line:</p>
+<pre>^ Nakuru 6               ahead, 6 km
+&lt; Molo B4 32             left, route B4, 32 km
+&gt; Eldoret A104 120       right</pre>
+<ul>
+  <li>Arrows: <code>^</code> or <code>A</code> ahead, <code>&lt;</code> or <code>L</code> left, <code>&gt;</code> or <code>R</code> right. A line with no arrow is plain text (plates).</li>
+  <li>Destinations are ordered as RDM §5.2 asks: ahead, then left, then right, furthest first.</li>
+  <li>Faces are drawn in the RDM Table 2.6 colours for the road class: green with yellow route numbers (A, B, UA), white (C, D, UC and lower), blue (expressway).</li>
+  <li>Signs whose artwork carries a value take it from the legend. A W30 steep-descent sign proposed for a 6.8 % grade reads 7 %, not the manual's 10 % sample, on the map, in the report and in the DXF.</li>
+</ul>
+<figure><img src="figures/fig_legends.png"><figcaption><b>Figure 4.</b> Legend faces drawn by the plugin: directional signs in three colour schemes, a distance plate and a place-name sign.</figcaption></figure>
+<figure><img src="figures/fig_map_legend.png"><figcaption><b>Figure 5.</b> A directional sign and a place-name sign added by hand at the village entry, CH 2+560.</figcaption></figure>
+
+<h2 id="edit"><span class="sec">8</span>Moving and editing signs</h2>
+<ul>
+  <li>Move signs with the normal QGIS editing tools (Toggle Editing → Move Feature). Chainage, offset, side, auto-facing, size, grade and edge clearance update at once, and every face on the same post moves with it.</li>
+  <li>Editing <code>facing</code> in the attribute table switches Auto facing off for that sign; typing a size switches Auto size off.</li>
+  <li>The <b>Signs</b> tab lists every face in chainage order. Double-click a row to zoom to it. <b>Renumber posts by chainage</b> renames posts P001, P002… in road order.</li>
+</ul>
+
+<h2 id="checks"><span class="sec">9</span>Checks while you work</h2>
+<p>The Inventory tab lists checks for the whole sign list. Errors block the Civil 3D export; warnings do not. The report adds the furniture checks of section 18.</p>
+<table>
+  <thead><tr><th>Check</th><th>Level</th><th>Rule</th></tr></thead>
+  <tbody>
+    <tr><td>Inside the travelled way</td><td><span class="sev h">Error</span></td><td>Post closer to the centreline than the edge of travelled way (ETW).</td></tr>
+    <tr><td>On the shoulder</td><td><span class="sev m">Warning</span></td><td>Post between ETW and the edge of paved shoulder (EPS).</td></tr>
+    <tr><td>Outside the RDM lateral band</td><td><span class="sev m">Warning</span></td><td>RDM 6.2 §2.4: 0.6 to 3.0 m beyond the carriageway or paved-shoulder edge.</td></tr>
+    <tr><td>Outside the corridor</td><td><span class="sev m">Warning</span></td><td>Beyond the ditch or daylight line, where the verge is modelled.</td></tr>
+    <tr><td>Spacing</td><td><span class="sev m">Warning</span></td><td>RDM 6.2 §2.4: consecutive signs at least 0.6 V metres apart (48 m at 80 km/h).</td></tr>
+    <tr><td>Legend missing</td><td><span class="sev m">Warning</span></td><td>Directional signs and plates need their text.</td></tr>
+    <tr><td>Post consistency</td><td><span class="sev h">Error</span></td><td>Faces on one post at different positions, or with different post or foundation types.</td></tr>
+    <tr><td>Unknown code, size, post or foundation</td><td><span class="sev h">Error</span></td><td>Not in the catalogue.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="auto"><span class="sec">10</span>Auto-placement</h2>
+<p>The engine reads the alignment's geometry and proposes the warning and regulatory signs RDM 6.2 calls for. Proposals are suggestions: an engineer accepts or removes each one.</p>
+<table>
+  <thead><tr><th>Situation</th><th>Signs proposed</th><th>Basis</th></tr></thead>
+  <tbody>
+    <tr><td>Curve whose safe speed is 10 km/h or more below the approach speed</td><td>W20 bend (W19 sharp turn when 30 km/h or more below), both directions, at the advance distance</td><td>RDM 6.2 §4.5; V² = 127 R (e + f)</td></tr>
+    <tr><td>Warned curves closer than 150 m</td><td>W22 series of bends (W21 sharp) with a W23 distance plate</td><td>RDM 6.2 §4.5</td></tr>
+    <tr><td>Curve 20 km/h or more below the approach speed</td><td>W24-a chevrons on the outside of the curve, back to back, at Table 4.2 spacing</td><td>RDM 6.2 §4.6.1, Table 4.2</td></tr>
+    <tr><td>Descent steeper than 5 %; ascent steeper than 10 %</td><td>W30 / W31 with the actual grade</td><td>RDM 6.2 §4.6.4</td></tr>
+    <tr><td>Sight distance below the passing sight distance</td><td>P32 with a W23 distance plate at the start; P32 with the supplementary END plate at the end; in each direction</td><td>RDM 6.2 §3.11; RDM 1.3 Table 3.20</td></tr>
+    <tr><td>Sag with headlight sight distance short of SSD; crest short of SSD</td><td>Reported as findings (no sign proposed)</td><td>RDM 1.3 Tables 6.1, 6.4</td></tr>
+  </tbody>
+</table>
+<p>Signs go at the advance distance (6 seconds of travel at the design speed, RDM 6.2 §2.4), on the left for up-chainage traffic and on the right for down-chainage traffic, at the set clearance beyond the reference edge, and are moved back where they would be closer than 0.6 V metres. Running it again never duplicates a sign, a chevron or a plate already there.</p>
+<p>On the demonstration road (80 km/h, 50 km/h through the village) the engine reports 10 findings and proposes 35 faces in under half a second: the R 75 m curve (safe speed 47 km/h, a W19 sharp turn with chevrons), two R 180 m bends 70 m apart (a W22 series with its plate), a 6.8 % descent, and two no-overtaking zones in each direction over the short crests.</p>
+<figure class="dock"><img src="figures/fig_dock_auto.png"><img src="figures/fig_dock_inventory.png"><figcaption><b>Figure 6.</b> The Auto tab (left): rules, thresholds and chainage range. The Inventory tab (right): live counts, checks and the export buttons.</figcaption></figure>
+<ol class="steps">
+  <li>On the <b>Auto</b> tab, tick the rules to run and set the chainage range (the whole alignment by default).</li>
+  <li><b>Propose signs</b>. Proposals are added with status <code>proposed</code>, drawn with an orange ring, and listed with the reason for each (for example <i>R=75 m, e=6.0 %: curve speed 47 km/h vs 80 km/h design</i>).</li>
+  <li>Review on the map and in the report, which shows proposals too. Move, edit or delete individual proposals as needed.</li>
+  <li><b>Accept all proposals</b> turns the remainder into ordinary signs. <b>Remove proposals</b> deletes all that are still proposed. Signs belonging to traffic calming features and speed limit zones are left alone.</li>
+</ol>
+<table>
+  <thead><tr><th>Parameter</th><th class="num">Default</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Warn if curve speed below design by</td><td class="num">10 km/h</td><td>Margin that triggers a bend warning.</td></tr>
+    <tr><td>Chevrons if below by</td><td class="num">20 km/h</td><td>Margin that adds chevrons.</td></tr>
+    <tr><td>Sharp turn if below by</td><td class="num">30 km/h</td><td>W19/W21 instead of W20/W22.</td></tr>
+    <tr><td>Series gap</td><td class="num">150 m</td><td>Warned curves closer than this are signed as a series.</td></tr>
+    <tr><td>Superelevation if not in LandXML</td><td class="num">4 %</td><td>Used when the file has no superelevation for a curve.</td></tr>
+    <tr><td>Steep descent / ascent</td><td class="num">5 % / 10 %</td><td>RDM 6.2 §4.6.4 thresholds; grades shorter than 50 m are ignored.</td></tr>
+    <tr><td>Criteria</td><td class="num">Kenya RDM 2025</td><td>Side friction, sight distances and K values; AASHTO 2011 and user criteria files can be chosen (section 24).</td></tr>
+    <tr><td>Post clearance beyond edge</td><td class="num">1.0 m</td><td>Within RDM's 0.6–3.0 m band.</td></tr>
+    <tr><td>Offset without corridor edges</td><td class="num">5.5 m</td><td>From the centreline when the LandXML has no cross-sections.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="speed"><span class="sec">11</span>Speed limit zones</h2>
+<p>The posted limit is the designer's decision; RFD signs it to RDM 6.2 §3.5. On the <b>Speed limits</b> tab, pick the limit (P5 50, P6 70, P7 80 or P8 120 km/h; 100 km/h is the general limit and has no sign), type the zone's chainages and press <b>Add zone</b>. For each direction RFD proposes:</p>
+<ul>
+  <li>the limit sign where traffic enters the zone;</li>
+  <li>a repeater at the middle, or at the interval set;</li>
+  <li><b>P9</b> (end of speed limit) where traffic leaves it. Where the zone adjoins another, that zone's limit sign marks the change instead.</li>
+</ul>
+<p>It flags a limit above the design speed, a very short zone, and a zone running off the end of the alignment. <b>Propose from design speed</b> adds 50 km/h built-up area zones where the LandXML design speed is 50 km/h; a rural 70 or 80 km/h design speed does not by itself call for a special limit. On the demonstration road it proposes the 750 m village zone with six signs.</p>
+<figure class="dock"><img src="figures/fig_dock_speed.png"><img src="figures/fig_dock_calming.png"><figcaption><b>Figure 7.</b> The Speed limits tab (left) and the Calming tab (right).</figcaption></figure>
+
+<!-- ============================== PART 3 ============================== -->
+<h1 class="part"><span class="num">Part 3</span>Markings, barriers and traffic calming</h1>
+<p class="part-intro">Linear furniture as runs along the road: proposed from RDM 6.1 and RDM 1.3, or drawn by hand.</p>
+
+<h2 id="linear"><span class="sec">12</span>Linear furniture and drawing by hand</h2>
+<p>Markings, road studs, barriers and transverse items are stored as <b>runs</b> in the <code>rsd_lines</code> layer. A run has an item code, a start and end chainage, a side, and an offset measured either from a corridor edge (for example ETW) or from the centreline; a run tied to an edge follows it where the road widens. Geometry, length and quantity are rebuilt whenever one of those fields changes, so runs can be edited in the attribute table.</p>
+<figure class="dock"><img src="figures/fig_dock_linear.png"><figcaption><b>Figure 8.</b> The Linear tab: item, side and offset, drawing on the map or by chainage, the proposal buttons and the list of runs.</figcaption></figure>
+<p>On the Linear tab, pick the item and press <b>Draw on map</b>: click the start, then the end. The side and offset come from the first click; tick <b>Fixed offset</b> to use a typed offset instead (for example 7.3 m right for the median edge of a dual carriageway), or force Centre, Left or Right. <b>Add run at chainages</b> does the same from typed chainages. This covers dual carriageways, slip roads and anything the rules do not propose.</p>
+<p>The catalogue (<code>rfd/data/furniture_linear.json</code>) is open: add or replace items with a JSON file in a folder listed in <code>RFD_FURNITURE_PATH</code>.</p>
+
+<h2 id="markings"><span class="sec">13</span>Markings and road studs</h2>
+<p><b>Propose markings</b> adds the centre line, edge lines and studs (RDM 6.1) for review, like signs.</p>
+<ul>
+  <li><b>Centre line.</b> Broken (LM01, or LM02 on class A and B roads) where overtaking is allowed. A direction that may not overtake gets a continuous line: the combined line LM28 for one direction, double continuous LM32 for both.</li>
+  <li><b>One basis for signs and markings.</b> The continuous line covers exactly the no-overtaking zones used for the P32 signs: where the passing sight distance (RDM 1.3 Table 3.20) is not available along the profile and, if set, round bends. Zones of opposite directions closer than 100 m are extended to meet, so no short overtaking length is left between them.</li>
+  <li><b>Narrow roads.</b> Under 5.5 m of carriageway there is no broken centre line and no double line; a single continuous line LM24 marks no-overtaking lengths (RDM 6.1 §4.2.1, §4.5.5).</li>
+  <li><b>Edge lines.</b> Continuous LM26 (LM27 on class A and B) on the ETW edge, both sides; without a corridor, at half a typed carriageway width.</li>
+  <li><b>Studs.</b> 6 m on the combined line system, 9 m on edge lines through no-overtaking sections and 12 m elsewhere (RDM 6.1 Table 13.2); everywhere on class A, only on no-overtaking sections otherwise.</li>
+</ul>
+<p>Quantities: markings in metres of run and m² painted (from the mark, gap and width of RDM 6.1 Tables 4.1–4.3), studs by number. On the demonstration road the proposal is 26 runs.</p>
+
+<h2 id="barriers"><span class="sec">14</span>Safety barriers</h2>
+<p><b>Propose barriers</b> works from the corridor sections (RDM 1.3 Chapter 12):</p>
+<ul>
+  <li><b>Fill height and batter</b> per section and side: from the hinge (coded point, or where the design line first drops more steeply than 1:10) to the toe where the design line meets original ground. A toe drain, bench or wall does not distort the height.</li>
+  <li><b>Original ground</b>, in order: the section's own ground line, a TIN surface in the LandXML sampled under the section (picked by name or chosen on the tab), else the daylight point. The barrier's reason says which was used.</li>
+  <li><b>Warrant</b> from the Figure 12.4 curves: required → barrier; between the curves → listed for judgement (or proposed, if ticked).</li>
+  <li><b>Length</b>: the warranted length plus the Table 12.6 run-out at both ends, at the highest design speed along the hazard and its approaches; an end on a bend is carried to the tangent point; at least 30 m; gaps under 80 m closed. Two terminals per run.</li>
+  <li><b>Set-back</b> 0.5 m from the ETW edge line, 0.75 m with AADT ≥ 12,000 and speed over 80 km/h. A verge too narrow for the set-back and post is flagged; unshielded batters steeper than 1:3 inside the clear zone are listed.</li>
+</ul>
+<figure><img src="figures/fig_map_barrier.png"><figcaption><b>Figure 9.</b> The 7.5 m embankment at the foot of the descent (CH 3+750 to 4+150): guardrail on both sides from CH 3+675 to 4+225, with 85 m of run-out at each end.</figcaption></figure>
+
+<h2 id="calming"><span class="sec">15</span>Traffic calming and crossings</h2>
+<p>Where a hump or a crossing goes is the designer's decision; RFD details it to the manuals. On the <b>Calming</b> tab pick a feature, then click <b>Place on map</b> and click the chainage, or type it and press <b>Add at chainage</b>. Each feature creates, as proposals:</p>
+<ul>
+  <li><b>Circular hump</b>: radius and chord for the chosen crossing speed (RDM 6.4 Table 2.1, 100 mm rise). <b>Trapezoidal hump</b>: ramps and gradient (Table 2.2), 2.5 m minimum flat top. <b>Speed table</b> (Figure 2.4), optionally a raised crossing. <b>Speed bump</b>: refused at a design speed of 50 km/h or more (§2.4.2).</li>
+  <li><b>Hump markings</b> (BM04) and <b>transverse bar markings</b> on the approaches at the Table 2.3 distances; bar markings can also be placed on their own ahead of any hazard.</li>
+  <li><b>Zebra crossing</b>: BM01, BM02 or BM03 for a 2, 3 or 4 m crossing (RDM 6.1 §9.2); a refuge island is flagged when the crossing is longer than 10.5 m.</li>
+  <li><b>Warning signs</b> on both approaches at the advance distance: W64 for humps and bumps, W55 for crossings.</li>
+  <li><b>Checks</b>: the feature is visible from the stopping sight distance on the design profile; the bump speed limit, the crossing width, and items beyond the alignment are flagged.</li>
+</ul>
+<p>Everything a feature creates is listed and removed together. RDM 6.2 has no pedestrian-crossing information sign; crossings are signed with W55 and the zebra.</p>
+<figure><img src="figures/fig_map_calming.png"><figcaption><b>Figure 10.</b> In the village: a 3 m zebra crossing at CH 2+950 and a circular hump at CH 3+150 (R 20 m, chord 4.0 m for 30 km/h), with their W55 and W64 signs, hump markings, bar sets and the 50 km/h limit signs.</figcaption></figure>
+
+<!-- ============================== PART 4 ============================== -->
+<h1 class="part"><span class="num">Part 4</span>Outputs</h1>
+<p class="part-intro">The inventory for the QTO, the road furniture report and its checks, and the route into Civil 3D drawings.</p>
+
+<h2 id="inventory"><span class="sec">16</span>Inventory for the QTO</h2>
+<p><b>Export inventory (Excel + CSV)</b> writes <code>*_Inventory.xlsx</code> with named Excel Tables, ready to link into a QTO workbook, and a CSV of the sign faces:</p>
+<table>
+  <thead><tr><th>Table</th><th>One row per</th><th>Main columns</th></tr></thead>
+  <tbody>
+    <tr><td class="code">RSD_Signs</td><td>sign face</td><td>Post, chainage, side, offset, edge and clearance, facing, code, description, size, legend, grade, design speed, UUIDs</td></tr>
+    <tr><td class="code">RSD_Posts</td><td>post</td><td>Post ref, chainage, side, post type, foundation, number of faces</td></tr>
+    <tr><td class="code">RSD_Linear</td><td>linear run</td><td>Item, pattern, chainages, length, side, offset, quantity, painted area, terminals</td></tr>
+    <tr><td class="code">RSD_Quantities</td><td>item</td><td>Faces by code and size, posts and foundations by type, markings in m and m², studs, barriers and terminals; live formulas over the other tables</td></tr>
+  </tbody>
+</table>
+<p>There are no rates: the tables feed the separate QTO and Bill process.</p>
+
+<h2 id="report"><span class="sec">17</span>Road furniture report</h2>
+<p><b>Road furniture report (PDF + PNG sheets + Excel)</b> asks for the plan scale (Auto, 1:500 to 1:5000, or no plan sheets) and Prepared / Checked / Approved by, kept with the project. It writes an A3 landscape PDF, a PNG per plan, long-section and strip sheet, and an Excel workbook. Every page sits in the same frame with a title block; to add a logo at the top right, point the QGIS setting <code>RoadFurnitureDesigner/report_logo</code> at an image file. The demonstration road's report is 20 pages.</p>
+
+<h3>Plan layout sheets</h3>
+<figure><img src="figures/fig_report_plan.png"><figcaption><b>Figure 11.</b> Plan sheet 1 at 1:2500: corridor edges, chainages, markings, studs and barriers in their line styles, signs upright beside the road with leaders to their posts, match lines, north arrow, scale bar, the sheet's sign list and a key plan.</figcaption></figure>
+<ul>
+  <li>Each sheet is turned so the road runs left to right. Sheet lengths adapt: on straights a sheet covers about 950 m at 1:2500; on tight curves it is shortened so the road and the signs still fit.</li>
+  <li>Signs are drawn upright at 10 mm beside the road with a leader to the post; a sign and its plate stack, back-to-back faces sit side by side, and symbols are moved until they clear one another.</li>
+  <li>Linear furniture is drawn in its line style and colour; proposals carry a faint orange halo. The LandXML's other alignments are drawn and named.</li>
+</ul>
+
+<h3>Long-section sheets</h3>
+<figure><img src="figures/fig_report_section.png"><figcaption><b>Figure 12.</b> Long section CH 1+000 to 2+000: signs for each direction above and below the profile, the no-overtaking bars over the crest, the short crest's stopping-sight-distance band, the curvature band with the R 180 m bends and their safe speed, and grades.</figcaption></figure>
+
+<h3>Strip diagram</h3>
+<figure><img src="figures/fig_report_strip.png"><figcaption><b>Figure 13.</b> Strip diagram CH 3+000 to 4+430: signs for each direction, barriers, edge and centre lines, studs, the hump and crossing, the 50 km/h zone and the no-overtaking zones from the passing sight distance.</figcaption></figure>
+<p>A straight-line diagram, 1 km per strip and three strips per page, of everything along the road against one chainage scale, so signs and markings can be checked by eye against the no-overtaking zones they follow. The combined line shows which side binds; proposed items have a light orange band.</p>
+
+<h3>Schedules and workbook</h3>
+<div class="cols">
+  <figure><img src="figures/fig_report_schedule.png"><figcaption><b>Figure 14.</b> Sign schedule.</figcaption></figure>
+  <figure><img src="figures/fig_report_markings.png"><figcaption><b>Figure 15.</b> Markings and road studs schedule.</figcaption></figure>
+</div>
+<div class="cols">
+  <figure><img src="figures/fig_report_findings.png"><figcaption><b>Figure 16.</b> Geometry findings.</figcaption></figure>
+  <figure><img src="figures/fig_report_features.png"><figcaption><b>Figure 17.</b> Traffic calming and crossings.</figcaption></figure>
+</div>
+<p>After the sign schedule and the geometry findings come the markings and studs schedule, the barrier schedule (with the basis of each run), traffic calming and crossings, the linear quantities and the furniture checks. The Excel workbook has the sheets Signs, Findings, Horizontal curves, Vertical curves, Markings, Barriers, Features, Furniture quantities, Furniture checks and Basis.</p>
+
+<h2 id="fchecks"><span class="sec">18</span>Furniture checks</h2>
+<p>When the report is made, RFD works the following out again from the geometry with the project's settings and compares it with what is in the project. Each check is an Issue, a Check or Info, for the designer to resolve or accept.</p>
+<figure><img src="figures/fig_report_checks.png"><figcaption><b>Figure 18.</b> Furniture checks for the demonstration road: two alignment combinations for the designer to look at, and the source of the fill heights.</figcaption></figure>
+<table>
+  <thead><tr><th>Check</th><th>What is compared</th></tr></thead>
+  <tbody>
+    <tr><td>Centre line</td><td>Every no-overtaking zone has a centre line that prohibits overtaking for that direction. The passing sight distance governs.</td></tr>
+    <tr><td>Barriers</td><td>Every span the fill warrant asks for, with its run-out, is covered. Barriers without a fill warrant are listed (fine for obstacles and structures RFD does not check); discretionary fills, clear-zone and verge notes.</td></tr>
+    <tr><td>Signs</td><td>Signs the geometry asks for are in the project; signs facing the same traffic are 0.6 V apart (chevron series and plates excepted); proposals not yet accepted.</td></tr>
+    <tr><td>Start and end of restrictions</td><td>Every sign that opens a restriction is closed further on for the same traffic, and plates go with their signs: P32 → P32 + END (with a W23 at the start); P5–P8 → P9 or the next limit; P14 → P14 + END; P17 → P18; P30 → P31; W27 → W28; IM12/IM13 → IM4/IM26; W21/W22 with a W23; road works RW40 → RW40 + RW41, RW38 → RW39, RW30–RW34 → RW35. Applies to signs placed by hand as well as RFD's own. The pairs are in <code>rfd/data/sign_pairs.json</code>; add rules in <code>RFD_SIGN_PAIRS_PATH</code>.</td></tr>
+    <tr><td>Alignment combinations</td><td>A sag inside a bend that limits the speed; a warned bend within the stopping sight distance beyond a crest.</td></tr>
+    <tr><td>Features and speed limits</td><td>Calming features and crossings visible from the SSD; a speed limit above the design speed.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="dxf"><span class="sec">19</span>DXF for Civil 3D drawings</h2>
+<p><b>Export to Civil 3D (package + DXF)</b> asks for the plan scale (default 1:2500) and writes the placement package (<code>*_placement.json</code>) and a DXF.</p>
+<figure><img src="figures/fig_dxf.png"><figcaption><b>Figure 19.</b> The exported DXF at the sharp curve, 1:2500: each sign a block at its post with a leader to the upright face; markings at their painted width; chainages; corridor edges and the alignment on non-plotting reference layers.</figcaption></figure>
+<ul>
+  <li><b>Size.</b> Symbols print at 10 mm: 25 m in model space at 1:2500, 10 m at 1:1000. Codes, legends and chainages print at 1.8 mm.</li>
+  <li><b>One block per sign, at the post.</b> Each sign is a block <code>RSDC_&lt;code&gt;_&lt;id&gt;</code> inserted at the post's true coordinates, holding a post marker, a leader, the face upright and the code. Directional signs and plates get their own block with the real legend.</li>
+  <li><b>Attributes and identity.</b> Every sign block carries <code>SIGN_CODE</code>, <code>LEGEND</code>, <code>DESCRIPTION</code>, <code>SIZE</code>, <code>CHAINAGE</code>, <code>OFFSET</code>, <code>SIDE</code>, <code>FACING</code>, <code>POST_REF</code>, <code>FACE_UUID</code> and <code>INSTALL_UUID</code>, with the UUIDs repeated in XDATA (application <code>RSD</code>).</li>
+  <li><b>Linear furniture</b> on <code>RSD-MARK-*</code>, <code>RSD-STUD-*</code> and <code>RSD-BARRIER-*</code> layers in world coordinates; broken lines use metre linetypes and markings are drawn at their painted width.</li>
+  <li><b>Reference geometry</b> (non-plotting): the alignment with chainages, every other alignment in the LandXML, the corridor edges by code, and a coordinate check point.</li>
+</ul>
+<figure><img src="figures/fig_dxf_legend.png"><figcaption><b>Figure 20.</b> A directional sign and a place-name sign in the DXF, with their legends as real text.</figcaption></figure>
+
+<h2 id="georef"><span class="sec">20</span>Copy and paste at the true coordinates</h2>
+<p>The DXF is in the LandXML's own world coordinates: easting and northing in metres, with no local origin, shift, scale or rotation. The header records metres as the unit and custom variables <code>RSD_CRS</code>, <code>RSD_MAP_ZONE</code>, <code>RSD_SOURCE_LANDXML</code>, <code>RSD_ALIGNMENT</code> and <code>RSD_COORDINATES</code>.</p>
+<ol class="steps">
+  <li>Open <code>*_placement.dxf</code> in Civil 3D.</li>
+  <li>Select what to copy, for example <code>QSELECT</code> → Layer = <code>RSD-SIGN</code>.</li>
+  <li><code>COPYBASE</code> with base point <code>0,0,0</code>.</li>
+  <li>In the project drawing, run <b><code>PASTEORIG</code></b>. Everything lands at its true coordinates.</li>
+</ol>
+<p>Alternatively, <code>INSERT</code> or <code>XREF</code> the whole DXF at <code>0,0,0</code>, scale 1, rotation 0. The project drawing must be in metres, use the same coordinate system and be in the World UCS.</p>
+<div class="tip"><b>Check point</b>The layer <code>RSD-REF-NOTES</code> holds a cross at the start of the alignment labelled with its easting and northing. Paste it once to confirm it falls on the Civil 3D alignment, then delete it.</div>
+<p>Dynamo scripts that place native blocks and read moves back are kept in <code>dynamo/</code>, but that route is parked; use the DXF.</p>
+
+<!-- ============================== PART 5 ============================== -->
+<h1 class="part"><span class="num">Part 5</span>Technical manual</h1>
+<p class="part-intro">How the data is stored, what is read from the LandXML, the geometry and design formulas, the catalogue, the plan-layout method, and how the outputs were verified.</p>
+
+<h2 id="data"><span class="sec">21</span>Data model</h2>
+<table>
+  <thead><tr><th>Table</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td class="code">rsd_signs</td><td>Point per sign face. User fields and derived fields (Appendix A).</td></tr>
+    <tr><td class="code">rsd_lines</td><td>Linear runs: item, chainages, side, offset and edge, width and flip, status, rule and reason; geometry, length and quantities derived.</td></tr>
+    <tr><td class="code">rsd_meta</td><td>Key/value: LandXML path (relative), alignment, project name, schema, CRS, criteria set, Prepared / Checked / Approved by.</td></tr>
+    <tr><td class="code">rsd_alignment, rsd_chainage, rsd_edges, rsd_vcurves</td><td>Alignment, chainage ticks, corridor edges, vertical curves.</td></tr>
+  </tbody>
+</table>
+<p>Faces on one post share an <code>install_uuid</code>; each face has its own <code>face_uuid</code>; each run its <code>line_uuid</code>. The UUIDs follow an item through the inventory, the package, the DXF and any read-back. Everything a rule, a feature or a speed zone creates carries its <code>rule</code> (<code>curve</code>, <code>marking</code>, <code>barrier</code>, <code>feature:&lt;id&gt;</code>, <code>speed:&lt;id&gt;</code> …), so it can be listed, replaced or removed as a group. On-disk names keep the <code>rsd_</code>/<code>RSD</code> prefix of earlier versions so existing projects and drawings keep working.</p>
+
+<h2 id="landxml"><span class="sec">22</span>What is read from the LandXML</h2>
+<table>
+  <thead><tr><th>Element</th><th>Used for</th></tr></thead>
+  <tbody>
+    <tr><td class="code">CoordinateSystem</td><td>EPSG code and name: layer CRS, DXF header.</td></tr>
+    <tr><td class="code">Alignment / CoordGeom</td><td>Line, Curve and clothoid Spiral elements; coordinates northing first, as Civil 3D writes them.</td></tr>
+    <tr><td class="code">StaEquation</td><td>Displayed chainage versus internal station.</td></tr>
+    <tr><td class="code">Feature SpeedStation, Roadway/DesignSpeed</td><td>Design speed by chainage.</td></tr>
+    <tr><td class="code">Superelevation / FullSuperelev</td><td>e for curve speeds.</td></tr>
+    <tr><td class="code">Profile / ProfAlign, ProfSurf</td><td>Design profile; existing ground on the long sections.</td></tr>
+    <tr><td class="code">CrossSects</td><td>Coded points (ETW, EPS, Hinge, Ditch, Daylight) become road edges and barrier sections; the section ground line is the original ground for barriers.</td></tr>
+    <tr><td class="code">Surfaces</td><td>Skipped when loading; read only to sample original ground under sections that lack a ground line.</td></tr>
+  </tbody>
+</table>
+<p>The file is streamed (<code>iterparse</code>) and corridor sections are read by a byte scan, so large exports load quickly: a 59 MB project export opens in about 0.6 s.</p>
+
+<h2 id="geometry"><span class="sec">23</span>Geometry methods</h2>
+<ul>
+  <li><b>Point at station and offset.</b> Closed form for lines and arcs, numerical integration of curvature for clothoids. Positive offsets are to the right of increasing chainage.</li>
+  <li><b>Station and offset of a point.</b> The alignment is densified, the nearest segment found through a grid index, and the result refined on the element.</li>
+  <li><b>Road edges.</b> Section offsets are interpolated along the road per code and side; an edge is absent across a gap longer than three times its usual section spacing (at least 30 m).</li>
+  <li><b>Corridor clamp.</b> The post is held 0.6–3.0 m beyond the reference edge; the outer corridor limit applies only where the verge is modelled.</li>
+  <li><b>Sight distance.</b> A running scan of the profile (and, if set, a sight line inside bends) gives the farthest visible point from each station in each direction.</li>
+</ul>
+
+<h2 id="criteria"><span class="sec">24</span>Design criteria and formulas</h2>
+<table>
+  <thead><tr><th>Item</th><th>Method</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td>Curve safe speed</td><td>V² = 127 R (e + f<sub>max</sub>(V)), solved by iteration</td><td>RDM 1.3 Table 5.1</td></tr>
+    <tr><td>Advance distance</td><td>6 s of travel at the design speed, rounded up to 10 m</td><td>RDM 6.2 §2.4</td></tr>
+    <tr><td>Spacing; lateral position</td><td>0.6 V metres; 0.6–3.0 m beyond the edge</td><td>RDM 6.2 §2.4</td></tr>
+    <tr><td>Chevron spacing</td><td>By radius</td><td>RDM 6.2 Table 4.2</td></tr>
+    <tr><td>Steep grades</td><td>Descent &gt; 5 %, ascent &gt; 10 %</td><td>RDM 6.2 §4.6.4</td></tr>
+    <tr><td>Stopping and passing sight distance</td><td>Eye 1.05 m; object 0.20 m (SSD), 1.3 m (reduced PSD)</td><td>RDM 1.3 Tables 3.13, 3.16, 3.20</td></tr>
+    <tr><td>Crest and sag K</td><td>Headlight sight distance in sags (0.6 m, 1° up-spread)</td><td>RDM 1.3 Tables 6.1, 6.4</td></tr>
+    <tr><td>Marking dimensions; stud intervals</td><td>Mark, gap and width by speed class; 6 / 9 / 12 m</td><td>RDM 6.1 Tables 4.1–4.3, 13.2</td></tr>
+    <tr><td>Barrier warrant, run-out, set-back, clear zone</td><td>Figure 12.4 curves (digitised); Table 12.6; §12.6.6; Table 12.1</td><td>RDM 1.3 Chapter 12</td></tr>
+    <tr><td>Humps, tables, bumps, bar markings</td><td>Tables 2.1–2.3, Figure 2.4, §2.4.2</td><td>RDM 6.4</td></tr>
+    <tr><td>Speed limit signs</td><td>Start, middle and end of the section; P9 at the end</td><td>RDM 6.2 §3.5</td></tr>
+    <tr><td>Sign sizes</td><td>By design speed for Stop, Give Way, warning and circular regulatory signs</td><td>RDM 6.2 Tables 3.1, 3.3, 4.1</td></tr>
+  </tbody>
+</table>
+<div class="note"><b>Criteria files</b>The values above live in criteria files (<code>rfd/data/criteria</code>): <code>kenya_rdm_2025</code> (default) and <code>aashto_2011</code>. Other manuals or project values can be added as files with an <code>extends</code> parent, through <code>RFD_CRITERIA_PATH</code> or the Auto tab's <b>Add…</b>; see <code>docs/criteria/README.md</code>. The report's Basis sheet cites the tables used.</div>
+
+<h2 id="catalogue"><span class="sec">25</span>The sign catalogue</h2>
+<figure><img src="figures/fig_catalogue.png"><figcaption><b>Figure 21.</b> A selection of the 251 signs in the catalogue, drawn from RDM 6.2's own figures.</figcaption></figure>
+<ul>
+  <li><b>Source.</b> <code>tools/extract_rdm_signs.py</code> reads RDM 6.2 (2025), matches each figure caption to its framed artwork, keeps the sign and drops dimension lines, and writes an SVG icon and a CAD block per sign (<code>RSD_&lt;code&gt;</code>). <code>tools/build_catalogue.py</code> adds sizes, legend types and size rules.</li>
+  <li><b>Coverage.</b> R, M, P, W, I, E, PD, IM and RW signs. Signs used both ways round have a mirrored version (<code>_M</code>); W24 chevrons are split into W24-a to W24-d.</li>
+  <li><b>END plate.</b> RDM 6.2 ends a no-overtaking zone (§3.11) and a clearway (§3.6) with the same sign and a supplementary plate reading END, but gives the plate no code. RFD calls it <code>END</code>; its artwork is the identical plate of Figure 10.43 (RW41).</li>
+  <li><b>Numbering clashes in the manual</b>: Fig 7.1 captioned P1 becomes PD1; County Boundary becomes I10B; the expressway symbol becomes IM4S; directional examples become I20-D, I21-D, I22-D.</li>
+  <li><b>Not in the catalogue.</b> Design drawings without artwork (I1-C, I2-b, I5-a, IM7, IM14, IM15, IM20, IM28). RDM 6.2 has no pedestrian-crossing information sign and no bus-stop sign.</li>
+  <li><b>Coding.</b> RFD uses RDM 6.2 codes on drawings and schedules. The Ministry's standard drawings WSCM/84/2/01 (2024) number signs differently.</li>
+</ul>
+
+<h2 id="layout"><span class="sec">26</span>Plan layout of symbols and sheets</h2>
+<p>At drawing scale a sign symbol is far bigger than its post (25 m at 1:2500), so drawings show it beside the road with a leader. The same method places symbols in the DXF and on the plan sheets:</p>
+<ol>
+  <li>Faces are grouped by post. Faces with the same facing stack top to bottom (sign over plate); back-to-back faces sit side by side.</li>
+  <li>Groups are taken in chainage order. Each is tried just outside its post, away from the road, then slid along the road and only then moved further out, until its box clears every box already placed.</li>
+  <li>The leader runs from the post to the nearest point of the group's box.</li>
+</ol>
+<p>Plan sheets are cut so the road fits: the window is shortened by 10 % at a time until the road, turned to run along the sheet, fits the viewport with room for symbols either side.</p>
+
+<h2 id="validation"><span class="sec">27</span>Verification</h2>
+<table>
+  <thead><tr><th>Check</th><th>Data</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Automated tests</td><td>Synthetic roads</td><td>281 core tests, including 60 random roads through signs and markings, 40 with random embankments, 30 with random calming features, 30 with random speed zones and 30 through the report checks; 40 headless QGIS tests.</td></tr>
+    <tr><td>Whole workflow</td><td>Nine alignments from private Civil 3D exports (names withheld)</td><td>Signs, markings, barriers, features, speed zones, report (up to 97 pages for a 36 km road in about 2 s), inventory and DXF, with no failures; RFD's own proposals pass its furniture checks.</td></tr>
+    <tr><td>Alignment geometry</td><td>Private exports with up to 26 spirals</td><td>Element ends reproduce the LandXML coordinates.</td></tr>
+    <tr><td>DXF georeferencing</td><td>Private export; automated test</td><td>The reference alignment starts exactly at the LandXML's first point; every sign back-computes to its chainage and offset with no measurable difference; sign blocks are inserted at their posts.</td></tr>
+    <tr><td>Paste into a project drawing</td><td>Civil 3D project drawing</td><td>COPYBASE 0,0 and PASTEORIG: signs and plates landed on the alignment at their chainages.</td></tr>
+    <tr><td>Barrier heights</td><td>Private export with section ground lines and a TIN</td><td>Heights from the section ground lines and from the TIN agree to the millimetre.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="limits"><span class="sec">28</span>Limitations and roadmap</h2>
+<ul>
+  <li><b>Markings</b>: breaks through junctions, splayed and hatched double lines on sharp bends (RDM 6.1 Figure 4.6) and lane lines on multi-lane roads are not proposed yet; draw them by hand.</li>
+  <li><b>Barriers</b>: roadside obstacles (RDM 1.3 Table 12.4), median barriers, terminal flares and bridge parapets are not proposed.</li>
+  <li><b>Junctions</b>: junction signing (RDM Table A1-1) is not automated.</li>
+  <li><b>Signs outside RDM 6.2</b> that projects use are planned as a separate, clearly marked catalogue group.</li>
+  <li><b>Civil 3D</b>: the DXF paste works; the Dynamo link is parked. Block names, layers and annotation style can be matched to an office standard later.</li>
+  <li><b>Quantities</b>: post and foundation types are generic and project-defined.</li>
+</ul>
+
+<h2 id="trouble"><span class="sec">29</span>Troubleshooting</h2>
+<table>
+  <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
+  <tbody>
+    <tr><td>Export says to fix errors first</td><td>A check is at error level (for example a post inside the travelled way). Fix it on the Inventory tab's list.</td></tr>
+    <tr><td>No road edges, no edge lines or no barriers proposed</td><td>The LandXML has no coded corridor sections. Export them from Civil 3D, or give a carriageway width on the Linear tab for edge lines.</td></tr>
+    <tr><td>Barrier heights look too small or too large</td><td>Check which ground was used (the reason says): without a section ground line or TIN the daylight point is used. Choose the ground surface on the Linear tab.</td></tr>
+    <tr><td>Signs pasted in the wrong place</td><td>The project drawing is in another coordinate system, in millimetres, or in a user UCS. Check the check point against the alignment.</td></tr>
+    <tr><td>Every sign sized for 80 km/h, or no curve warnings where expected</td><td>No design speeds or superelevation in the LandXML. Define them in Civil 3D and export again.</td></tr>
+    <tr><td>No grade, no-overtaking or centre-line proposals</td><td>The design profile is not attached to the alignment in the export.</td></tr>
+    <tr><td>"Restriction not ended" in the checks</td><td>A sign such as P32 or a speed limit is not closed before the alignment end. Fine if it continues beyond the project; otherwise add the end sign.</td></tr>
+    <tr><td>Export libraries missing</td><td>The plugin's <code>ext_libs</code> folder is missing. Reinstall from the ZIP.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="appendix" class="pb">Appendix A · Fields and layers</h2>
+<h3>Sign layer fields (rsd_signs)</h3>
+<table>
+  <thead><tr><th>Field</th><th>Kind</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="code">face_uuid, install_uuid</td><td>identity</td><td>Face and post identities, kept across all exchanges.</td></tr>
+    <tr><td class="code">post_ref</td><td>user</td><td>Post number (P001…).</td></tr>
+    <tr><td class="code">sign_code, size, size_auto, mirror</td><td>user</td><td>RDM code, size (mm or custom), Auto size, mirrored version.</td></tr>
+    <tr><td class="code">facing, facing_auto, skew</td><td>user</td><td>Forward / Backward, Auto facing, skew in degrees.</td></tr>
+    <tr><td class="code">legend, road_class</td><td>user</td><td>Legend text and colour scheme.</td></tr>
+    <tr><td class="code">post_type, foundation, remarks</td><td>user</td><td>For the QTO.</td></tr>
+    <tr><td class="code">status, rule, reason</td><td>engine</td><td><code>proposed</code>, <code>approved</code> (accepted proposal) or empty for hand-placed; the rule and the reason.</td></tr>
+    <tr><td class="code">chainage, chainage_m, station_int</td><td>derived</td><td>Displayed chainage (text and metres) and internal station.</td></tr>
+    <tr><td class="code">offset_m, side, face_az</td><td>derived</td><td>Offset from the centreline, L/R, face azimuth.</td></tr>
+    <tr><td class="code">edge_ref, edge_clear</td><td>derived</td><td>Reference edge and clearance beyond it.</td></tr>
+    <tr><td class="code">grade_pct, speed_kmh</td><td>derived</td><td>Design grade and speed at the sign.</td></tr>
+    <tr><td class="code">description, face_svg, stack</td><td>derived</td><td>Sign name, generated face file, position in the post's stack.</td></tr>
+  </tbody>
+</table>
+<h3>Linear layer fields (rsd_lines)</h3>
+<table>
+  <thead><tr><th>Field</th><th>Kind</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="code">line_uuid</td><td>identity</td><td>Run identity, kept across exchanges.</td></tr>
+    <tr><td class="code">item_code, sta_from, sta_to, side, offset_m, edge_ref</td><td>user</td><td>Item, internal chainages, L / C / R, offset and the edge it is measured from.</td></tr>
+    <tr><td class="code">width_m, flip, no_overtaking</td><td>user</td><td>Width across the road (transverse items); combined line binding the other direction; stud interval.</td></tr>
+    <tr><td class="code">status, rule, reason, remarks</td><td>engine / user</td><td>As for signs.</td></tr>
+    <tr><td class="code">description, category, colour, pattern, unit</td><td>derived</td><td>From the catalogue; pattern at the design speed of the run.</td></tr>
+    <tr><td class="code">ch_from, ch_to, length_m, quantity, speed_kmh</td><td>derived</td><td>Displayed chainages, length, quantity (m, number or m²) and design speed.</td></tr>
+  </tbody>
+</table>
+<h3>DXF layers</h3>
+<table>
+  <thead><tr><th>Layer</th><th>Plots</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td class="code">RSD-SIGN, RSD-SIGN-TEXT, RSD-SIGN-LEADER</td><td>yes</td><td>Sign blocks, attribute text, post markers and leaders.</td></tr>
+    <tr><td class="code">RSD-MARK-*, RSD-STUD-*, RSD-BARRIER-*</td><td>yes</td><td>Markings, road studs and barriers by item code.</td></tr>
+    <tr><td class="code">RSD-ALIGN, RSD-ALIGN-OTHER</td><td>no</td><td>Alignment with chainages; other alignments, named.</td></tr>
+    <tr><td class="code">RSD-EDGE-&lt;code&gt;, RSD-REF-NOTES</td><td>no</td><td>Corridor edges by code; coordinate check point.</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

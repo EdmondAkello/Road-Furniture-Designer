@@ -144,5 +144,5 @@ def test_tin_ground(monkeypatch):
     f, note = B.fills(al, B.BarrierConfig(landxml="x.xml"))
     assert f[0].source == "TIN EG" and f[0].height == pytest.approx(7.87, abs=0.01) and "TIN" in note
     assert T.is_ground_name("OGL-LOT_24.07.2026_REV 0") and T.is_ground_name("EG") and T.is_ground_name("Terrain")
-    assert not T.is_ground_name("BOTTOM") and not T.is_ground_name("OLKARIA LOT 3 TOP")
-    assert T.is_design_name("OLKARIA LOT 3 TOP")
+    assert not T.is_ground_name("BOTTOM") and not T.is_ground_name("SITE A LOT 3 TOP")
+    assert T.is_design_name("SITE A LOT 3 TOP")
