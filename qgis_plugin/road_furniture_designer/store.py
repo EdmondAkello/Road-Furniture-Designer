@@ -843,12 +843,27 @@ class SignStore(QObject):
                 ml.addFeature(f)
         ml.commitChanges()
 
-    def add_junction(self, pl, kit, piece="", guides=True):
-        """Place junction pieces; where our road is the minor road, also propose its R2 Give Way.
-        Returns (pieces, findings, signs proposed)."""
+    def add_junction(self, pl, kit, piece="", guides=True, params=None):
+        """Place junction pieces or a bus bay; where our road is the minor road, also propose its R2 Give
+        Way; a bus bay proposes its bus stop sign. Returns (pieces, findings, signs proposed)."""
         from .rfd import junctions as J
-        n, finds = self.junctions.add(pl, kit, piece, guides)
+        n, finds = self.junctions.add(pl, kit, piece, guides, params)
         signs = 0
+        if pl.role == "bay":
+            j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
+            if j and j["bay"]:
+                b = j["bay"]
+                s1 = b["stations"][1]
+                off = (self.al.edges.offset("ETW", b["side"], s1) if self.al.edges else None) or 3.5
+                off += b["depth"] + 1.5
+                x, y, _ = self.al.point_at(s1, off if b["side"] == "R" else -off)
+                try:
+                    self.add_sign(x, y, "WSCM-I3", facing="Forward" if b["side"] == "L" else "Backward",
+                                  status="proposed", rule=f"junction:{pl.junction_id}",
+                                  reason="Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)")
+                    signs += 1
+                except ValueError:
+                    pass
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))

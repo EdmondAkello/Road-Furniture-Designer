@@ -131,7 +131,7 @@ dock.set_store(st)
 dock.resize(470, 860)
 tabs = dock.findChild(QTabWidget)
 names = {"Place": "place", "Inventory": "inventory", "Auto": "auto", "Signs": "signs", "Linear": "linear",
-         "Calming": "calming", "Speed limits": "speed", "Junctions": "junctions"}
+         "Calming": "calming", "Speed limits": "speed", "Junctions + bays": "junctions"}
 for i in range(tabs.count()):
     name = names.get(tabs.tabText(i))
     if not name:

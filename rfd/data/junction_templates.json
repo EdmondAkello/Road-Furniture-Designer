@@ -22,6 +22,10 @@
   "C": {
    "name": "Junction type C",
    "drawing": "RDM/1/3/2/02"
+  },
+  "BUS": {
+   "name": "Bus bay",
+   "drawing": "RDM/1/3/3/01"
   }
  },
  "codes": {
@@ -71,6 +75,25 @@
   },
   "GUIDE": {
    "name": "Construction guide (not marked on the road)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "LM05": {
+   "name": "Bus bay separation line, 1 m / 1 m (white)",
+   "width": 0.1,
+   "colour": "white",
+   "dash": [
+    1.0,
+    1.0
+   ]
+  },
+  "BUSPLAT": {
+   "name": "Bus bay loading platform, raised (hatched)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "SHELTER": {
+   "name": "Bus shelter position (indicative)",
    "width": 0.0,
    "colour": "grey"
   }
@@ -293,6 +316,24 @@
     "nose": 2.0
    },
    "remark": "Construction only: no quantities. Kerb returns are single-radius fillets (RDM 1.3 Fig 9.25 uses R1:R2:R3 = 2:1:3 three-centred curves, R2 8-12 m); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1)."
+  },
+  "bus_bay": {
+   "name": "Bus bay (RDM/1/3/3/01)",
+   "types": [
+    "BUS"
+   ],
+   "frame": "road",
+   "kind": "bay",
+   "params": {
+    "bay": 25.0,
+    "entry": null,
+    "exit": 18.0,
+    "depth": 4.0,
+    "platform": 1.0,
+    "ramp": 2.0,
+    "shelter": 6.0
+   },
+   "remark": "Entry taper A = 30 m, 25 m where the speed limit is 50 km/h or less; bay B as clicked (25 m for more than one bus); exit taper C = 18 m; 4.0 m deep; 1.0 m raised platform; flush kerbs on the tapers, raised along the bay with 2 m ramped kerbs. Bays serving opposite directions at least 60 m apart, centre to centre."
   }
  },
  "kits": {
@@ -473,6 +514,11 @@
     "params": {
      "start": 22.0
     }
+   }
+  ],
+  "BUS": [
+   {
+    "piece": "bus_bay"
    }
   ]
  }

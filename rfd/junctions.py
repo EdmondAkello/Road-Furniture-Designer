@@ -91,6 +91,24 @@ def main_alignment(al, pl: Placement, others=()):
     raise ValueError("A junction on another road needs that road (an alignment or a clicked direction)")
 
 
+def place_bay(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement:
+    """Bus bay from two clicks: where the bay (the stopping length) starts and where it ends, on the side
+    clicked. The tapers are added before and after it in the direction of travel."""
+    a, b = al.station_offset(x0, y0), al.station_offset(x1, y1)
+    if not (a.in_range and b.in_range):
+        raise ValueError("Beyond the alignment ends")
+    if abs(b.station - a.station) < 5.0:
+        raise ValueError("The bay must be at least 5 m long")
+    side = "R" if a.offset >= 0 else "L"
+    left = side == "L"
+    if (b.station > a.station) != left:            # the bay starts where traffic reaches it first
+        a, b = b, a
+    _, _, h = al.point_at(a.station)
+    bearing = h + (math.pi / 2 if left else -math.pi / 2)
+    pl = Placement(a.station, bearing, role="bay", **kw)
+    return pl, abs(b.station - a.station)
+
+
 def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Optional[float] = None,
                 major=None, **kw) -> Tuple[Placement, object]:
     """Our road joins another road. (x0, y0): a click on our road where it meets the main road (snapped to
@@ -410,6 +428,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
         return _guides(F, spec, P, piece)
+    elif piece == "bus_bay":
+        return _bus_bay(F, spec, P, piece)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
 
@@ -499,6 +519,83 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "guide", "", parts, {}, P)
 
 
+def bay_stations(al, pl: Placement, P: dict, sigma: int):
+    """(entry start, bay start, bay end, exit end, travel direction) in chainage. Kenya drives on the left:
+    traffic on the left of the chainage direction travels with it, so its entry taper comes first."""
+    dirn = 1 if sigma > 0 else -1
+    v = al.speed_at(pl.station) or 80.0
+    A = P.get("entry") or (25.0 if v <= 50 else 30.0)
+    s1 = pl.station
+    s2 = s1 + dirn * P["bay"]
+    return s1 - dirn * A, s1, s2, s2 + dirn * P["exit"], dirn, A
+
+
+def _bus_bay(F: Frame, spec, P, piece) -> Piece:
+    al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
+    s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
+    depth, plat, ramp = P["depth"], P["platform"], P["ramp"]
+
+    def edge(s):
+        e = getattr(al, "edges", None)
+        o = e.offset("ETW", "L" if sg < 0 else "R", s) if e else None
+        return abs(o) if o is not None else F.e
+
+    def widen(s):                                              # widening beyond the edge, smooth tapers
+        t = (s - s0) * dirn
+        if t <= 0:
+            return 0.0
+        if t < A:
+            return depth * (1 - math.cos(math.pi * t / A)) / 2
+        if t <= A + P["bay"]:
+            return depth
+        u = t - A - P["bay"]
+        return depth * (1 + math.cos(math.pi * u / P["exit"])) / 2 if u < P["exit"] else 0.0
+
+    lo, hi = sorted((s0, s3))
+    lo, hi = max(lo, al.sta_start), min(hi, al.sta_end)
+    n = max(2, int((hi - lo) / 1.0))
+    ss = [lo + (hi - lo) * i / n for i in range(n + 1)]
+    pt = lambda s, o: al.point_at(s, sg * o)[:2]
+    kerb = [pt(s, edge(s) + widen(s)) for s in ss]
+    parts = [Part("KERB", kerb)]
+    # loading platform behind the kerb along the bay, hatched
+    b0, b1 = sorted((s1, s2))
+    bs = [b0 + (b1 - b0) * i / 20 for i in range(21)]
+    plat_ring = [pt(s, edge(s) + depth) for s in bs] + [pt(s, edge(s) + depth + plat) for s in reversed(bs)]
+    parts.append(Part("BUSPLAT", plat_ring, True))
+    for k in range(1, int((b1 - b0) / 1.0)):
+        s = b0 + k * 1.0
+        parts.append(Part("BUSPLAT", [pt(s - 0.5, edge(s) + depth), pt(s + 0.5, edge(s) + depth + plat)]))
+    # separation line along the carriageway edge, 1 m marks, 1 m gaps
+    s = lo
+    while s + 1.0 <= hi:
+        parts.append(Part("LM05", [pt(s, edge(s)), pt(s + 1.0, edge(s + 1.0))]))
+        s += 2.0
+    # indicative shelter position behind the platform, mid-bay
+    if P.get("shelter"):
+        m, L = (b0 + b1) / 2, P["shelter"] / 2
+        o0, o1 = edge(m) + depth + plat + 0.5, edge(m) + depth + plat + 2.5
+        parts.append(Part("SHELTER", [pt(m - L, o0), pt(m + L, o0), pt(m + L, o1), pt(m - L, o1)], True))
+    widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
+    lm05 = sum(length(p.pts) for p in parts if p.code == "LM05")
+    q = {"kerb_m": round(length(kerb), 2), "raised_kerb_m": round(abs(s2 - s1) + 2 * ramp, 2),
+         "island_m2": round(area(plat_ring), 2), "widen_m2": round(widen_area, 2),
+         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.1, 3)}
+    P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R")
+    return Piece(piece, spec["name"], "bay", "", parts, q, P)
+
+
+def bay_table(al, rows) -> List[dict]:
+    """Widening table for Civil 3D, one row per bus bay: (entry start, bay start, bay end, exit end, side, width)."""
+    out = []
+    for r in rows:
+        s0, s1, s2, s3 = r["stations"]
+        a, b = sorted((s0, s3))
+        out.append({"side": r["side"], "start": a, "end": b, "full_from": min(s1, s2), "full_to": max(s1, s2),
+                    "entry": r["entry"], "exit": r["exit"], "width": r["depth"]})
+    return out
+
+
 def _main_edge(F: Frame, X: float) -> Pt:
     sta = min(max(F.pl.station + X * F.s, F.al.sta_start), F.al.sta_end)
     x, y, _ = F.al.point_at(sta, -F.sigma * F.e)
@@ -519,8 +616,10 @@ def build_kit(al, pl: Placement, jtype: str, templates: Optional[dict] = None,
 def findings(al, pl: Placement) -> List[Tuple[str, str]]:
     """al: the main road's alignment (main_alignment)."""
     """(level, text) about the placement: skew to RDM 1.3 9.2.3, junction near the alignment ends."""
-    F = pl.frame(al)
     out = []
+    if pl.role == "bay":
+        return out
+    F = pl.frame(al)
     ang = F.crossing_angle
     if ang < SKEW_MINIMUM:
         out.append(("issue", f"crossing angle {ang:.0f} deg is beyond the absolute minimum of {SKEW_MINIMUM:.0f} deg "
@@ -528,6 +627,8 @@ def findings(al, pl: Placement) -> List[Tuple[str, str]]:
     elif ang < SKEW_PREFERRED[0]:
         out.append(("check", f"crossing angle {ang:.0f} deg: preferably 75-120 deg; the designer should justify "
                              f"a skew under 75 deg (RDM 1.3 9.2.3)"))
+    if pl.role == "bay":
+        return out
     if min(pl.station - al.sta_start, al.sta_end - pl.station) < 60:
         out.append(("info", "junction within 60 m of the alignment end: main-road pieces are cut at the end"))
     return out
