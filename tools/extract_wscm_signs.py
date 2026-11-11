@@ -110,6 +110,119 @@ def red_border(svg):
     return head + "\n" + "\n".join(body) + "\n</svg>"
 
 
+FRAME = {"I1": "the drawn frame stops short of the corners and a stray blue arc sits on it; drawn with a closed, "
+                "rounded frame", "I2": "the drawn frame stops short of the corners; drawn with a closed, rounded frame"}
+
+
+def clean_frame(svg: str) -> str:
+    """Replace a frame drawn as four bars short of the corners (and stray blue strokes) with one rounded frame."""
+    vb = [float(x) for x in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+    W, H = vb[2], vb[3]
+    m = 0.06 * min(W, H)
+    out = []
+    for p in re.findall(r"<path [^>]*/>", svg):
+        if re.search(r'stroke="#1d24e2"', p):
+            continue                                                       # stray blue strokes
+        nums = [float(x) for x in re.findall(r"-?\d+\.?\d*", re.search(r'd="([^"]+)"', p).group(1))]
+        xs, ys = nums[0::2], nums[1::2]
+        thin = min(max(xs) - min(xs), max(ys) - min(ys)) < 1.5
+        on_edge = max(xs) < m or min(xs) > W - m or max(ys) < m or min(ys) > H - m
+        if thin and on_edge:
+            continue                                                       # a bar of the broken frame
+        out.append(p)
+    sw, r = 0.012 * min(W, H), 0.05 * min(W, H)
+    frame = (f'<rect x="{1.2 + sw / 2:.2f}" y="{1.2 + sw / 2:.2f}" width="{W - 2.4 - sw:.2f}" '
+             f'height="{H - 2.4 - sw:.2f}" rx="{r:.2f}" fill="#ffffff" stroke="#000000" stroke-width="{sw:.2f}"/>')
+    head = svg[:svg.index(">") + 1]
+    return head + "\n" + frame + "\n" + "\n".join(out) + "\n</svg>"
+
+
+SEAM = re.compile(r'<path d="([^"]+)" fill="(#[0-9a-fA-F]{6})"\s*/>')
+
+
+def close_seams(svg: str) -> str:
+    """The sheets fill colour as meshes of small triangles; antialiased renderers leave hairline seams
+    between them, which reads as a scratchy texture. Stroke each piece in its own colour to close them."""
+    vb = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg)
+    w = 0.004 * max(float(vb.group(1)), float(vb.group(2))) if vb else 0.35
+    return SEAM.sub(lambda m: f'<path d="{m.group(1)}" fill="{m.group(2)}" stroke="{m.group(2)}" '
+                              f'stroke-width="{w:.2f}" stroke-linejoin="round"/>', svg)
+
+
+def _buffer(poly, r, n=8):
+    """Convex polygon grown by r with round corners (what a round-joined stroke of width 2r draws)."""
+    import math
+    k = len(poly)
+    area = sum(poly[i][0] * poly[(i + 1) % k][1] - poly[(i + 1) % k][0] * poly[i][1] for i in range(k))
+    sgn = 1.0 if area > 0 else -1.0
+
+    def out_angle(p, q):                                  # outward normal of edge p -> q
+        dx, dy = q[0] - p[0], q[1] - p[1]
+        return math.atan2(-dx * sgn, dy * sgn)
+
+    pts = []
+    for i in range(k):
+        a, b, c = poly[i - 1], poly[i], poly[(i + 1) % k]
+        a0, a1 = out_angle(a, b), out_angle(b, c)
+        d = (a1 - a0) % (2 * math.pi)
+        if sgn < 0:
+            d -= 2 * math.pi
+        pts += [(b[0] + r * math.cos(a0 + d * j / n), b[1] + r * math.sin(a0 + d * j / n)) for j in range(n + 1)]
+    return pts
+
+
+def svg_block(dxf, name, svg, cy=0.95):
+    """A CAD block drawn from a corrected icon (straight-segment paths and rects), same convention as
+    add_block: larger side 1.0, centred at (0, cy), post at the origin."""
+    import math
+    vb = [float(x) for x in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+    W, H = vb[2], vb[3]
+    sc = 1.0 / max(W, H)
+    T = lambda x, y: ((x - W / 2) * sc, cy - (y - H / 2) * sc)
+    rgb = lambda h: tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+    blk = dxf.blocks.new(name, base_point=(0, 0))
+    blk.add_circle((0, 0), 0.06, dxfattribs={"layer": "0"})
+    blk.add_line((-0.35, 0.12), (0.35, 0.12))
+    blk.add_line((0, 0), (0, 0.12))
+
+    def attr(el, k):
+        m = re.search(k + r'="([^"]+)"', el)
+        return m.group(1) if m else None
+
+    for el in re.findall(r"<(?:path|rect) [^>]*/>", svg):
+        fill, stroke = attr(el, "fill"), attr(el, "stroke")
+        sw = float(attr(el, "stroke-width") or 0)
+        if el.startswith("<rect"):
+            x, y, w, h = (float(attr(el, k)) for k in ("x", "y", "width", "height"))
+            r = float(attr(el, "rx") or 0)
+            pts = []
+            for (qx, qy, a0) in ((x + w - r, y + r, -90), (x + w - r, y + h - r, 0), (x + r, y + h - r, 90),
+                                 (x + r, y + r, 180)):
+                pts += [(qx + r * math.cos(math.radians(a0 + 90 * j / 6)), qy + r * math.sin(math.radians(a0 + 90 * j / 6)))
+                        for j in range(7)]
+            subs = [pts]
+        else:
+            subs = []
+            for part in re.split(r"(?=M)", attr(el, "d")):
+                nums = [float(v) for v in re.findall(r"-?\d+\.?\d*", part)]
+                if len(nums) >= 4:
+                    subs.append(list(zip(nums[0::2], nums[1::2])))
+        grow = fill and stroke == fill and 'stroke-linejoin="round"' in el and sw * sc > 0.01
+        if fill and fill != "none":
+            hch = blk.add_hatch(dxfattribs={"layer": "0"})
+            hch.set_solid_fill()
+            hch.rgb = rgb(fill)
+            for sp in subs:
+                sp = _buffer(sp, sw / 2) if grow else sp
+                if len(sp) >= 3:
+                    hch.paths.add_polyline_path([T(*q) for q in sp], is_closed=True)
+        if stroke and stroke != "none" and not grow and (fill in (None, "none") or stroke != fill):
+            for sp in subs:
+                pl = blk.add_lwpolyline([T(*q) for q in sp], close=el.startswith("<rect") or "Z" in (attr(el, "d") or ""))
+                pl.rgb = rgb(stroke)
+    return blk
+
+
 def labels(pg):
     out = {}
     for b in pg.get_text("dict")["blocks"]:
@@ -160,10 +273,16 @@ def main(*pdfs):
             svg = to_svg(art)
             if wcode in RED_BORDER:
                 svg = red_border(svg)
+            if wcode in FRAME:
+                svg = clean_frame(svg)
+            svg = close_seams(svg)
             with open(os.path.join(DATA, "signs", code + ".svg"), "w", encoding="utf-8") as fh:
                 fh.write(svg)
+            corrected = wcode in FRAME or wcode in RED_BORDER
+            if corrected and "RSD_" + code in dxf.blocks:
+                dxf.blocks.delete_block("RSD_" + code, safe=False)        # rebuilt from the corrected icon
             if "RSD_" + code not in dxf.blocks:
-                blk = add_block(dxf, "RSD_" + code, art)
+                blk = svg_block(dxf, "RSD_" + code, svg) if corrected else add_block(dxf, "RSD_" + code, art)
                 for i, tag in enumerate(ATTRS):
                     a = blk.add_attdef(tag, insert=(0.7, 0.9 - 0.18 * i), height=0.15,
                                        dxfattribs={"layer": "RSD-SIGN-TEXT"})
@@ -175,7 +294,7 @@ def main(*pdfs):
             entries.append({"code": code, "wscm_code": wcode, "name": name, "category": cat, "shape": shp,
                             "legend": legend, "aspect": round(b.width / b.height, 3),
                             "drawing": "WSCM/84/2/01", "sheet": "1/2" if wcode.startswith("W") else "2/2",
-                            "correction": RED_BORDER.get(wcode, "")})
+                            "correction": RED_BORDER.get(wcode, FRAME.get(wcode, ""))})
     missing = sorted(set(WANTED) - found)
     dxf.saveas(lib)
     with open(os.path.join(DATA, "wscm_signs.json"), "w", encoding="utf-8") as fh:
