@@ -19,7 +19,7 @@ Place traffic signs and linear road furniture (markings, road studs, barriers) a
 The dock's project summary shows which of these were found.
 
 **Status:**
-- **Core:** 55 tests passing.
+- **Core:** 116 tests passing, including 60 randomly generated roads (curves, profiles, speed zones, corridor edges with gaps) run through signs, markings, DXF and inventory against invariants. `tools/sweep_landxml.py <folder>` runs the same checks over real LandXML files.
 - **QGIS plugin:** 34 headless tests passing on QGIS 3.34. Also checked on real Civil 3D project exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and 3,569 corridor sections, loading in about 0.6 s).
 - **Civil 3D:** DXF copy and paste (COPYBASE 0,0 + PASTEORIG) confirmed in a project drawing.
 - **Dynamo scripts:** parked for now (kept in `dynamo/`, not run in Civil 3D).
@@ -106,7 +106,7 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
   - *Centre line:* broken (LM01, or LM02 on class A/B) where overtaking is allowed. Where the visibility for a direction is below the Table 4.4 critical value, that direction gets a continuous line: the combined line LM28 for one direction, double continuous LM32 for both. Visibility is scanned along the design profile from an eye 1.05 m high to a 1.05 m target. Set "Sight obstruction on bends" to also check round bends against a cut face or wall at that offset from the centreline.
   - *Table 4.4 notes:* a continuous line needed over 20–50 m is laid as 50 m, lines for one direction closer than the critical value are joined, and a gap between continuous sections shorter than the visibility distance is closed (4.5.2).
   - *Narrow roads:* under 5.5 m of carriageway there is no broken centre line and no double line; a single continuous line LM24 is used where visibility is restricted (4.2.1, 4.5.5).
-  - *Edge lines:* continuous LM26 (LM27 on class A/B) on the ETW edge, both sides.
+  - *Edge lines:* continuous LM26 (LM27 on class A/B) on the ETW edge, both sides. Where the LandXML has no corridor, give a carriageway width and they are placed at half that width from the centreline.
   - *Studs:* 6 m on the combined line system (4.5.1), 9 m on edge lines through no-overtaking sections and 12 m elsewhere (Table 13.2). By default studs go everywhere on class A and only on no-overtaking sections otherwise.
   - *Not covered yet:* breaks through junctions, splayed and hatched double lines on sharp bends (Figure 4.6), lane lines on multi-lane roads.
 - **Coming next:** barriers from the RDM 1.3 Fig 12.4 warrant and clear zone.

@@ -14,7 +14,7 @@ from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFi
 
 from .compat import WKB_MULTILINESTRING
 from .rfd.alignment import format_station
-from .rfd.linear import LinearCatalogue, Run, geometry, run_quantities, summarise
+from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, run_quantities, summarise
 
 LAYER = "rsd_lines"
 LINE_FIELDS = [
@@ -201,7 +201,7 @@ class LineStore(QObject):
             if f["status"] == "proposed" and not include_proposed:
                 continue
             if f["item_code"] in self.cat:
-                out.append(self.run_of(f))
+                out.append(clamp_run(self.al, self.run_of(f)))
         return sorted(out, key=lambda r: (r.code, r.sta_start))
 
     def summary(self, include_proposed=True):

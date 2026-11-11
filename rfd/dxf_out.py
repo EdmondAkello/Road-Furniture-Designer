@@ -488,10 +488,11 @@ def _dash_linetype(doc, mark: float, gap: float) -> str:
 def write_linear(doc, msp, al, runs, cat):
     """Draw linear furniture runs. Multi-line items (double lines, CLS) are drawn line by line."""
     from dataclasses import replace
-    from .linear import geometry, run_quantities, signed_offset
+    from .linear import clamp_run, geometry, run_quantities, signed_offset
     for r in runs:
         if r.code not in cat:
             continue
+        r = clamp_run(al, r)
         it = cat[r.code]
         lay = _linear_layer(doc, it)
         v = al.speed_at((r.sta_start + r.sta_end) / 2)

@@ -243,7 +243,13 @@ class RsdDock(QDockWidget):
                                    "(cut face, wall, vegetation). 0 checks visibility over crests only.")
         mf.addRow("Road class (Table 4.4)", self.cmb_mclass)
         mf.addRow("Road studs", self.cmb_mstuds)
+        self.spn_mwidth = QDoubleSpinBox(); self.spn_mwidth.setRange(0, 30); self.spn_mwidth.setDecimals(2)
+        self.spn_mwidth.setSuffix(" m"); self.spn_mwidth.setSingleStep(0.5)
+        self.spn_mwidth.setSpecialValueText("From the corridor (ETW)")
+        self.spn_mwidth.setToolTip("Carriageway width between edge lines. Needed when the LandXML has no corridor "
+                                   "edges; otherwise it overrides the measured width for the 5.5 m check.")
         mf.addRow("Sight obstruction on bends", self.spn_msight)
+        mf.addRow("Carriageway width", self.spn_mwidth)
         self.btn_mprop = QPushButton("Propose markings")
         mf.addRow(self.btn_mprop)
         ll_.addWidget(mg)
@@ -499,7 +505,8 @@ class RsdDock(QDockWidget):
     def marking_config(self):
         from .rfd.markings import MarkingConfig
         return MarkingConfig(road_class=self.cmb_mclass.currentData(), studs=self.cmb_mstuds.currentData(),
-                             sight_offset=self.spn_msight.value(), criteria=self.cmb_crit.currentData(),
+                             sight_offset=self.spn_msight.value(),
+                             carriageway=self.spn_mwidth.value() or None, criteria=self.cmb_crit.currentData(),
                              start=self.spn_from.value(), end=self.spn_to.value())
 
     def propose_markings(self):

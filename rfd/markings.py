@@ -43,7 +43,8 @@ class MarkingConfig:
     edges: bool = True
     studs: str = "auto"                 # none | no_overtaking | all | auto (all on class A, else no-overtaking)
     edge_code: str = "ETW"              # corridor edge carrying the edge line
-    carriageway: Optional[float] = None # m; None -> from the corridor edge (both sides), else assumed wide enough
+    carriageway: Optional[float] = None # m; None -> from the corridor edge (both sides), else assumed wide enough.
+                                        # Without a corridor edge the edge lines are put at half this width.
     sight_offset: float = 0.0           # m from centreline to the sight obstruction inside bends; 0 = profile only
     stud_setback: float = 0.15          # m outside the edge line where there is a paved shoulder (13.3)
     start: Optional[float] = None
@@ -110,7 +111,7 @@ def _clean(runs, lo, hi, critical_at, min_line, step):
         need = b - a + step
         if need < DROP_BELOW:
             continue
-        if need < min_line:
+        if b - a < min_line:
             mid = (a + b) / 2
             a, b = mid - min_line / 2, mid + min_line / 2
             if a < lo:
@@ -127,6 +128,11 @@ def _clean(runs, lo, hi, critical_at, min_line, step):
 def _segments(lo, hi, fwd, bwd):
     """[(start, end, state)] with state '' | 'F' | 'B' | 'FB' from the two directions' continuous lines."""
     cuts = sorted({lo, hi} | {x for r in fwd + bwd for x in r if lo < x < hi})
+    kept = [cuts[0]]
+    for c in cuts[1:-1]:                         # no slivers: boundaries closer than 1 m are one boundary
+        if c - kept[-1] >= 1.0 and cuts[-1] - c >= 1.0:
+            kept.append(c)
+    cuts = kept + [cuts[-1]] if len(cuts) > 1 else cuts
     segs = []
     for a, b in zip(cuts, cuts[1:]):
         m = (a + b) / 2
@@ -271,27 +277,37 @@ def propose_markings(al, cfg: MarkingConfig = None) -> Tuple[List[Run], List[Fin
     # ---- edge lines and their studs
     if cfg.edges:
         e = getattr(al, "edges", None)
-        if not e or not any((cfg.edge_code, s) in e.data for s in "LR"):
+        has_edge = bool(e) and any((cfg.edge_code, s) in e.data for s in "LR")
+        if not has_edge and not cfg.carriageway:
             findings.append(Finding("marking_note", lo, hi, "Both",
-                                    f"no '{cfg.edge_code}' corridor edge in the LandXML: edge lines not proposed"))
+                                    f"no '{cfg.edge_code}' corridor edge in the LandXML: edge lines not proposed "
+                                    f"(give a carriageway width to place them from the centreline)"))
         else:
             edge = "LM27" if higher else "LM26"
-            shoulder = any(c in ("EPS", "EOS", "ESH", "Shoulder") for c, _ in e.data)
+            if has_edge:
+                shoulder = any(c in ("EPS", "EOS", "ESH", "Shoulder") for c, _ in e.data)
+                where = lambda side, extra=0.0: dict(side=side, edge_ref=cfg.edge_code, offset=extra)
+                sides = [x for x in "LR" if (cfg.edge_code, x) in e.data]
+            else:
+                shoulder = False
+                half = cfg.carriageway / 2.0
+                where = lambda side, extra=0.0: dict(side=side, offset=half + extra)
+                sides = ["L", "R"]
+                findings.append(Finding("marking_note", lo, hi, "Both",
+                                        f"no '{cfg.edge_code}' corridor edge in the LandXML: edge lines placed "
+                                        f"{half:.2f} m from the centreline (constant width; check widenings)"))
             setback = cfg.stud_setback if shoulder else 0.0
             solid = [(a, b) for a, b, s in segs if s]
-            for side in "LR":
-                if (cfg.edge_code, side) not in e.data:
-                    continue
-                add(edge, lo, hi, "marking_edge", "Continuous edge line (RDM 6.1 4.2.3)",
-                    side=side, edge_ref=cfg.edge_code, offset=0.0)
+            for side in sides:
+                add(edge, lo, hi, "marking_edge", "Continuous edge line (RDM 6.1 4.2.3)", **where(side))
                 if studs == "none":
                     continue
                 for a, b in solid:
                     add("RRS-E", a, b, "marking_studs", "Edge studs at 9 m through a no-overtaking section "
-                        "(RDM 6.1 Table 13.2)", side=side, edge_ref=cfg.edge_code, offset=setback, no_overtaking=True)
+                        "(RDM 6.1 Table 13.2)", no_overtaking=True, **where(side, setback))
                 if studs == "all":
                     for a, b, s in segs:
                         if not s:
                             add("RRS-E", a, b, "marking_studs", "Edge studs at 12 m (RDM 6.1 Table 13.2)",
-                                side=side, edge_ref=cfg.edge_code, offset=setback)
+                                **where(side, setback))
     return runs, findings

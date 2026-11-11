@@ -174,6 +174,13 @@ def signed_offset(al, run: Run, sta: float) -> Optional[float]:
     return o if run.side == "R" else -o
 
 
+def clamp_run(al, run: Run) -> Run:
+    """The run limited to the alignment (stations stored to the millimetre can round just past its end)."""
+    from dataclasses import replace
+    lo, hi = max(run.sta_start, al.sta_start), min(run.sta_end, al.sta_end)
+    return run if (lo == run.sta_start and hi == run.sta_end) else replace(run, sta_start=lo, sta_end=max(lo, hi))
+
+
 def stations(run: Run, step: float = 5.0, extra=()) -> List[float]:
     n = max(1, int(math.ceil(run.length / step)))
     st = {run.sta_start + run.length * k / n for k in range(n + 1)}
@@ -183,6 +190,9 @@ def stations(run: Run, step: float = 5.0, extra=()) -> List[float]:
 
 def geometry(al, run: Run, step: float = 5.0) -> List[List[Tuple[float, float]]]:
     """Polyline parts (split where the reference edge is missing) in map coordinates."""
+    run = clamp_run(al, run)
+    if run.length <= 0:
+        return []
     joins = [al.sta_start + c for c in getattr(al, "_cum", [])]     # element joins (TS, SC, ...)
     parts, cur = [], []
     for s in stations(run, step, joins):
