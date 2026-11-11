@@ -1,0 +1,70 @@
+"""The dock fits a 1080p screen next to other panels and does not vanish when it is squeezed."""
+import os
+import sys
+from unittest import mock
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(ROOT, "qgis_plugin"))
+sys.path.insert(0, ROOT)
+
+from qgis.core import QgsApplication  # noqa: E402
+
+if QgsApplication.instance() is None:
+    _app = QgsApplication([], True)
+    _app.initQgis()
+
+from qgis.gui import QgsMapCanvas  # noqa: E402
+from qgis.PyQt.QtCore import Qt  # noqa: E402
+from qgis.PyQt.QtWidgets import QMainWindow, QScrollArea  # noqa: E402
+
+
+def _iface():
+    win = QMainWindow()
+    iface = mock.MagicMock()
+    iface.mapCanvas.return_value = QgsMapCanvas()
+    iface.mainWindow.return_value = win
+    iface.addDockWidget.side_effect = lambda area, d: win.addDockWidget(area, d)
+    return iface, win
+
+
+def test_every_tab_scrolls_and_the_dock_fits_600_px():
+    from road_furniture_designer.dock import RsdDock
+    iface, win = _iface()
+    d = RsdDock(iface, win)
+    labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
+    assert labels == ["Place", "Inventory", "Auto", "Signs", "Linear", "Calming", "Speed limits", "Junctions"]
+    for i in range(d.tabs.count()):
+        assert isinstance(d.tabs.widget(i), QScrollArea)
+        assert d.page(labels[i]) is d.tabs.widget(i).widget()
+    # before the scroll areas the dock asked for 1166 x 1048 px
+    assert d.minimumSizeHint().height() <= 600, d.minimumSizeHint()
+    assert d.minimumSizeHint().width() <= 420, d.minimumSizeHint()
+    # every tab's content fits a 380 px dock without sideways scrolling
+    wide = {lab: d.page(lab).minimumSizeHint().width() for lab in labels}
+    assert max(wide.values()) <= 365, wide
+    # shortened captions keep their full wording as the tooltip
+    assert d.chk_restrict.text() == "Keep inside the corridor (RDM 2.4)"
+    assert "0.6–3.0 m" in d.chk_restrict.toolTip()
+    # the buttons at the bottom of a long tab are still there, reachable by scrolling
+    assert d.btn_report.isVisibleTo(d.page("Inventory"))
+
+
+def test_hidden_by_qt_is_not_hidden_by_the_plugin():
+    import road_furniture_designer as P
+    iface, win = _iface()
+    plugin = P.classFactory(iface)
+    plugin.initGui()
+    plugin.action.trigger()                               # user clicks: dock shown, button ticked
+    d = plugin.dock
+    assert plugin.action.isChecked() and not d.isHidden()
+    d.visibilityChanged.emit(False)                       # Qt says it is out of view (tabbed / squeezed)
+    assert not plugin.action.isChecked()
+    assert not d.isHidden()                               # ... but the plugin did not hide it
+    plugin.action.trigger()                               # a click brings it back to the front
+    assert plugin.action.isChecked() and not d.isHidden()
+    plugin.action.trigger()                               # and a second click hides it
+    assert d.isHidden()
+    d.setFloating(True)
+    plugin.action.trigger()
+    assert not d.isFloating() and not d.isHidden()
+    plugin.unload()

@@ -64,6 +64,11 @@ st.add_feature("hump_circular", 3150.0, FeatureConfig(), auto)
 st.add_sign(*P(2560, -7.0), "I1-A", legend="^ Nakuru 6\n< Molo B4 32\n> Eldoret A104 120", road_class="A",
             restrict=True)
 st.add_sign(*P(2590, -7.0), "I7", legend="Nakuru", restrict=True)
+import math  # noqa: E402
+jx, jy, jh = st.al.point_at(2300.0)                                   # a skewed type A-1 junction on the straight
+st.junctions.place(jx, jy, jx + 30 * math.cos(jh + math.radians(80)), jy + 30 * math.sin(jh + math.radians(80)),
+                   kit="A-1")
+st.add_sign(*P(2330, -7.0), "WSCM-W37", restrict=True)               # a supplementary sign (loose stones)
 st.accept_proposals(); st.lines.accept_proposals()
 st.auto_propose(auto)                 # leave a few proposals visible (orange) for the figures
 st.set_meta(prepared_by="E. Akello", checked_by="", approved_by="")
@@ -94,6 +99,12 @@ x, y = P(3950, 0)                                                     # embankme
 render_map(QgsRectangle(x - 300, y - 195, x + 300, y + 195), (1600, 1050), "fig_map_barrier.png")
 x, y = P(3050, 0)                                                     # crossing and hump in the village
 render_map(QgsRectangle(x - 160, y - 105, x + 160, y + 105), (1600, 1050), "fig_map_calming.png")
+jext = st.junctions.layer.extent()                                    # type A-1 junction with its guide lines
+jext.grow(12)
+jw = max(jext.width(), jext.height() * 1600 / 1050)
+cx, cy = jext.center().x(), jext.center().y()
+render_map(QgsRectangle(cx - jw / 2, cy - jw * 1050 / 3200, cx + jw / 2, cy + jw * 1050 / 3200), (1600, 1050),
+           "fig_map_junction.png")
 x0, y0 = P(st.al.sta_start, 0)
 ext = st.alignment_layer.extent() if hasattr(st, "alignment_layer") else QgsRectangle(x0 - 2000, y0 - 2000, x0 + 2000, y0 + 2000)
 ext.grow(150)
@@ -120,7 +131,7 @@ dock.set_store(st)
 dock.resize(470, 860)
 tabs = dock.findChild(QTabWidget)
 names = {"Place": "place", "Inventory": "inventory", "Auto": "auto", "Signs": "signs", "Linear": "linear",
-         "Calming": "calming", "Speed limits": "speed"}
+         "Calming": "calming", "Speed limits": "speed", "Junctions": "junctions"}
 for i in range(tabs.count()):
     name = names.get(tabs.tabText(i))
     if not name:
@@ -162,7 +173,8 @@ def first_page(kind, key=None):
 
 for kind, key, name in (("schedule", None, "fig_report_schedule.png"), ("findings", None, "fig_report_findings.png"),
                         ("ftable", "markings", "fig_report_markings.png"), ("ftable", "features", "fig_report_features.png"),
-                        ("ftable", "checks", "fig_report_checks.png")):
+                        ("ftable", "checks", "fig_report_checks.png"),
+                        ("ftable", "junctions", "fig_report_junctions.png")):
     fp = first_page(kind, key)
     if fp:
         shutil.copy(fp, os.path.join(out, name))
@@ -225,6 +237,8 @@ want = ["W19", "W20", "W21", "W22", "W24-a", "W30", "W31", "W55", "W64", "P5", "
         "END", "W23", "M1", "I7", "RW1", "RW15"]
 ents = [(cat.signs[c].svg(), c, cat.signs[c].name) for c in want if c in cat.signs]
 panel(ents[:18], 6, (220, 210), "fig_catalogue.png")
+wscm = sorted((c for c in cat.signs if c.startswith("WSCM-")), key=lambda c: (c[5], int("".join(ch for ch in c[6:] if ch.isdigit()))))
+panel([(cat.signs[c].svg(), c, cat.signs[c].name) for c in wscm], 5, (240, 210), "fig_wscm.png")
 panel([(directional_svg("^ Nakuru A104 18\n< Eldoret A104 140\n> Molo 9", "A"), "Class A road", "green, route in yellow"),
        (directional_svg("^ Thika 40\n> Nairobi A2 60", "EXP"), "Expressway", "blue face"),
        (directional_svg("< Molo\n> Nakuru 32", "C"), "Class C/D roads", "white face"),

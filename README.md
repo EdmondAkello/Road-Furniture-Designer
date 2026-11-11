@@ -87,7 +87,13 @@ The legend goes into the inventory (`Legend` column), the Civil 3D package and t
 
 ## Install the QGIS plugin
 
-In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and choose `road_furniture_designer.zip`. Restart QGIS if you are replacing an older version.
+Download the plugin ZIP, `road_furniture_designer-<version>.zip`:
+- a release: the ZIP attached under **Assets** on the [Releases](https://github.com/EdmondAkello/Road-Furniture-Designer/releases) page
+- the latest main: **Actions → plugin zip →** the newest run on `main` **→ Artifacts → road_furniture_designer-plugin** (GitHub delivers the artifact zipped once more: unzip that outer layer to get the plugin ZIP)
+
+In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and choose that ZIP. Restart QGIS if you are replacing an older version.
+
+Do **not** use GitHub's green **Code → Download ZIP**: that is the source repository, with the plugin two folders down and without its core and libraries, which `tools/build_plugin.py` copies in. QGIS fails on it with `ModuleNotFoundError: No module named 'Road-Furniture-Designer-main/...'`. To build the ZIP yourself: `python tools/build_plugin.py road_furniture_designer.zip`, then `python tools/check_plugin_zip.py road_furniture_designer.zip`.
 
 No pip is needed. The export libraries are bundled in the plugin's `ext_libs` folder as pure Python (openpyxl, ezdxf, fontTools, pyparsing, typing_extensions, et_xmlfile). If QGIS's own Python already has any of them, those copies are used instead.
 

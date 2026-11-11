@@ -22,9 +22,10 @@
   },
   "M2": {
    "name": "Road Closed",
-   "rdm": null,
-   "match": "none",
-   "rfd": "WSCM-M2"
+   "rdm": "RW17",
+   "match": "similar",
+   "rfd": "WSCM-M2",
+   "note": "RW17 is the road works 'Road Closed' text sign for temporary closures; WSCM M2 is the permanent regulatory sign (closed to all vehicles), which RDM 6.2 does not have"
   },
   "M3": {
    "name": "No Entry for Pedestrians",

@@ -11,7 +11,7 @@
    "aspect": 0.944,
    "drawing": "WSCM/84/2/01",
    "sheet": "2/2",
-   "correction": ""
+   "correction": "the drawn frame stops short of the corners and a stray blue arc sits on it; drawn with a closed, rounded frame"
   },
   {
    "code": "WSCM-I2",
@@ -23,7 +23,7 @@
    "aspect": 0.944,
    "drawing": "WSCM/84/2/01",
    "sheet": "2/2",
-   "correction": ""
+   "correction": "the drawn frame stops short of the corners; drawn with a closed, rounded frame"
   },
   {
    "code": "WSCM-I3",
