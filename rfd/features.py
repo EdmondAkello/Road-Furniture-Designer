@@ -56,6 +56,8 @@ class FeatureConfig:
     carriageway: Optional[float] = None   # m; None -> from the ETW edges
     edge_code: str = "ETW"
     directions: str = "both"              # bar markings: both | forward | backward
+    refuge: float = 0.0                   # crossings: refuge / median width (m); 0 = one zebra across the road
+    span: Optional[Tuple[float, float]] = None   # crossings: signed offsets kerb to kerb (+ right); None = ETW edges
 
     @property
     def crit(self):
@@ -240,8 +242,36 @@ def design_feature(al, kind: str, station: float, cfg: FeatureConfig = None, gro
         a, b = crossing_marking(out, al, cfg, station, cfg.crossing_width, width, rule)
         warning_signs("W55", a, b, "Pedestrian crossing")
         visibility(a, b, "Pedestrian crossing")
-        out.summary = f"Zebra crossing {cfg.crossing_width:g} m wide ({cfg.ref('crossing')})"
+        lo, hi = crossing_span(al, cfg, station, width)
+        legs, refuge = crossing_legs(lo, hi, cfg.refuge)
+        out.summary = (f"Zebra crossing {cfg.crossing_width:g} m wide, {hi - lo:.1f} m across"
+                       + (f" in two legs with a {refuge[1] - refuge[0]:.1f} m refuge" if refuge else "")
+                       + f" ({cfg.ref('crossing')})")
     return out
+
+
+def crossing_span(al, cfg, station, width):
+    """(left, right) signed offsets of the crossing: the clicked kerbs, else the ETW edges, else the width
+    either side of the centreline."""
+    if cfg.span:
+        lo, hi = sorted(cfg.span)
+        return lo, hi
+    e = getattr(al, "edges", None)
+    if e and not cfg.carriageway:
+        l, r = e.offset(cfg.edge_code, "L", station), e.offset(cfg.edge_code, "R", station)
+        if l is not None and r is not None:
+            return -l, r
+    return -width / 2, width / 2
+
+
+def crossing_legs(lo, hi, refuge):
+    """Zebra legs and the refuge between them: the refuge sits on the centreline when the crossing spans it
+    (a median), else in the middle of the crossing. Returns ([(lo, hi) per leg], (lo, hi) of the refuge or None)."""
+    if refuge <= 0 or hi - lo <= refuge + 1.0:
+        return [(lo, hi)], None
+    mid = 0.0 if lo + refuge / 2 < 0 < hi - refuge / 2 else (lo + hi) / 2
+    r0, r1 = mid - refuge / 2, mid + refuge / 2
+    return [(lo, r0), (r1, hi)], (r0, r1)
 
 
 def crossing_marking(out, al, cfg, station, cw, width, rule):
@@ -253,11 +283,25 @@ def crossing_marking(out, al, cfg, station, cw, width, rule):
     key = str(int(round(min(max(cw, 2.0), 4.0))))
     code = t["codes"].get(key, "BM02")
     a, b = station - cw / 2, station + cw / 2
-    out.runs.append(Run(code, max(a, al.sta_start), min(b, al.sta_end), side="C", width=width, status="proposed",
-                        rule=rule, reason=f"Zebra crossing {cw:g} m, {t['stripe'] * 1000:.0f} mm stripes "
-                                          f"({cfg.ref('crossing')}); provide road studs"))
-    if width > t["refuge_over"] + 1e-9:
-        out.findings.append(Finding("feature_note", station, station, "Both",
-                                    f"crossing length {width:.1f} m is over {t['refuge_over']} m: provide a refuge "
-                                    f"island at least {t['refuge_width']} m wide ({cfg.ref('crossing')})"))
+    lo, hi = crossing_span(al, cfg, station, width)
+    legs, refuge = crossing_legs(lo, hi, cfg.refuge)
+    a, b = max(a, al.sta_start), min(b, al.sta_end)
+    for l0, l1 in legs:
+        out.runs.append(Run(code, a, b, side="C", offset=(l0 + l1) / 2, width=l1 - l0, status="proposed", rule=rule,
+                            reason=f"Zebra crossing {cw:g} m, {t['stripe'] * 1000:.0f} mm stripes, "
+                                   f"{l1 - l0:.1f} m across ({cfg.ref('crossing')}); provide road studs"))
+        if l1 - l0 > t["refuge_over"] + 1e-9:
+            out.findings.append(Finding("feature_note", station, station, "Both",
+                                        f"crossing length {l1 - l0:.1f} m is over {t['refuge_over']} m: provide a "
+                                        f"refuge island at least {t['refuge_width']} m wide ({cfg.ref('crossing')})"))
+    if refuge:
+        r0, r1 = refuge
+        out.runs.append(Run("REFUGE", max(a - 1.0, al.sta_start), min(b + 1.0, al.sta_end), side="C",
+                            offset=(r0 + r1) / 2, width=r1 - r0, status="proposed", rule=rule,
+                            reason=f"Pedestrian refuge {r1 - r0:.1f} m wide between the zebra legs "
+                                   f"({cfg.ref('crossing')})"))
+        if r1 - r0 < t["refuge_width"] - 1e-9:
+            out.findings.append(Finding("feature_note", station, station, "Both",
+                                        f"refuge {r1 - r0:.1f} m wide is under the {t['refuge_width']} m minimum "
+                                        f"({cfg.ref('crossing')})"))
     return a, b

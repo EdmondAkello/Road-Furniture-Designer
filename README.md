@@ -146,6 +146,8 @@ Road markings, road studs and barriers are stored as **runs** in the `rsd_lines`
 
 Crossings, bar sets, hump markings and humps (transverse items) go in with **one click**, centred on the click and across the carriageway (from the ETW edges, else 7 m). The map, plan sheets and DXF draw them as they are painted: zebra bars of 500 mm with 500 mm gaps, the six bars of a bar set, BM04 triangles on the hump ramps, and humps, tables and bumps as a filled brick-red footprint. The **Calming** tab places a crossing or hump with its signs and bar markings in one click as well.
 
+**Crossing length and refuges.** By default a crossing runs between the ETW edges at the click (or across the carriageway width given on the Linear tab, else 7 m). Tick **Crossing ends by two clicks** to click one kerb, then the other: the crossing runs exactly between them, for a dual carriageway, part of the road or a road without corridor edges. **Refuge / median** splits it into two zebras with a kerbed refuge island (`REFUGE`, 1 m longer than the zebra each side) between them: on the centreline when the crossing spans it, else in its middle. A leg over 10.5 m, or a refuge under 1.2 m, is flagged (RDM 6.1 9.2).
+
 Every proposed run can be edited, and any run can be drawn by hand. This covers dual carriageways, slip roads, median edge lines, unusual corridors, and anything else the rules don't propose. On the Linear tab, pick the item and press **Draw on map**:
 - Click the start, then click the end. The chainages come from the clicks.
 - The side and offset come from the first click. With "Offset from" set to a corridor edge, the offset is measured from that edge and the run follows the edge where the road widens. Otherwise it is measured from the centreline.

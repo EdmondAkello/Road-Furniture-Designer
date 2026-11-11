@@ -251,6 +251,24 @@ class PlaceRunTool(QgsMapToolEmitPoint):
             return None
         sta, side, rel, _signed, _ = res
         from .rfd.alignment import format_station
+        if s.get("mode") == "feature" and s.get("span"):          # crossing from kerb to kerb: two clicks
+            sta_c, _d, off, _side, ok = st.locate(layer_pt.x(), layer_pt.y())
+            if self.start is None:
+                self.start = (sta_c, "C", off)
+                self.placed.emit(f"First kerb at {format_station(st.al.display_station(sta_c), 1)}, "
+                                 f"{off:+.1f} m - click the other kerb")
+                return None
+            a = self.start
+            self.cancel()
+            from dataclasses import replace
+            cfg = replace(s.get("feature_cfg"), span=(a[2], off))
+            try:
+                d = st.add_feature("crossing", (a[0] + sta_c) / 2, cfg, s.get("auto_cfg"))
+            except ValueError as ex:
+                self.failed.emit(str(ex))
+                return None
+            self.placed.emit(d.summary + "".join(f" - {f.text}" for f in d.findings))
+            return d
         if s.get("mode") == "feature":
             try:
                 d = st.add_feature(s["kind"], sta, s.get("feature_cfg"), s.get("auto_cfg"))

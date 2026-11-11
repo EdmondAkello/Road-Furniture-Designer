@@ -322,6 +322,15 @@ class RsdDock(QDockWidget):
         cf.addRow("Feature", self.cmb_fkind)
         cf.addRow("Hump crossing speed", self.spn_fspeed)
         cf.addRow("Crossing width", self.spn_fwidth)
+        self.spn_frefuge = QDoubleSpinBox(); self.spn_frefuge.setRange(0, 30); self.spn_frefuge.setSingleStep(0.5)
+        self.spn_frefuge.setSuffix(" m"); self.spn_frefuge.setSpecialValueText("None")
+        self.spn_frefuge.setToolTip("Refuge island or median width. The crossing is split into two zebras with "
+                                    "the refuge between them, on the centreline when the crossing spans it.")
+        self.chk_fspan = QCheckBox("Crossing ends by two clicks")
+        self.chk_fspan.setToolTip("Click one kerb, then the other: the crossing runs exactly between them "
+                                  "(part of the road, a dual carriageway, a road without corridor edges)")
+        cf.addRow("Refuge / median", self.spn_frefuge)
+        cf.addRow("", self.chk_fspan)
         cf.addRow("Bar markings for", self.cmb_fdir)
         cf.addRow("", self.chk_fbars)
         cf.addRow("", self.chk_fsigns)
@@ -826,6 +835,7 @@ class RsdDock(QDockWidget):
                 "lock_offset": self.spn_loff.value() if self.chk_lfix.isChecked() else None,
                 "no_overtaking": self.chk_lnoot.isChecked(), "flip": self.chk_lflip.isChecked(),
                 "kind": self.cmb_fkind.currentData(), "feature_cfg": self.feature_config(),
+                "span": self.chk_fspan.isChecked() and self.cmb_fkind.currentData() == "crossing",
                 "auto_cfg": self.auto_config()}
 
     def feature_config(self):
@@ -833,7 +843,8 @@ class RsdDock(QDockWidget):
         return FeatureConfig(criteria=self.cmb_crit.currentData(), desired_speed=self.spn_fspeed.value(),
                              crossing_width=self.spn_fwidth.value(), bar_markings=self.chk_fbars.isChecked(),
                              signs=self.chk_fsigns.isChecked(), road_class=self.cmb_mclass.currentData(),
-                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData())
+                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData(),
+                             refuge=self.spn_frefuge.value())
 
     def _toggle_run_tool(self, on, mode):
         canvas = self.iface.mapCanvas()

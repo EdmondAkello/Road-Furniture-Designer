@@ -223,3 +223,22 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     f = st.lines.layer.getFeature(fid)
     assert f["item_code"] == "BM02" and abs(f["sta_to"] - f["sta_from"] - 3.0) < 1e-6
     assert f.geometry().constGet().numGeometries() >= 6          # the bars, not one outline
+
+
+def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
+    from road_furniture_designer.maptool import PlaceRunTool
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    from road_furniture_designer.rfd.features import FeatureConfig
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    st, xml = _fill_road(tmp_path)
+    cfg = FeatureConfig(refuge=2.0)
+    tool = PlaceRunTool(QgsMapCanvas(), lambda: st, lambda: {"mode": "feature", "kind": "crossing", "span": True,
+                                                             "feature_cfg": cfg, "auto_cfg": AutoConfig()})
+    assert tool.click(QgsPointXY(*st.al.point_at(600.0, -9.0)[:2])) is None          # first kerb
+    d = tool.click(QgsPointXY(*st.al.point_at(601.0, 9.0)[:2]))                       # the other kerb
+    codes = sorted(r.code for r in d.runs if r.code in ("BM02", "REFUGE"))
+    assert codes == ["BM02", "BM02", "REFUGE"]
+    feats = [f for f in st.lines.layer.getFeatures() if f["item_code"] in ("BM02", "REFUGE")]
+    assert len(feats) == 3 and all(not f.geometry().isEmpty() for f in feats)
+    assert {s.code for s in d.signs} == {"W55"}
