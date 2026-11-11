@@ -74,6 +74,7 @@ KIND_TEXT = {
     "sign_orphan_end": "End sign without a start",
     "sign_plate": "Plate missing",
     "speed_note": "Speed limit note",
+    "sign_supplementary": "Signs outside RDM 6.2",
 }
 
 
@@ -475,6 +476,17 @@ def speed_zone_checks(al, signs) -> List[Check]:
     return out
 
 
+def supplementary_checks(al, signs) -> List[Check]:
+    """WSCM- signs come from the Ministry's standard drawings, not RDM 6.2: list them for the reviewer."""
+    used = sorted((s for s in signs if str(s.get("code", "")).startswith("WSCM-")), key=lambda s: s["sta"])
+    if not used:
+        return []
+    codes = sorted({s["code"] for s in used}, key=lambda c: (c[5], int("".join(ch for ch in c[6:] if ch.isdigit()) or 0)))
+    return [Check("sign_supplementary", used[0]["sta"], used[-1]["sta"], "Both",
+                  f"{len(used)} sign(s) from the standard drawings WSCM/84/2/01, not in RDM 6.2 (2025): "
+                  f"{', '.join(codes)}; confirm the road authority accepts them", "info", {"codes": codes})]
+
+
 # --------------------------------------------------------------------------- strip diagram
 @dataclass
 class Lane:
@@ -576,6 +588,7 @@ def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, w
     checks += feature_checks(al, groups, feature_cfg or FeatureConfig(criteria=auto_cfg.criteria))
     checks += speed_zone_checks(al, signs)
     checks += pairing_checks(al, signs)
+    checks += supplementary_checks(al, signs)
     checks.sort(key=lambda c: ({"issue": 0, "check": 1, "info": 2}[c.level], c.start))
     real = [r for r in runs if r.code in lcat]
     return FurnitureReport(
