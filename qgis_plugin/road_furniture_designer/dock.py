@@ -521,9 +521,9 @@ class RsdDock(QDockWidget):
         "Steep grades: W30 descent > 5 %, W31 ascent > 10 % (RDM 4.6.4)": "Steep grades: W30 / W31",
         "No overtaking where crest sight distance < passing sight distance": "No overtaking where sight < PSD",
         "Reduced PSD for no-overtaking (RDM 1.3 Table 3.20)": "Reduced PSD (RDM 1.3 Table 3.20)",
-        "Combined line prohibits traffic against chainage": "CLS: no overtaking against chainage",
+        "Combined line prohibits traffic against chainage": "CLS: against chainage",
         "Also where the warrant leaves it to judgement": "Also where left to judgement",
-        "No-overtaking section (closer stud interval)": "No-overtaking section (closer studs)",
+        "No-overtaking section (closer stud interval)": "Closer studs (no overtaking)",
         "Fixed offset (else taken from the click)": "Fixed offset",
         "Bar markings on the approaches (Table 2.3)": "Bar markings on the approaches",
         "Guide lines (edges, kerb returns, Rc arcs)": "Guide lines",
@@ -532,6 +532,8 @@ class RsdDock(QDockWidget):
         "Remove selected feature (with its signs and markings)": "Remove selected feature",
         "Remove selected zone (with its signs)": "Remove selected zone",
         "Draw on map (start, end; one click for crossings and humps)": "Draw on map",
+        "Propose markings and studs (RDM 6.1)": "Propose markings (RDM 6.1)",
+        "Propose barriers (RDM 1.3 Fig 12.4)": "Propose barriers (RDM 1.3)",
     }
 
     @staticmethod
@@ -550,6 +552,11 @@ class RsdDock(QDockWidget):
             if full in RsdDock.SHORT:
                 b.setText(RsdDock.SHORT[full])
                 b.setToolTip(full + (("\n" + b.toolTip()) if b.toolTip() else ""))
+        for gb in root.findChildren(QGroupBox):    # a group box is never narrower than its title
+            full = gb.title()
+            if full in RsdDock.SHORT:
+                gb.setTitle(RsdDock.SHORT[full])
+                gb.setToolTip(full)
         for lab in root.findChildren(QLabel):
             lab.setWordWrap(True)               # hover read-outs and results arrive later, often long
         for fl in root.findChildren(QFormLayout):
