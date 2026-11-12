@@ -164,6 +164,48 @@ def test_our_road_joins_a_main_road():
         J.place_minor(ours, 200, 2.0)                                            # neither alignment nor click
 
 
+def test_crossroads_leg_follows_the_cursor():
+    """Our road crosses the main road: the leg is the one on the cursor's side; both legs on request."""
+    ours = Alignment.from_polyline("OURS", [(200, 300), (200, -300)])
+    major = Alignment.from_polyline("MAJOR", [(0, 0), (400, 0)])
+    assert len(J.minor_legs(ours, 300.0, major)) == 2
+    north, _ = J.place_minor(ours, 200, 0.5, 210, 60, major=major)
+    south, _ = J.place_minor(ours, 200, 0.5, 190, -60, major=major)
+    assert math.degrees(north.bearing) == pytest.approx(90)
+    assert math.degrees(south.bearing) == pytest.approx(-90)
+    assert north.frame(major).side == "L" and south.frame(major).side == "R"
+    # R2 on each approach, each behind its own give way line
+    sn, ss = J.minor_signs(ours, north, major), J.minor_signs(ours, south, major)
+    assert sn[0]["station"] < 300 < ss[0]["station"]
+    # both legs: two placements, the second keyed to the first, without the ghost island again
+    pls, main = J.place_minor(ours, 200, 0.5, 210, 60, major=major, both=True)
+    assert [round(math.degrees(p.bearing)) for p in pls] == [90, -90]
+    assert pls[1].junction_id == pls[0].junction_id + "-2"
+    first = {p.piece for p in J.build_kit(main, pls[0], "A-1", templates=T)}
+    second = {p.piece for p in J.build_kit(main, pls[1], "A-1", templates=T, second_leg=True)}
+    assert "ghost_island" in first and "ghost_island" not in second and "splitter_a1" in second
+    # a road that only starts at the main road has one leg, whatever the cursor
+    tee = Alignment.from_polyline("TEE", [(200, 300), (200, 3.0)])
+    assert len(J.minor_legs(tee, 297.0, major)) == 1
+    pt, _ = J.place_minor(tee, 200, 2.0, 190, -60, major=major)
+    assert math.degrees(pt.bearing) == pytest.approx(90)
+
+
+def test_main_role_bearing_snaps_to_the_minor_alignment():
+    al = straight()
+    side = Alignment.from_polyline("SIDE", [(150, 0.0), (150 + 100 * math.cos(math.radians(70)),
+                                                          100 * math.sin(math.radians(70)))])
+    # cursor 6 m off the side road: the bearing follows the side road (70 deg), not the cursor
+    cx, cy = 150 + 40 * math.cos(math.radians(70)) + 6, 40 * math.sin(math.radians(70))
+    pl = J.place(al, 150, 0.5, cx, cy, others=[side])
+    assert math.degrees(pl.bearing) == pytest.approx(70, abs=0.1)
+    free = J.place(al, 150, 0.5, cx, cy)
+    assert abs(math.degrees(free.bearing) - 70) > 3
+    # far from any alignment: the cursor's own direction
+    far = J.place(al, 150, 0.5, 150, 80, others=[side])
+    assert math.degrees(far.bearing) == pytest.approx(90, abs=0.1)
+
+
 def test_bus_bay():
     al = straight()
     pl, B = J.place_bay(al, 225, 4.0, 200, 4.0)             # clicked end first: still starts where traffic arrives
@@ -234,7 +276,12 @@ def test_climbing_lanes_from_the_profile():
     pc = J.build_piece(al, pl, "climbing_lane", params={"bay": L}, templates=T)
     assert pc.params["stations"] == [1100, 1200, 1900, 2000] and pc.params["depth"] == 3.25
     assert pc.quantities["widen_m2"] == pytest.approx(3.25 * 700 + 3.25 * 100, rel=0.01)
-    assert {p.code for p in pc.parts} == {"LM26", "LM03"}
+    assert {p.code for p in pc.parts} == {"BAYEDGE", "LM26", "LM03"}
+    # the widened edge runs out to the lane width over the full length and back over the 100 m tapers
+    edge = next(p for p in pc.parts if p.code == "BAYEDGE")
+    offs = [abs(al.station_offset(x, y).offset) for x, y in edge.pts]
+    assert max(offs) - min(offs) == pytest.approx(pc.params["depth"], abs=0.05)
+    assert pc.quantities["edge_m"] > L
     # downhill with the chainage: the lane serves traffic running against it, on the right
     al.profile = VerticalProfile("P", [(0, 172, 0), (1200, 100, 200), (3000, 100, 0)])
     (d,) = J.climbing_lanes(al)

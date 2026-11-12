@@ -119,3 +119,34 @@ def test_crossing_span_and_refuge():
     legs, r = crossing_legs(2.0, 12.0, 2.0)
     assert r == pytest.approx((6.0, 8.0)) and legs == [pytest.approx((2.0, 6.0)), pytest.approx((8.0, 12.0))]
     assert crossing_legs(-3.5, 3.5, 0) == ([(-3.5, 3.5)], None)
+
+
+def test_bar_sets_kept_off_other_furniture_and_overlaps_flagged():
+    from rfd.features import flag_overlaps, omit_bars, overlapping
+    al = road(50)
+    d = design_feature(al, "hump_circular", 500, FeatureConfig(desired_speed=30))
+    bars = sorted(r.sta_start for r in d.runs if r.code == "BAR-SET")
+    block = (bars[0] - 2.0, bars[0] + 2.0, "the type C junction at Ch 0+4xx")
+    assert omit_bars(d, [block]) == 1
+    assert sorted(r.sta_start for r in d.runs if r.code == "BAR-SET") == bars[1:]
+    assert "omitted" in d.findings[-1].text and "junction" in d.findings[-1].text
+    assert overlapping(10, 12, [(11, 20, "x"), (30, 40, "y")]) == ["x"]
+    assert flag_overlaps(d, [(499, 501, "the zebra at Ch 0+499")]) == ["the zebra at Ch 0+499"]
+    assert "overlaps the zebra" in d.findings[-1].text
+
+
+def test_overlap_checks_in_the_furniture_report():
+    from rfd import furniture_report as FR
+    from rfd.linear import Run
+    al = road(50)
+    runs = [Run("HUMP-C", 100, 104, side="C", width=7, rule="feature:a"),
+            Run("BM04", 100, 104, side="C", width=7, rule="feature:a"),       # its own markings: no overlap
+            Run("BM03", 103, 107, side="C", width=7),                         # a zebra drawn on the hump
+            Run("BAR-SET", 300, 304, side="C", width=7, rule="feature:a"),
+            Run("BM02", 600, 603, side="C", width=7)]
+    out = FR.overlap_checks(al, runs, CAT, [(298, 320, "the type C junction"), (590, 610, "the roundabout")])
+    texts = sorted((c.level, c.text) for c in out)
+    assert [lvl for lvl, _ in texts] == ["check", "issue", "issue"]
+    assert "bar set" in texts[0][1] and "junction" in texts[0][1]
+    assert any("overlaps" in t and "zebra" in t for _, t in texts)
+    assert any("roundabout" in t for _, t in texts)

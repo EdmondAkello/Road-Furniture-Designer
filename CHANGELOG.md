@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **QGIS 3.34 or later** is needed (was 3.28).
+- Junctions: where our road joins or crosses another alignment, the kit faces the leg of our road on the mouse's side, and the preview flips as the mouse moves across the main road. The hover text names the leg. **Both legs** (Junctions tab) places a crossroads: islands, Give Way markings and an R2 on each approach, with the main-road pieces drawn once.
+- Junctions on our road: the minor road's direction follows another alignment of the LandXML when the mouse is within 15 m of it, so it doesn't have to be aimed by hand.
+- Calming tab: **Bar markings on the approaches** sits under the feature type. The placement message says how many bar sets went in, or how to switch them on.
+- Map tools belong to their tab. Leaving the Linear, Calming or Junctions tab switches its tool off. The hover read-out starts with what a click places (`Linear - BM03:` / `Calming - Circular road hump:`), and the Calming tool has its own cursor.
+
+### Added
+- Climbing lanes draw their widened pavement edge with the 100 m tapers (`BAYEDGE`, as for truck parking bays), with its length in the quantities.
+- A hump's or table's approach bar sets are left out where they would fall on a junction kit, a roundabout, an access, a crossing or another hump, with a note for each. Placing a junction over proposed bar sets removes them.
+- Overlap checks: a hump, table, bump or zebra that overlaps another one, or a junction or roundabout, is flagged on placing it and in the furniture checks ("Transverse items overlapping"). A bar set on a junction is a check there.
+
+### Fixed
+- Climbing lanes showed only their I1 / I2 signs: the map style had no symbol for their LM26 / LM03 lines, so they were not drawn. Every template code now has a symbol, and a project saved with the old style gets the missing ones when reopened.
+- A zebra placed from the Linear tab came out as a hump when the Calming tab's tool had been left on.
+
 ## 0.8.0 — 2026-11-12
 
 ### Added

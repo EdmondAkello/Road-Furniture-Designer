@@ -320,6 +320,10 @@ class RsdDock(QDockWidget):
         self.spn_fsta = QDoubleSpinBox(); self.spn_fsta.setRange(-1e6, 1e6); self.spn_fsta.setDecimals(1)
         self.spn_fsta.setSuffix(" m")
         cf.addRow("Feature", self.cmb_fkind)
+        self.chk_fbars.setToolTip("Humps, speed tables and raised crossings: bar sets at the Table 2.3 distances "
+                                  "before them (RDM 6.4). Sets that would fall on a junction, roundabout, crossing "
+                                  "or another hump are left out and reported.")
+        cf.addRow("", self.chk_fbars)
         cf.addRow("Hump crossing speed", self.spn_fspeed)
         cf.addRow("Crossing width", self.spn_fwidth)
         self.spn_frefuge = QDoubleSpinBox(); self.spn_frefuge.setRange(0, 30); self.spn_frefuge.setSingleStep(0.5)
@@ -332,7 +336,6 @@ class RsdDock(QDockWidget):
         cf.addRow("Refuge / median", self.spn_frefuge)
         cf.addRow("", self.chk_fspan)
         cf.addRow("Bar markings for", self.cmb_fdir)
-        cf.addRow("", self.chk_fbars)
         cf.addRow("", self.chk_fsigns)
         cl_.addLayout(cf)
         fb = QHBoxLayout()
@@ -397,6 +400,10 @@ class RsdDock(QDockWidget):
         self.cmb_jmajor = QComboBox()
         jf.addRow("Junction", self.cmb_jrole)
         jf.addRow("Main road", self.cmb_jmajor)
+        self.chk_jboth = QCheckBox("Both legs (our road crosses it)")
+        self.chk_jboth.setToolTip("Crossroads: Give Way markings, islands and an R2 sign on both of our road's "
+                                  "approaches; the main-road pieces are drawn once")
+        jf.addRow("", self.chk_jboth)
         jf.addRow("Type", self.cmb_jtype)
         jf.addRow("Place", self.cmb_jpiece)
         jf.addRow("Scale", self.spn_jscale)
@@ -528,6 +535,7 @@ class RsdDock(QDockWidget):
         self.btn_jobst.clicked.connect(self.check_splays)
         self.tabs.currentChanged.connect(
             lambda i: self.tabs.tabText(i) == "Junctions + bays" and self._fill_obstruction_layers())
+        self.tabs.currentChanged.connect(self._leave_tab)
         self.cmb_jrole.currentIndexChanged.connect(self._junction_role_changed)
         self._junction_role_changed()
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
@@ -923,12 +931,31 @@ class RsdDock(QDockWidget):
             self.btn_place.setChecked(False)
             self._run_mode = mode
             self.run_tool.cancel()
+            self.run_tool.setCursor(Qt.CrossCursor if mode == "run" else Qt.PointingHandCursor)
             canvas.setMapTool(self.run_tool)
         elif canvas.mapTool() is self.run_tool and getattr(self, "_run_mode", None) == mode:
             canvas.unsetMapTool(self.run_tool)
 
+    # map tools that belong to one tab: leaving the tab switches them off, so a click on the map never
+    # places what another tab was set to (a hump from the Calming tab while the Linear tab shows a zebra)
+    TOOL_TABS = (("btn_ldraw", "Linear"), ("btn_fplace", "Calming"), ("btn_jplace", "Junctions + bays"))
+
+    def _leave_tab(self, i):
+        here = self.tabs.tabText(i)
+        for name, tab in self.TOOL_TABS:
+            b = getattr(self, name, None)
+            if b is not None and b.isChecked() and here != tab:
+                b.setChecked(False)
+
+    def _run_prefix(self):
+        """Hover and message prefix naming what a click places, so the active mode is always visible."""
+        if getattr(self, "_run_mode", "run") == "feature":
+            return f"Calming - {self.cmb_fkind.currentText()}: "
+        return f"Linear - {self.cmb_litem.currentData() or ''}: "
+
     def _run_hover(self, text):
-        (self.lbl_lhover if getattr(self, "_run_mode", "run") == "run" else self.lbl_fhover).setText(text)
+        (self.lbl_lhover if getattr(self, "_run_mode", "run") == "run" else self.lbl_fhover).setText(
+            self._run_prefix() + text)
 
     def _run_placed(self, text):
         self._run_hover(text)
@@ -943,8 +970,10 @@ class RsdDock(QDockWidget):
         except ValueError as e:
             self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 6)
             return
+        from .maptool import bars_text
         notes = [f.text for f in d.findings]
-        self.lbl_fhover.setText((d.summary or "") + (" - " + "; ".join(notes) if notes else ""))
+        self.lbl_fhover.setText((d.summary or "") + f", {bars_text(d, self.feature_config())}"
+                                + (" - " + "; ".join(notes) if notes else ""))
         self.refresh()
 
     def _refresh_features(self):
@@ -981,6 +1010,7 @@ class RsdDock(QDockWidget):
             w.setEnabled(not bus)
         for w in (self.cmb_jrole, self.cmb_jmajor, self.chk_jguides, self.spn_jscale):
             w.setEnabled(w.isEnabled() and not acc and not rbt)
+        self.chk_jboth.setEnabled(False)
         for w in (self.chk_jsplays, self.spn_jspeed):
             w.setEnabled(w.isEnabled() and not rbt)
         if rbt:
@@ -998,6 +1028,7 @@ class RsdDock(QDockWidget):
                                     "across the mouth; stop splays (RDM 1.3 9.11.16).")
             return
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
+        self.chk_jboth.setEnabled(self.cmb_jmajor.isEnabled())
         self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
         if k == "CLIMB":
             self.cmb_jpiece.addItem("Climbing lane with its tapers, lines and signs", "")
@@ -1029,6 +1060,7 @@ class RsdDock(QDockWidget):
         return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
                 "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
+                "both": self.chk_jboth.isEnabled() and self.chk_jboth.isChecked(),
                 "splays": self.chk_jsplays.isChecked(),
                 "rbt": {"island": self.spn_rbisland.value(), "icd": self.spn_rbicd.value() or None,
                         "entry_r": self.spn_rbentry.value(), "exit_r": self.spn_rbexit.value(),
@@ -1047,10 +1079,14 @@ class RsdDock(QDockWidget):
     def _junction_role_changed(self, *_):
         minor = self.cmb_jrole.currentData() == "minor"
         self.cmb_jmajor.setEnabled(minor)
+        self.chk_jboth.setEnabled(minor and self.cmb_jtype.currentData() not in ("BUS", "TRUCK", "CLIMB", "ACCESS",
+                                                                                 "RBT"))
         self.lbl_jhover.setText(
-            "Click our road where it meets the main road, then a point along the main road (or click again "
-            "when the main road is an alignment). Give Way markings and an R2 sign go on our approach."
-            if minor else "Click the junction point on the main road, then a point up the minor road.")
+            "Click our road where it meets the main road, then a point along the main road. When the main road "
+            "is an alignment, move the mouse to the side of the leg you want (the preview follows) and click; "
+            "tick 'Both legs' where our road crosses it. Give Way markings and an R2 sign go on our approach."
+            if minor else "Click the junction point on the main road, then a point up the minor road (it follows "
+                          "another alignment of the LandXML when the mouse is near one).")
 
     def _toggle_junction_tool(self, on):
         canvas = self.iface.mapCanvas()

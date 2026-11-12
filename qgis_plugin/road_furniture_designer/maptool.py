@@ -129,6 +129,19 @@ class PlaceSignTool(QgsMapToolEmitPoint):
         super().deactivate()
 
 
+BAR_KINDS = ("hump_circular", "hump_trapezoidal", "speed_table", "raised_crossing")
+
+
+def bars_text(d, cfg):
+    """How the feature's approach bar markings went, for the placement message."""
+    n = sum(1 for r in d.runs if r.code == "BAR-SET")
+    if d.kind not in BAR_KINDS:
+        return f"{n} bar set(s)" if n else "no bar sets"
+    if cfg is not None and not cfg.bar_markings:
+        return "no bar sets (tick 'Bar markings on the approaches' on the Calming tab for them)"
+    return f"{n} bar set(s) on the approaches"
+
+
 class PlaceRunTool(QgsMapToolEmitPoint):
     """Draw linear furniture by clicking along the road, or place a traffic calming feature.
 
@@ -276,21 +289,25 @@ class PlaceRunTool(QgsMapToolEmitPoint):
                 return None
             notes = [f.text for f in d.findings]
             self.placed.emit(f"{d.summary or s['kind']} at {format_station(st.al.display_station(sta), 1)}: "
-                             f"{len(d.runs)} items, {len(d.signs)} signs" + (" - " + "; ".join(notes) if notes else ""))
+                             f"{len(d.runs)} items, {len(d.signs)} signs, {bars_text(d, s.get('feature_cfg'))}"
+                             + (" - " + "; ".join(notes) if notes else ""))
             return d
         it = st.lines.cat[s["code"]] if s.get("code") in st.lines.cat else None
         if it is not None and it.transverse:                      # zebra, bar set, hump ...: one click, centred
-            from .rfd.features import FeatureConfig, carriageway_width
+            from .rfd.features import FeatureConfig, carriageway_width, overlapping
             from .rfd.linear import CLICK_LENGTH, Run
             L = CLICK_LENGTH.get(it.code, 2.0)
             w, _src = carriageway_width(st.al, FeatureConfig(), sta)
+            hits = overlapping(sta - L / 2, sta + L / 2, st.furniture_blocks()) \
+                if it.code not in ("BAR-SET", "BM04") and hasattr(st, "furniture_blocks") else []
             try:
                 fid = st.lines.add_run(Run(it.code, sta - L / 2, sta + L / 2, side="C", width=w))
             except ValueError as ex:
                 self.failed.emit(str(ex))
                 return None
             f = st.lines.layer.getFeature(fid)
-            self.placed.emit(f"{it.code} at {f['ch_from']}-{f['ch_to']}, {w:.1f} m across")
+            self.placed.emit(f"{it.code} {it.name} at {f['ch_from']}-{f['ch_to']}, {w:.1f} m across"
+                             + "".join(f" - overlaps {h}: move one of them" for h in hits))
             st.lines.layer.triggerRepaint()
             return fid
         if rel is None:
@@ -341,6 +358,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         self._settings = settings_getter        # {"kit", "piece", "scale", "guides"}
         self.p0 = None
         self._params = None
+        self._legs = []                         # crossroads: the other legs' placements (second_leg)
         self._rb_arms = []                      # roundabout: arms clicked or found on other alignments
         self.band = QgsRubberBand(canvas, GEOM_LINE)
         self.band.setColor(QColor(200, 60, 160, 220))
@@ -429,12 +447,29 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             self._params = {"bay": B}
             return pl, st.al
         self._params = dict(s["access"]) if s.get("kit") == "ACCESS" and s.get("access") else None
+        self._legs = []
         if s.get("role") == "minor" and s.get("kit") != "ACCESS":
+            both = bool(s.get("both")) and not s.get("piece")
             pl = st.junctions.placement_minor(self.p0[1], self.p0[2], lp.x(), lp.y(), major=s.get("major") or "",
-                                              scale=s.get("scale", 1.0))
+                                              scale=s.get("scale", 1.0), both=both)
+            if both:
+                pl, self._legs = pl[0], pl[1:]
         else:
-            pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), scale=s.get("scale", 1.0))
+            # the minor road's bearing snaps to another alignment of the LandXML near the cursor
+            pl = J.place(st.al, self.p0[1], self.p0[2], lp.x(), lp.y(), others=st.junctions.others(),
+                         scale=s.get("scale", 1.0))
         return pl, st.junctions.main_of(pl)
+
+    def _leg_text(self, pl):
+        """Which way our road's leg runs from the junction, in chainage terms."""
+        import math
+        from .rfd.alignment import format_station
+        st = self._store()
+        s0 = pl.our_station
+        _, _, h = st.al.point_at(s0)
+        up = math.cos(pl.bearing - h) > 0
+        return f"leg towards {'higher' if up else 'lower'} chainage from Ch " \
+               f"{format_station(st.al.display_station(s0), 1)}"
 
     def _pieces(self, lp):
         from .rfd import junctions as J
@@ -457,6 +492,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         else:
             pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True),
                               splays=s.get("splays", True), splay=s.get("splay"))
+            for leg in self._legs:
+                pcs += J.build_kit(main, leg, s["kit"], st.junctions.templates, guides=s.get("guides", True),
+                                   splays=s.get("splays", True), splay=s.get("splay"), second_leg=True)
         return pl, pcs
 
     def canvasMoveEvent(self, e):
@@ -466,6 +504,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         lp = self._xf().transform(e.mapPoint())
         self.mark.reset(GEOM_POINT)
         self.band.reset(GEOM_LINE)
+        from .rfd import junctions as J
         from .rfd.alignment import format_station
         if self.p0 is None:
             sn = self._snap(lp)
@@ -502,8 +541,12 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                             f"tapers {pcs[0].params['entry']:g} / {pcs[0].params['exit']:g} m - click to place")
             return
         if pl.role == "minor":
+            which = ("both legs (crossroads)" if self._legs else self._leg_text(pl)
+                     + (" - move the mouse across the main road for the other leg"
+                        if pl.main_ref.startswith("alg:") and len(J.minor_legs(st.al, pl.our_station, F.al)) > 1
+                        else ""))
             self.hover.emit(f"Our road joins {('alignment ' + pl.main_ref[4:]) if pl.main_ref.startswith('alg:') else 'the main road'}"
-                            f" at {F.crossing_angle:.0f} deg - click to place")
+                            f" at {F.crossing_angle:.0f} deg, {which} - click to place")
         else:
             self.hover.emit(f"Crossing angle {F.crossing_angle:.0f} deg, minor road on the "
                             f"{'left' if F.side == 'L' else 'right'} - click to place")
@@ -517,6 +560,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
 
     def cancel(self):
         self.p0 = None
+        self._legs = []
         self._rb_arms = []
         self.band.reset(GEOM_LINE)
 
@@ -554,7 +598,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK")
                    else "now click where the full-width lane ends" if s.get("kit") == "CLIMB"
                    else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
-                   else "click again to place" if s.get("role") == "minor"
+                   else ("click again to place both legs" if s.get("both") else
+                         "move the mouse to the side of our road's leg, then click to place")
+                   if s.get("role") == "minor"
                    else "now click a point up the minor road")
             self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - {nxt}")
             return None
@@ -571,6 +617,11 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             pl, _ = self._placement(lp)
             n, finds, nsigns = st.add_junction(pl, s["kit"], s.get("piece") or "", s.get("guides", True),
                                                self._params, s.get("splays", True), s.get("splay"))
+            for leg in self._legs:
+                n2, f2, s2 = st.add_junction(leg, s["kit"], "", s.get("guides", True), self._params,
+                                             s.get("splays", True), s.get("splay"), second_leg=True)
+                n, nsigns = n + n2, nsigns + s2
+                finds = list(finds) + [f for f in f2 if f not in finds]
         except ValueError as ex:
             self.failed.emit(str(ex))
             return None
