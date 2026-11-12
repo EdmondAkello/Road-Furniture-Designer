@@ -308,6 +308,30 @@ def test_junction_ahead_warnings_on_our_road(tmp_path):
     assert [c for c, _f, _m in warn()] == ["W2", "W2"]
 
 
+def test_move_a_junction_piece(tmp_path):
+    """C7: a placed piece moves along the road and is rebuilt there; Shift moves the whole junction."""
+    import math
+    from road_furniture_designer.maptool import MovePieceTool
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    st.junctions.place(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2), kit="C")
+    split = next(f for f in st.junctions.layer.getFeatures() if f["piece"] == "splitter_teardrop" and f["code"] == "KERB")
+    c = split.geometry().centroid().asPoint()
+    canvas = QgsMapCanvas(); canvas.setDestinationCrs(CRS)
+    tool = MovePieceTool(canvas, lambda: st)
+    tool.click(QgsPointXY(c.x(), c.y()))
+    x1, y1, _ = st.al.point_at(st.al.station_offset(c.x(), c.y()).station + 12.0)
+    assert tool.click(QgsPointXY(x1, y1)) == 1
+    stas = {f["piece"]: f["sta"] for f in st.junctions.layer.getFeatures()}
+    assert abs(stas["splitter_teardrop"] - 612.0) < 0.5 and abs(stas["give_way_line"] - 600.0) < 1e-6
+    pu = next(f["piece_uuid"] for f in st.junctions.layer.getFeatures() if f["piece"] == "give_way_line")
+    assert st.junctions.move(pu, -5.0, whole=True) >= 5
+    assert all(abs(f["sta"] - (607.0 if f["piece"] == "splitter_teardrop" else 595.0)) < 0.5
+               for f in st.junctions.layer.getFeatures())
+
+
 def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
     from road_furniture_designer.maptool import PlaceRunTool
     from road_furniture_designer.rfd.autoplace import AutoConfig

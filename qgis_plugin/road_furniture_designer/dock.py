@@ -449,7 +449,11 @@ class RsdDock(QDockWidget):
             self._access_rows.append((jf.labelForField(spn), spn))
         jl.addLayout(jf)
         self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
-        jl.addWidget(self.btn_jplace)
+        self.btn_jmove = QPushButton("Move a piece"); self.btn_jmove.setCheckable(True)
+        self.btn_jmove.setToolTip("Click a placed piece, then where it should go along the road; hold Shift for the "
+                                  "whole junction. The piece is rebuilt from its template there.")
+        jrow = QHBoxLayout(); jrow.addWidget(self.btn_jplace); jrow.addWidget(self.btn_jmove)
+        jl.addLayout(jrow)
         self.spn_jaadt = QDoubleSpinBox(); self.spn_jaadt.setRange(0, 200000); self.spn_jaadt.setDecimals(0)
         self.spn_jaadt.setSingleStep(500); self.spn_jaadt.setSpecialValueText("AADT not given")
         self.spn_jaadt.setSuffix(" pcu (year 10)")
@@ -531,6 +535,14 @@ class RsdDock(QDockWidget):
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
         self.btn_jplace.toggled.connect(self._toggle_junction_tool)
+        from .maptool import MovePieceTool
+        self.mv_tool = MovePieceTool(iface.mapCanvas(), lambda: self.store)
+        self.mv_tool.hover.connect(self.lbl_jhover.setText)
+        self.mv_tool.placed.connect(lambda t: (self.lbl_jhover.setText(t), self.refresh()))
+        self.mv_tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
+                                                                                 MSG_WARNING, 5))
+        self.mv_tool.deactivated.connect(lambda: self.btn_jmove.setChecked(False))
+        self.btn_jmove.toggled.connect(self._toggle_move_tool)
         self.btn_jclimb.clicked.connect(self.propose_climbing_lanes)
         self.btn_jobst.clicked.connect(self.check_splays)
         self.tabs.currentChanged.connect(
@@ -938,7 +950,8 @@ class RsdDock(QDockWidget):
 
     # map tools that belong to one tab: leaving the tab switches them off, so a click on the map never
     # places what another tab was set to (a hump from the Calming tab while the Linear tab shows a zebra)
-    TOOL_TABS = (("btn_ldraw", "Linear"), ("btn_fplace", "Calming"), ("btn_jplace", "Junctions + bays"))
+    TOOL_TABS = (("btn_ldraw", "Linear"), ("btn_fplace", "Calming"), ("btn_jplace", "Junctions + bays"),
+                 ("btn_jmove", "Junctions + bays"))
 
     def _leave_tab(self, i):
         here = self.tabs.tabText(i)
@@ -1100,6 +1113,18 @@ class RsdDock(QDockWidget):
             canvas.setMapTool(self.jn_tool)
         elif canvas.mapTool() is self.jn_tool:
             canvas.unsetMapTool(self.jn_tool)
+
+    def _toggle_move_tool(self, on):
+        canvas = self.iface.mapCanvas()
+        if on:
+            if self.store is None:
+                self.btn_jmove.setChecked(False)
+                return
+            self.btn_jplace.setChecked(False)
+            self.mv_tool.cancel()
+            canvas.setMapTool(self.mv_tool)
+        elif canvas.mapTool() is self.mv_tool:
+            canvas.unsetMapTool(self.mv_tool)
 
     def _refresh_junctions(self):
         cur = self.lst_junctions.currentItem()
