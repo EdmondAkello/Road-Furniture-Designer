@@ -4,6 +4,9 @@
 
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
+- **Markings look as painted**: broken lines are dashed at their real mark and gap in metres (rural or urban by speed) on the map and the plan sheets, instead of a screen dash that read as dots; double lines and the combined line show both lines (kept apart on screen at any scale), the CLS's continuous side following "flip".
+- **Climbing lanes over the speed profile**: the proposal follows the trucks along the design profile, vertical curves included, so consecutive steep grades count together, and close lanes are joined.
+- Bays, climbing lanes and the widening round trip use the corridor's carriageway edge whatever it is coded (ETW, EOP, EP, EOTW, EdgeOfPavement, Edge).
 - Junctions: where our road joins or crosses another alignment, the kit faces the leg of our road on the mouse's side, and the preview flips as the mouse moves across the main road. The hover text names the leg. **Both legs** (Junctions tab) places a crossroads: islands, Give Way markings and an R2 on each approach, with the main-road pieces drawn once.
 - Junctions on our road: the minor road's direction follows another alignment of the LandXML when the mouse is within 15 m of it, so it doesn't have to be aimed by hand.
 - Calming tab: **Bar markings on the approaches** sits under the feature type. The placement message says how many bar sets went in, or how to switch them on.
@@ -14,6 +17,14 @@
 - Map tools belong to their tab. Leaving the Linear, Calming or Junctions tab switches its tool off. The hover read-out starts with what a click places (`Linear - BM03:` / `Calming - Circular road hump:`), and the Calming tool has its own cursor.
 
 ### Added
+- **Junction Ahead warning signs** (RDM 6.2 4.2) proposed with every junction kit: W2 Side Road on both approaches where our road is the main road (mirrored to the side road's side), W1 Crossroads where side roads leave on both sides within 10 m, W5 Staggered Crossroads within 60 m, and W12 / W11 on our approach where our road meets a road of greater importance. Re-proposed together when a junction is placed, moved or removed; accepted ones are kept.
+- **Arrow markings at junctions** (RDM 6.1 6.4.3, Table A.5): AM06 (AM07 at a crossroads) on the minor approach, AM03 right-turn arrows in the right-turn lane of A-1 and B-Mod kits, 3.5 / 5 / 9 m by speed (Table 6.1); painted area from the outline, solid hatches in the DXF.
+- **Minor road approach visibility splay** (RDM 1.3 Figure 9.13) where our road is the minor road: drawn with the splays, checked against the obstruction layers, and reported with how far it reaches inside a bend.
+- **Roundabout entry path radius** (RDM 1.3 10.6.3.5): checked at every entry on a simplified fastest ahead path, against 100 m (70 m at compact urban roundabouts).
+- **BUS STOP word marking** in bus bays (RDM 6.1 10.3), in each 15 m box, letters by speed (Table 6.2).
+- **Move a piece** (Junctions tab): move a placed junction piece, or with Shift the whole junction, along the road; it is rebuilt from its template there.
+- Kerb returns in the guide lines are three-centred curves, R1 : R2 : R3 = 2 : 1 : 3 (RDM 1.3 Figure 9.25).
+- Bus bay kerbs are split into raised (platform and ramps) and flush (tapers) in the Junctions and Widenings sheets.
 - Climbing lanes draw their widened pavement edge with the 100 m tapers (`BAYEDGE`, as for truck parking bays), with its length in the quantities.
 - A hump's or table's approach bar sets are left out where they would fall on a junction kit, a roundabout, an access, a crossing or another hump, with a note for each. Placing a junction over proposed bar sets removes them.
 - Overlap checks: a hump, table, bump or zebra that overlaps another one, or a junction or roundabout, is flagged on placing it and in the furniture checks ("Transverse items overlapping"). A bar set on a junction is a check there.
