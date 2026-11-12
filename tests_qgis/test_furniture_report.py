@@ -1,4 +1,5 @@
 """Road furniture pages of the report: strip diagram, schedules and checks."""
+import math
 import os
 import re
 import sys
@@ -148,12 +149,12 @@ def test_junction_templates_in_a_project(tmp_path):
     up = lambda ang, side=1: (x0 + 30 * math.cos(h + side * math.radians(ang)),
                               y0 + 30 * math.sin(h + side * math.radians(ang)))
     n, finds = st.junctions.place(x0, y0, *up(90), kit="A-2")
-    assert n == 7 and finds == []
+    assert n == 8 and finds == []                               # 7 pieces + splays
     n, finds = st.junctions.place(*st.al.point_at(st.al.sta_end - 300.0)[:2],
                                   *(lambda x, y, hh: (x + 30 * math.cos(hh - math.radians(70)),
                                                       y + 30 * math.sin(hh - math.radians(70))))(*st.al.point_at(st.al.sta_end - 300.0)),
                                   kit="C", guides=False)
-    assert n == 4 and [l for l, _ in finds] == ["check"]
+    assert n == 5 and [l for l, _ in finds] == ["check"]        # 4 pieces + splays
     js = st.junctions.junctions()
     assert [j["kit"] for j in js] == ["A-2", "C"]
     a2 = js[0]
@@ -203,7 +204,7 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     x0, y0, h = st.al.point_at(s_end)
     pl = st.junctions.placement_minor(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
     n, finds, nsigns = st.add_junction(pl, "B")
-    assert n == 6 and nsigns == 1
+    assert n == 7 and nsigns == 1                              # 6 pieces + splays
     r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
     assert [f["sign_code"] for f in r2] == ["R2"] and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
     j = st.junctions.junctions()[0]
@@ -285,6 +286,40 @@ def test_truck_parking_bay_in_a_project(tmp_path):
     rows = list(load_workbook(tmp_path / "t.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
     assert len(rows) == 1 and rows[0][1] == "truck parking bay" and rows[0][7] == 15 and rows[0][8] == 10
     assert st.remove_junction(pl.junction_id) >= 2
+
+
+def test_visibility_splays_against_obstruction_layers(tmp_path):
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayer
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.report import ReportData
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    x, y, h = st.al.point_at(600.0)
+    nx, ny = -math.sin(h), math.cos(h)                              # left of the chainage
+    pl = J.place(st.al, x, y, x + 30 * nx, y + 30 * ny)
+    n, finds, nsigns = st.add_junction(pl, "C", splay={"speed": 80})
+    j = next(j for j in st.junctions.junctions() if j["id"] == pl.junction_id)
+    assert j["sight"]["speed_used"] == 80 and {r["kind"] for r in j["sight"]["splays"]} == {"approach", "stop"}
+    codes = {f["code"] for f in st.junctions.layer.getFeatures() if f["junction_id"] == pl.junction_id}
+    assert {"SPLAY-A", "SPLAY-S"} <= codes
+    # a building 40 m up the chainage, 2 m back from the edge: in both splays on that side; one far away: in none
+    lyr = QgsVectorLayer(f"Polygon?crs={st.signs.crs().authid()}", "Buildings", "memory")
+    feats = []
+    for along, off in ((40.0, 6.0), (40.0, 60.0)):
+        bx, by, _ = st.al.point_at(600.0 + along, -off)
+        f = QgsFeature(); f.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(bx + dx, by + dy) for dx, dy in
+                                                                 ((-2, -2), (2, -2), (2, 2), (-2, 2), (-2, -2))]]))
+        feats.append(f)
+    lyr.dataProvider().addFeatures(feats)
+    QgsProject.instance().addMapLayer(lyr)
+    nj, total = st.check_sight([lyr.id()])
+    assert nj == 1 and total == 2                                   # approach and stop splays, up the chainage
+    obs = st.junctions.junctions()[0]["sight"]["obstructions"]
+    assert {(o["kind"], o["dir"]) for o in obs} == {("approach", "up"), ("stop", "up")}
+    d = ReportData(st, AutoConfig())                                # the report re-runs the check
+    sight = [c for c in d.fr.checks if c.kind == "junction_sight"]
+    assert any(c.level == "issue" and "Buildings feature" in c.text for c in sight)
+    st.remove_junction(pl.junction_id)
 
 
 def test_climbing_lane_proposed_in_a_project(tmp_path):

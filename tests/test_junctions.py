@@ -240,3 +240,48 @@ def test_climbing_lanes_from_the_profile():
     assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700) and d["end"] == 0
     assert J.climbing_lanes(al, aadt=1500) == []                     # RDM 1.3 6.6.2: none under 2000 pcu
     assert "6000" in J.climbing_lanes(al, aadt=8000)[0]["note"]
+
+
+def test_visibility_splays():
+    from rfd.criteria import Criteria
+    from rfd.profile import VerticalProfile
+    crit = Criteria.load()
+    assert crit.junction_sight("approach", 100) == (20.0, 215.0) and crit.junction_sight("stop", 50) == (3.0, 160.0)
+    assert crit.junction_sight("stop", 80) == pytest.approx((3.0, 225 + (275 - 225) * 10 / 15))   # interpolated
+    assert Criteria.load("aashto_2011").junction_sight("stop", 80) is None
+    al = Alignment.from_polyline("S", [(0, 0), (1000, 0)])
+    al.speeds = [(0.0, 100.0)]
+    pl = J.place(al, 500, 0, 500, 30)                              # square, minor road on the left
+    pc = J.build_piece(al, pl, "splays", templates=T)
+    assert [p.code for p in pc.parts] == ["SPLAY-A", "SPLAY-A", "SPLAY-S", "SPLAY-S"]
+    a_up, a_dn, s_up, s_dn = pc.parts
+    assert a_up.closed and a_up.pts[0] == pytest.approx((500, 23.5)) and a_up.pts[1] == pytest.approx((715, 0))
+    assert a_dn.pts[1] == pytest.approx((285, 0)) and s_up.pts[0] == pytest.approx((500, 6.5))
+    assert s_dn.pts[1] == pytest.approx((180, 0)) and a_up.pts[-1] == pytest.approx((500, 0))
+    assert J.splay_findings(pc.params) == []
+    # every kit carries the splays; build_kit can leave them out
+    assert all(any(i["piece"] == "splays" for i in T["kits"][k]) for k in ("A-1", "A-2", "B", "B-Mod", "C"))
+    assert not any(p.piece == "splays" for p in J.build_kit(al, pl, "C", T, splays=False))
+    # skewed minor road: the set-back is measured along it, from the main road's edge
+    sk = J.build_piece(al, J.place(al, 500, 0, 530, 30), "splays", templates=T)
+    apex = sk.parts[0].pts[0]
+    assert math.hypot(apex[0] - 500, apex[1]) == pytest.approx(3.5 / math.sin(math.radians(45)) + 20)
+    # no speed stations: 80 km/h assumed and flagged; a typed speed wins
+    al.speeds = []
+    pa = J.build_piece(al, pl, "splays", templates=T)
+    assert pa.params["speed_assumed"] and any("80 km/h" in t for _, t in J.splay_findings(pa.params))
+    assert J.build_piece(al, pl, "splays", params={"speed": 50}, templates=T).params["splays"][0]["length"] == 95
+    # near the alignment end the leg is cut and noted
+    end = J.build_piece(al, J.place(al, 900, 0, 900, 30), "splays", params={"speed": 100}, templates=T)
+    assert any("ends" in t for _, t in J.splay_findings(end.params))
+    # a crest on the main road hides the vehicle: stop splay short is an issue
+    al.speeds = [(0.0, 100.0)]
+    al.profile = VerticalProfile("P", [(0, 100, 0), (650, 112, 300), (1000, 100, 0)])
+    cr = J.build_piece(al, pl, "splays", templates=T)
+    f = J.splay_findings(cr.params)
+    assert any(lvl == "issue" and "stop sight distance up the chainage" in t for lvl, t in f)
+    # obstructions found in QGIS are reported, stop splays as issues
+    rec = dict(pc.params, obstructions=[{"kind": "stop", "dir": "up", "layer": "Buildings", "fid": 7}], checked=["Buildings"])
+    (lvl, text), = J.splay_findings(rec)
+    assert lvl == "issue" and "Buildings feature 7" in text and "stop visibility splay up" in text
+    assert any("not checked" in t for _, t in J.splay_findings(dict(pc.params, obstructions=[], checked=None)))

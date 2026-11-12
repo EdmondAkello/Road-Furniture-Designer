@@ -79,6 +79,7 @@ KIND_TEXT = {
     "bus_bay_spacing": "Bus bay spacing",
     "truck_bay_length": "Truck parking bay length",
     "truck_bay_spacing": "Truck parking bay spacing",
+    "junction_sight": "Junction visibility",
 }
 
 
@@ -530,6 +531,14 @@ def junction_checks(al, junctions) -> List[Check]:
                                  side, f"truck parking bays {d / 1000:.1f} km apart; at most "
                                               f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
                                  "check", {"distance": d}))
+    from .junctions import splay_findings
+    for j in junctions:
+        if j.get("bay") or not j.get("sight"):
+            continue
+        sta = j.get("sta") or 0.0
+        for level, text in splay_findings(j["sight"]):
+            out.append(Check("junction_sight", sta, sta, "Both",
+                             f"type {j.get('kit', '')} junction at {_ch(al, sta)}: {text}", level))
     for j in junctions:
         if j.get("bay"):
             continue

@@ -401,6 +401,16 @@ class RsdDock(QDockWidget):
         jf.addRow("Place", self.cmb_jpiece)
         jf.addRow("Scale", self.spn_jscale)
         jf.addRow("", self.chk_jguides)
+        self.chk_jsplays = QCheckBox("Visibility splays (RDM 1.3 9.5.4)"); self.chk_jsplays.setChecked(True)
+        self.chk_jsplays.setToolTip("Approach (give way, Figure 9.11) and stop (Figure 9.12) sight triangles on both "
+                                    "sides, from Tables 9.7 and 9.8 at the main road's design speed")
+        self.spn_jspeed = QDoubleSpinBox(); self.spn_jspeed.setRange(0, 140); self.spn_jspeed.setSingleStep(10)
+        self.spn_jspeed.setDecimals(0); self.spn_jspeed.setSuffix(" km/h")
+        self.spn_jspeed.setSpecialValueText("From the alignment")
+        self.spn_jspeed.setToolTip("Design speed of the main road for the visibility splays. 'From the alignment' "
+                                   "uses its speed stations; without them 80 km/h is assumed and flagged.")
+        jf.addRow("", self.chk_jsplays)
+        jf.addRow("Main road speed", self.spn_jspeed)
         jl.addLayout(jf)
         self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
         jl.addWidget(self.btn_jplace)
@@ -414,6 +424,15 @@ class RsdDock(QDockWidget):
         jl.addWidget(self.lbl_jhover)
         self.lst_junctions = QListWidget()
         jl.addWidget(self.lst_junctions, 1)
+        from qgis.gui import QgsCheckableComboBox
+        self.cmb_jobst = QgsCheckableComboBox()
+        self.cmb_jobst.setDefaultText("Obstruction layers")
+        self.cmb_jobst.setToolTip("Layers with buildings, trees, fences, walls, kiosks ... to check against the splays")
+        self.btn_jobst = QPushButton("Check splays")
+        self.btn_jobst.setToolTip("Find features of the ticked layers inside the visibility splays; they are listed "
+                                  "here and in the report's furniture checks")
+        jo = QHBoxLayout(); jo.addWidget(self.cmb_jobst, 1); jo.addWidget(self.btn_jobst)
+        jl.addLayout(jo)
         jb = QHBoxLayout()
         self.btn_jscale = QPushButton("Apply scale to selected")
         self.btn_jdel = QPushButton("Remove selected junction")
@@ -477,6 +496,9 @@ class RsdDock(QDockWidget):
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
         self.btn_jplace.toggled.connect(self._toggle_junction_tool)
         self.btn_jclimb.clicked.connect(self.propose_climbing_lanes)
+        self.btn_jobst.clicked.connect(self.check_splays)
+        self.tabs.currentChanged.connect(
+            lambda i: self.tabs.tabText(i) == "Junctions + bays" and self._fill_obstruction_layers())
         self.cmb_jrole.currentIndexChanged.connect(self._junction_role_changed)
         self._junction_role_changed()
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
@@ -612,6 +634,7 @@ class RsdDock(QDockWidget):
         self._fill_linear_controls()
         self._fill_ground_choices()
         self._fill_junction_majors()
+        self._fill_obstruction_layers()
         crit = store.meta.get("criteria")
         if crit:
             i = self.cmb_crit.findData(crit)
@@ -920,7 +943,7 @@ class RsdDock(QDockWidget):
         if not k:
             return
         bus = k in ("BUS", "TRUCK", "CLIMB")
-        for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale):
+        for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale, self.chk_jsplays, self.spn_jspeed):
             w.setEnabled(not bus)
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
         self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
@@ -953,7 +976,9 @@ class RsdDock(QDockWidget):
     def junction_settings(self):
         return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
-                "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or ""}
+                "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
+                "splays": self.chk_jsplays.isChecked(),
+                "splay": {"speed": self.spn_jspeed.value() or None, "criteria": self.cmb_crit.currentData()}}
 
     def _fill_junction_majors(self):
         self.cmb_jmajor.clear()
@@ -1001,14 +1026,44 @@ class RsdDock(QDockWidget):
                 if j["id"] == keep:
                     self.lst_junctions.setCurrentItem(it)
                 continue
+            obst = len((j.get("sight") or {}).get("obstructions") or [])
             it = QListWidgetItem(f"{j['ch']}  type {j['kit']}  {where}  "
                                  f"{j['crossing_deg']:.0f} deg  x{j['scale']:g}  "
-                                 f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)")
+                                 f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)"
+                                 + (f"  - {obst} obstruction(s) in the splays" if obst else ""))
             it.setData(Qt.UserRole, j["id"])
             it.setData(Qt.UserRole + 1, j["sta"])
             self.lst_junctions.addItem(it)
             if j["id"] == keep:
                 self.lst_junctions.setCurrentItem(it)
+
+    def _fill_obstruction_layers(self):
+        """Vector layers of the project, other than RFD's own, as obstruction candidates; ticks are kept."""
+        from qgis.core import QgsVectorLayer
+        keep = set(self.cmb_jobst.checkedItemsData())
+        saved = set(((self.store.meta.get("sight_layers") if self.store else "") or "").split(","))
+        self.cmb_jobst.clear()
+        gpkg = os.path.normcase(os.path.abspath(self.store.gpkg)) if self.store else None
+        for lyr in QgsProject.instance().mapLayers().values():
+            if not isinstance(lyr, QgsVectorLayer):
+                continue
+            src = os.path.normcase(os.path.abspath(lyr.source().split("|")[0])) if lyr.source() else ""
+            if gpkg and src == gpkg:
+                continue                                   # RFD's own layers
+            self.cmb_jobst.addItemWithCheckState(lyr.name(), Qt.Checked if lyr.id() in (keep | saved) else Qt.Unchecked,
+                                                 lyr.id())
+
+    def check_splays(self):
+        if self.store is None:
+            return
+        ids = [i for i in self.cmb_jobst.checkedItemsData() if i]
+        n, total = self.store.check_sight(ids)
+        if not ids:
+            self.lbl_jhover.setText("Tick one or more obstruction layers (buildings, trees, fences ...) first.")
+        else:
+            self.lbl_jhover.setText(f"{total} obstruction(s) inside the visibility splays of {n} junction(s)"
+                                    if total else "No obstructions inside the visibility splays.")
+        self.refresh()
 
     def propose_climbing_lanes(self):
         if self.store is None:

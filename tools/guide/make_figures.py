@@ -75,13 +75,26 @@ for a, b, off in ((2700.0, 2725.0, -5.0), (2765.0, 2790.0, 5.0)):     # bus bays
     st.add_junction(pl, "BUS", params={"bay": B})
 pl, B = J.place_bay(st.al, *P(2420.0, -5.0), *P(2490.0, -5.0))       # a truck parking bay on the straight
 st.add_junction(pl, "TRUCK", params={"bay": B})
+from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayer  # noqa: E402
+blds = QgsVectorLayer(f"Polygon?crs={st.signs.crs().authid()}", "Buildings (sample)", "memory")
+_bf = []
+for along, off, w in ((-70.0, 14.0, 6.0), (-150.0, 30.0, 8.0), (60.0, 40.0, 7.0)):   # left of the chainage
+    _bx, _by, _bh = st.al.point_at(2300.0 + along, -off)
+    _c, _s = math.cos(_bh), math.sin(_bh)
+    _bf.append(QgsFeature())
+    _bf[-1].setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(_bx + u * _c - v * _s, _by + u * _s + v * _c)
+                                                    for u, v in ((-w, -3), (w, -3), (w, 3), (-w, 3), (-w, -3))]]))
+blds.dataProvider().addFeatures(_bf)
+blds.renderer().symbol().setColor(QColor("#c8b49b"))
+QgsProject.instance().addMapLayer(blds)
+st.check_sight([blds.id()])
 st.accept_proposals(); st.lines.accept_proposals()
 st.auto_propose(auto)                 # leave a few proposals visible (orange) for the figures
 st.set_meta(prepared_by="E. Akello", checked_by="", approved_by="")
 st.add_to_project()
 
 # ------------------------------------------------------------------ map
-def render_map(extent, size, name):
+def render_map(extent, size, name, rotation=0.0):
     ms = QgsMapSettings()
     ms.setLayers([l for l in QgsProject.instance().mapLayers().values()])
     order = QgsProject.instance().layerTreeRoot().layerOrder()
@@ -91,6 +104,7 @@ def render_map(extent, size, name):
     ms.setExtent(extent)
     ms.setOutputSize(QSize(*size))
     ms.setOutputDpi(144)
+    ms.setRotation(rotation)
     ms.setBackgroundColor(QColor("#f7f5ef"))
     job = QgsMapRendererParallelJob(ms)
     job.start(); job.waitForFinished()
@@ -111,13 +125,18 @@ x, y = P(2452, 0)                                                     # the truc
 render_map(QgsRectangle(x - 75, y - 50, x + 75, y + 50), (1500, 1000), "fig_map_truckbay.png")
 jext = QgsRectangle()                                                 # type A-1 junction with its guide lines
 for f in st.junctions.layer.getFeatures():
-    if f["kit"] == "A-1":
+    if f["kit"] == "A-1" and not str(f["code"]).startswith("SPLAY"):
         jext.combineExtentWith(f.geometry().boundingBox())
 jext.grow(12)
 jw = max(jext.width(), jext.height() * 1600 / 1050)
 cx, cy = jext.center().x(), jext.center().y()
 render_map(QgsRectangle(cx - jw / 2, cy - jw * 1050 / 3200, cx + jw / 2, cy + jw * 1050 / 3200), (1600, 1050),
            "fig_map_junction.png")
+cx, cy, ch = st.al.point_at(2300.0, -22.0)                           # the A-1 junction's visibility splays,
+az = 90.0 - math.degrees(ch)                                          # road turned to run across the figure
+sw = 2 * 270.0
+render_map(QgsRectangle(cx - sw / 2, cy - sw * 460 / 3200, cx + sw / 2, cy + sw * 460 / 3200), (1600, 460),
+           "fig_map_splays.png", rotation=-(az - 90.0))
 x0, y0 = P(st.al.sta_start, 0)
 ext = st.alignment_layer.extent() if hasattr(st, "alignment_layer") else QgsRectangle(x0 - 2000, y0 - 2000, x0 + 2000, y0 + 2000)
 ext.grow(150)
