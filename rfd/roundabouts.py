@@ -256,6 +256,109 @@ def checks(arms: List[dict], P: dict, q: dict) -> List[Tuple[str, str]]:
     if COMPACT_ICD[0] <= icd <= COMPACT_ICD[1]:
         out.append(("info", f"ICD {icd:g} m is between {COMPACT_ICD[0]:g} and {COMPACT_ICD[1]:g} m: consider a "
                             f"compact roundabout if the flows allow (RDM 1.3 10.5)"))
-    out.append(("info", "entry deflection and the fastest path (no path radius over 100 m) are not checked; "
-                        "design them with the junction (RDM 1.3 10.4.1, 10.7)"))
+    out.append(("info", "the entry path radii are checked on a simplified fastest path (three points per entry); "
+                        "confirm them on the drawn paths with the junction design (RDM 1.3 10.6.3.5, 10.7)"))
+    return out
+
+
+ENTRY_PATH_MAX = 100.0          # 10.6.3.5: entry path radius at most 100 m (70 m at compact urban roundabouts)
+ENTRY_PATH_COMPACT = 70.0
+
+
+def _circumradius(a: Pt, b: Pt, c: Pt) -> float:
+    ab, bc, ca = math.dist(a, b), math.dist(b, c), math.dist(c, a)
+    cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    return math.inf if abs(cross) < 1e-9 else ab * bc * ca / (2 * abs(cross))
+
+
+def _catmull_rom(pts: Sequence[Pt], step: float = 0.5) -> List[Pt]:
+    """A smooth curve through the points (centripetal Catmull-Rom), sampled about every `step` m."""
+    P = [(2 * pts[0][0] - pts[1][0], 2 * pts[0][1] - pts[1][1])] + list(pts) + \
+        [(2 * pts[-1][0] - pts[-2][0], 2 * pts[-1][1] - pts[-2][1])]
+    out = []
+    for k in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[k - 1], P[k], P[k + 1], P[k + 2]
+        t0 = 0.0
+        t1 = t0 + math.dist(p0, p1) ** 0.5
+        t2 = t1 + math.dist(p1, p2) ** 0.5
+        t3 = t2 + math.dist(p2, p3) ** 0.5
+        n = max(2, int(math.dist(p1, p2) / step))
+        for i in range(n):
+            t = t1 + (t2 - t1) * i / n
+
+            def lerp(a, b, ta, tb):
+                if tb - ta < 1e-9:
+                    return a
+                return ((tb - t) / (tb - ta) * a[0] + (t - ta) / (tb - ta) * b[0],
+                        (tb - t) / (tb - ta) * a[1] + (t - ta) / (tb - ta) * b[1])
+            a1, a2, a3 = lerp(p0, p1, t0, t1), lerp(p1, p2, t1, t2), lerp(p2, p3, t2, t3)
+            b1, b2 = lerp(a1, a2, t0, t2), lerp(a2, a3, t1, t3)
+            out.append(lerp(b1, b2, t1, t2))
+    out.append(tuple(pts[-1]))
+    return out
+
+
+def entry_paths(O: Pt, arms: List[dict], P: dict, q: dict, window: float = 25.0) -> List[dict]:
+    """The entry path radius of the ahead movement at each entry (RDM 1.3 10.6.3.5, Figure 10.14), on a
+    simplified fastest path: a smooth curve from 50 m back on the approach, 1 m off the centre line, through
+    1 m off the nearside kerb at the give way line, 1.5 m outside the central island midway to the exit most
+    nearly opposite (clockwise: traffic keeps left), 1 m off the exit's nearside kerb, to 50 m out, 1 m off its
+    centre line. The radius is the smallest circle fitted over 25 m of the path bending left, centred within 50 m
+    before the give way line; none bending left: no entry deflection (infinite radius)."""
+    P = dict(DEFAULTS, **{k: v for k, v in P.items() if v is not None})
+    rc, ri = q["icd"] / 2, float(P["island"]) / 2
+    ws, we, wx = float(P["splitter"]), float(P["entry"]), float(P["exit"])
+    bear = [a["bearing"] % (2 * math.pi) for a in arms]
+    out = []
+    for i, th in enumerate(bear):
+        others = [((th - t) % (2 * math.pi), t) for j, t in enumerate(bear) if j != i]      # clockwise gaps
+        if not others:
+            continue
+        gap, tx = min(others, key=lambda g: abs(g[0] - math.pi))
+
+        def frame(t):
+            b = (math.cos(t), math.sin(t))
+            n = (-b[1], b[0])
+            return lambda s, o: (O[0] + s * b[0] + o * n[0], O[1] + s * b[1] + o * n[1])
+        We, Wx = frame(th), frame(tx)
+        m = th - gap / 2
+        ctrl = [We(rc + 50.0, -1.0), We(rc, -(ws / 2 + we) + 1.0),
+                (O[0] + (ri + 1.5) * math.cos(m), O[1] + (ri + 1.5) * math.sin(m)),
+                Wx(rc, ws / 2 + wx - 1.0), Wx(rc + 50.0, 1.0)]
+        path = _catmull_rom(ctrl)
+        # chainage along the path; the give way point is the second control point
+        cum = [0.0]
+        for a, b in zip(path, path[1:]):
+            cum.append(cum[-1] + math.dist(a, b))
+        k_gw = min(range(len(path)), key=lambda k: math.dist(path[k], ctrl[1]))
+        k_is = min(range(len(path)), key=lambda k: math.dist(path[k], ctrl[2]))
+        best = math.inf
+        for a in range(len(path)):
+            if cum[a] < cum[k_gw] - 50.0:
+                continue
+            if cum[a] + window / 2 > cum[k_gw] + 1e-6:          # window centred at most on the give way line
+                break
+            e = next((k for k in range(a, len(path)) if cum[k] - cum[a] >= window), None)
+            if e is None:
+                break
+            mid = next(k for k in range(a, e + 1) if cum[k] - cum[a] >= window / 2)
+            p0, p1, p2 = path[a], path[mid], path[e]
+            if (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]) > 0:       # bends left
+                best = min(best, _circumradius(p0, p1, p2))
+        out.append({"bearing": th, "src": arms[i].get("src"), "radius": best, "path": path,
+                    "exit_gap_deg": math.degrees(gap)})
+    return out
+
+
+def entry_path_checks(paths: List[dict], q: dict, compact_urban: bool = False) -> List[Tuple[str, str]]:
+    lim = ENTRY_PATH_COMPACT if compact_urban else ENTRY_PATH_MAX
+    out = []
+    for p in paths:
+        where = f"the entry at {math.degrees(p['bearing']) % 360:.0f} deg"
+        if math.isinf(p["radius"]):
+            out.append(("check", f"{where}: the ahead path is hardly deflected on entry; stagger the arm or enlarge "
+                                 f"the central island (RDM 1.3 10.6.3.5, Figure 10.17)"))
+        elif p["radius"] > lim + 1e-6:
+            out.append(("check", f"{where}: entry path radius about {p['radius']:.0f} m for the ahead movement, over "
+                                 f"{lim:.0f} m: increase the deflection (RDM 1.3 10.6.3.5)"))
     return out

@@ -820,6 +820,11 @@ def _roundabout(F: Frame, spec, P, piece) -> Piece:
     raw, q, detail, PP = RB.build(O, arms, P)
     parts = [Part(code, pts, closed) for code, pts, closed in raw]
     notes = RB.checks(arms, PP, q)
+    paths = RB.entry_paths(O, arms, PP, q)
+    v_here = al.speed_at(pl.station) or 80.0
+    compact = RB.COMPACT_ICD[0] <= q["icd"] <= RB.COMPACT_ICD[1] and v_here <= 70.0
+    notes += RB.entry_path_checks(paths, q, compact)
+    q["entry_path_r"] = [round(p["radius"], 1) if p["radius"] != math.inf else None for p in paths]
     crit = Criteria.load(P.get("criteria") or DEFAULT_ID)
     for d in detail:                                   # our approaches: the entry seen from the SSD (10.4.4)
         if d["src"] != "ours" or d["station"] is None:
