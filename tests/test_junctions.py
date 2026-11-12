@@ -188,7 +188,7 @@ def test_bus_bay():
     assert (t["start"], t["full_from"], t["full_to"], t["end"], t["width"]) == (170, 200, 225, 243, 4.0)
     # opposite bays closer than 60 m centre to centre are flagged
     js = [{"sta": 200, "bay": pc.params}, {"sta": 230, "bay": pcr.params}]
-    assert [c.kind for c in FR.junction_checks(al, js)] == ["bus_bay_spacing"]
+    assert [c.kind for c in FR.junction_checks(al, js) if c.kind != "widening"] == ["bus_bay_spacing"]
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
     # LM05 is 0.2 m wide (RDM 6.1 Table 4.1)
@@ -217,9 +217,10 @@ def test_truck_parking_bay():
     short, Bs = J.place_bay(al, 100, -4.0, 140, -4.0)
     ps = J.build_piece(al, short, "truck_bay", params={"bay": Bs}, templates=T)
     js = [{"sta": 100, "bay": pc.params}, {"sta": 120, "bay": ps.params}]
-    assert [c.kind for c in FR.junction_checks(al, js)] == ["truck_bay_length"]
+    assert [c.kind for c in FR.junction_checks(al, js) if c.kind != "widening"] == ["truck_bay_length"]
     far = dict(pc.params, stations=[s + 31000 for s in pc.params["stations"]])
-    assert [c.kind for c in FR.junction_checks(al, [{"bay": pc.params}, {"bay": far}])] == ["truck_bay_spacing"]
+    assert [c.kind for c in FR.junction_checks(al, [{"bay": pc.params}, {"bay": far}])
+            if c.kind != "widening"] == ["truck_bay_spacing"]
 
 
 def test_climbing_lanes_from_the_profile():
@@ -315,3 +316,39 @@ def test_private_access():
     # skewed access: the returns still start on the road edge
     sk = J.build_piece(al, J.place(al, 500, 0, 520, 30), "access", templates=T)
     assert all(p.pts[0][1] == pytest.approx(3.5) for p in sk.parts if p.code == "ACCESS")
+
+
+def test_widening_round_trip():
+    from rfd.corridor import Edges
+    al = straight()
+    pl, B = J.place_bay(al, 100, 4.0, 170, 4.0)                    # truck bay on the left: 85 / 100-170 / 180
+    stations = list(range(0, 401, 10))
+    al.edges = Edges({("ETW", "L"): [(s, 3.5) for s in stations], ("ETW", "R"): [(s, 3.5) for s in stations]})
+    pc = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    bay = pc.params
+    # 1. the corridor is not widened yet
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "info" and "not in the corridor yet" in text
+    # 2. widened as placed: ETW follows the bay at every section
+    w = lambda s: J.widen_at(s - 85, 15, 70, 10, 3.5, True)
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s)) for s in stations], ("ETW", "R"): [(s, 3.5) for s in stations]})
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "info" and "matches the corridor" in text
+    # the bay re-attaches to the edge before the widening: rebuilding it does not widen twice
+    again = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    ys = [y for p in again.parts if p.code == "BAYEDGE" for _, y in p.pts]
+    assert max(ys) == pytest.approx(7.0) and again.quantities["widen_m2"] == pytest.approx(pc.quantities["widen_m2"])
+    # 3. widened only 2.5 m: flagged with the worst section
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s) * 2.5 / 3.5) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "check" and "1.00 m" in text
+    # 4. a little curve widening (0.4 m) is not taken for the bay: the bay still builds on the corridor edge
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + (0.4 if 110 <= s <= 150 else 0.0)) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    cw = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    assert max(y for p in cw.parts if p.code == "BAYEDGE" for _, y in p.pts) == pytest.approx(7.4)
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s) * 2.5 / 3.5) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    # 5. the report check
+    assert [c.kind for c in FR.junction_checks(al, [{"sta": 100, "bay": bay}]) if c.kind == "widening"] == ["widening"]

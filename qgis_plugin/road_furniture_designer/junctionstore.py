@@ -127,7 +127,8 @@ class JunctionStore(QObject):
                     "line_m": round(ln, 2) if code not in NO_PAINT else None,
                     "paint_m2": round(ln * codes[code]["width"], 3) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
-                    "bay": json.dumps({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")})
+                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")},
+                                           taper=pc.params.get("taper")))
                     if piece in J.BAY_PIECES else None,
                     "sight": json.dumps({k: pc.params[k] for k in ("speed_used", "speed_assumed", "ref", "splays",
                                                                      "criteria_has")})

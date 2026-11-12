@@ -705,33 +705,114 @@ def bay_stations(al, pl: Placement, P: dict, sigma: int):
     return s1 - dirn * A, s1, s2, s2 + dirn * P["exit"], dirn, A
 
 
+WIDEN_TOL = 0.3          # m: corridor edge vs planned widening (round-trip check); also "the corridor is widened"
+BASE_REACH = 60.0        # m: how far outside a bay to look for the corridor section that gives the base edge
+
+
+def widen_at(t: float, A: float, B: float, C: float, depth: float, straight: bool = False) -> float:
+    """Widening beyond the base edge, t metres into the bay in the direction of travel from the start of the
+    entry taper: entry taper A, full width B, exit taper C (cosine tapers, or straight ones)."""
+    if t <= 0:
+        return 0.0
+    if t < A:
+        return depth * t / A if straight else depth * (1 - math.cos(math.pi * t / A)) / 2
+    if t <= A + B:
+        return depth
+    u = t - A - B
+    if u >= C:
+        return 0.0
+    return depth * (1 - u / C) if straight else depth * (1 + math.cos(math.pi * u / C)) / 2
+
+
+def base_edge(al, side: str, lo: float, hi: float, code: str = "ETW", threshold: float = WIDEN_TOL):
+    """The corridor edge before a widening between stations lo and hi: (f(station) -> offset or None, widened).
+    Where the corridor's sections inside lo..hi stand out from the line between the nearest sections outside
+    them (by more than `threshold`), the widening is already in the corridor and that line is the base edge;
+    otherwise the corridor edge itself is used (curve widening and the like stay as they are)."""
+    e = getattr(al, "edges", None)
+    pts = (e.data.get((code, side)) if e else None) or []
+    if not pts:
+        return (lambda s: None), False
+    before = [p for p in pts if lo - BASE_REACH <= p[0] < lo - 1e-6]
+    after = [p for p in pts if hi + 1e-6 < p[0] <= hi + BASE_REACH]
+    inside = [p for p in pts if lo - 1e-6 <= p[0] <= hi + 1e-6]
+    a, b = (before[-1] if before else None), (after[0] if after else None)
+    if a is None and b is None:
+        return (lambda s: e.offset(code, side, s)), False
+    if a is None or b is None:
+        c = (a or b)[1]
+        line = lambda s: c
+    else:
+        line = lambda s: a[1] + (b[1] - a[1]) * (s - a[0]) / (b[0] - a[0])
+    widened = any(o - line(st) > threshold for st, o in inside)
+    if widened:
+        return line, True
+    return (lambda s: e.offset(code, side, s)), False
+
+
+def _disp(al, sta: float) -> str:
+    from .alignment import format_station
+    return format_station(al.display_station(sta), 1)
+
+
+def widening_check(al, bay: dict) -> List[Tuple[str, str]]:
+    """Round trip: the corridor (re-imported from Civil 3D) against a placed bus bay, truck bay or climbing lane.
+    bay: the stored record (stations, side, depth, entry, exit, taper, kind)."""
+    e = getattr(al, "edges", None)
+    kind = bay.get("kind", "bus bay")
+    pts = (e.data.get(("ETW", bay["side"])) if e else None) or []
+    if not pts:
+        return [("info", f"{kind}: the corridor has no ETW edge on that side, so the widening cannot be compared")]
+    s0, s1, s2, s3 = bay["stations"]
+    dirn = 1 if s3 >= s0 else -1
+    A, C, depth = float(bay["entry"]), float(bay["exit"]), float(bay["depth"])
+    B = abs(s2 - s1)
+    lo, hi = sorted((s0, s3))
+    base, widened = base_edge(al, bay["side"], lo, hi)
+    inside = [(st, o) for st, o in pts if lo - 1e-6 <= st <= hi + 1e-6]
+    if not inside:
+        return [("info", f"{kind}: no corridor section inside it, so the widening cannot be compared")]
+    if not widened:
+        return [("info", f"{kind}: not in the corridor yet; build the widening in Civil 3D from the Widenings table "
+                         f"and re-import the LandXML to check it")]
+    devs = []
+    for st, o in inside:
+        b = base(st)
+        if b is None:
+            continue
+        want = b + widen_at((st - s0) * dirn, A, B, C, depth, bay.get("taper") == "straight")
+        devs.append((abs(o - want), st, o - b, want - b))
+    if not devs:
+        return []
+    worst = max(devs)
+    if worst[0] > WIDEN_TOL:
+        return [("check", f"{kind}: the corridor's widening differs from the placed one by up to {worst[0]:.2f} m "
+                          f"(corridor {worst[2]:.2f} m, placed {worst[3]:.2f} m at the section at {_disp(al, worst[1])}); "
+                          f"adjust the corridor or the {kind}")]
+    return [("info", f"{kind}: matches the corridor within {WIDEN_TOL:g} m at {len(devs)} section(s)")]
+
+
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
     lane, truck = piece == "climbing_lane", piece == "truck_bay"
     straight = P.get("taper") == "straight"
+    # the edge before the widening: the corridor's ETW, or the line under it where the re-imported corridor
+    # already carries the widening (so the bay does not widen twice)
+    base, _ = base_edge(al, "L" if sg < 0 else "R", *sorted((s0, s3)),
+                        threshold=max(WIDEN_TOL, 0.5 * float(P.get("depth") or 3.0)))
     if lane and not P.get("depth"):                            # as wide as the reduced through lane (6.6.3)
-        e0 = F.e
+        e0 = base(s1)
+        e0 = abs(e0) if e0 is not None else F.e
         P = dict(P, depth=round(e0 - 0.25 if e0 >= 3.25 else e0, 2))
     depth, plat, ramp = P["depth"], P.get("platform", 0.0), P.get("ramp", 0.0)
 
     def edge(s):
-        e = getattr(al, "edges", None)
-        o = e.offset("ETW", "L" if sg < 0 else "R", s) if e else None
+        o = base(s)
         return abs(o) if o is not None else F.e
 
-    def widen(s):                                              # widening beyond the edge, smooth tapers
-        t = (s - s0) * dirn
-        if t <= 0:
-            return 0.0
-        if t < A:
-            return depth * t / A if straight else depth * (1 - math.cos(math.pi * t / A)) / 2
-        if t <= A + P["bay"]:
-            return depth
-        u = t - A - P["bay"]
-        if u >= P["exit"]:
-            return 0.0
-        return depth * (1 - u / P["exit"]) if straight else depth * (1 + math.cos(math.pi * u / P["exit"])) / 2
+    def widen(s):                                              # widening beyond the edge
+        return widen_at((s - s0) * dirn, A, P["bay"], P["exit"], depth, straight)
 
     lo, hi = sorted((s0, s3))
     lo, hi = max(lo, al.sta_start), min(hi, al.sta_end)
@@ -767,7 +848,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         q = {"edge_m": round(length(kerb), 2), "widen_m2": round(widen_area, 2), "LM05_m": round(lm05, 2),
              "paint_m2": round(lm05 * 0.2, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind=BAY_KINDS[piece])
+                 kind=BAY_KINDS[piece], taper=P.get("taper"))
         return Piece(piece, spec["name"], "bay", "", parts, q, P)
     parts = [Part("KERB", kerb)]
     # loading platform behind the kerb along the bay, hatched

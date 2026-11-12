@@ -350,6 +350,30 @@ def test_private_access_in_a_project(tmp_path):
     assert st.remove_junction(pl.junction_id) >= 4
 
 
+def test_widening_round_trip_in_a_project(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.rfd.corridor import Edges
+    from road_furniture_designer.report import ReportData
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    pl, B = J.place_bay(st.al, *st.al.point_at(500.0, -6.0)[:2], *st.al.point_at(570.0, -6.0)[:2])
+    st.add_junction(pl, "TRUCK", params={"bay": B})
+    widen0 = st.junctions.junctions()[0]["widen_m2"]
+    checks = lambda: [c for c in ReportData(st, AutoConfig()).fr.checks if c.kind == "widening"]
+    assert "not in the corridor yet" in checks()[0].text
+    # Civil 3D widens the corridor as placed; the LandXML comes back and the overlays rebuild
+    bay = st.junctions.junctions()[0]["bay"]
+    s0, s1, s2, s3 = bay["stations"]
+    w = lambda s: J.widen_at(s - s0, bay["entry"], s2 - s1, bay["exit"], bay["depth"], True)
+    data = {k: [(s, o + (w(s) if k == ("ETW", "L") else 0.0)) for s, o in v] for k, v in st.al.edges.data.items()}
+    st.al.edges = Edges(data)
+    st.junctions.recompute_all()
+    j = st.junctions.junctions()[0]
+    assert abs(j["widen_m2"] - widen0) < 1.0                         # not widened twice
+    (c,) = checks()
+    assert c.level == "info" and "matches the corridor" in c.text
+
+
 def test_climbing_lane_proposed_in_a_project(tmp_path):
     from road_furniture_designer.rfd.profile import VerticalProfile
     st, xml = _fill_road(tmp_path)
