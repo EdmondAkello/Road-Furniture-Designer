@@ -919,7 +919,7 @@ class RsdDock(QDockWidget):
         self.cmb_jpiece.clear()
         if not k:
             return
-        bus = k in ("BUS", "CLIMB")
+        bus = k in ("BUS", "TRUCK", "CLIMB")
         for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale):
             w.setEnabled(not bus)
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
@@ -929,6 +929,12 @@ class RsdDock(QDockWidget):
             self.lbl_jhover.setText("Propose from the profile (RDM 1.3 Table 6.6), or click where the full-width "
                                     "lane starts on the uphill traffic's side, then where it ends. 100 m tapers are "
                                     "added; WSCM-I1 / I2 signs are proposed.")
+            return
+        if k == "TRUCK":
+            self.cmb_jpiece.addItem("Truck parking bay with its tapers, line and signs", "")
+            self.lbl_jhover.setText("Click where the bay (full width) starts on the side of the road it serves, then "
+                                    "where it ends (70 m takes four to five trucks). The 15 m and 10 m tapers "
+                                    "(RDM/1/3/3/03) are added in the direction of travel; I15 and I14 are proposed.")
             return
         if bus:
             self.cmb_jpiece.addItem("Bus bay with its tapers, platform and sign", "")
@@ -987,8 +993,9 @@ class RsdDock(QDockWidget):
                      if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
             if j.get("bay"):
                 b = j["bay"]
+                kerb = f", kerb {j['kerb_m']:.0f} m" if j["kerb_m"] else ""
                 it = QListWidgetItem(f"{j['ch']}  {b.get('kind', 'bus bay')} {abs(b['stations'][2] - b['stations'][1]):.0f} m  {where}  "
-                                     f"(widening {j['widen_m2']:.0f} m2, kerb {j['kerb_m']:.0f} m)")
+                                     f"(widening {j['widen_m2']:.0f} m2{kerb})")
                 it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
                 self.lst_junctions.addItem(it)
                 if j["id"] == keep:

@@ -27,6 +27,10 @@
    "name": "Bus bay",
    "drawing": "RDM/1/3/3/01"
   },
+  "TRUCK": {
+   "name": "Truck parking bay",
+   "drawing": "RDM/1/3/3/03"
+  },
   "CLIMB": {
    "name": "Climbing lane",
    "drawing": "RDM/1/3/3/02"
@@ -83,8 +87,8 @@
    "colour": "grey"
   },
   "LM05": {
-   "name": "Bus bay separation line, 1 m / 1 m (white)",
-   "width": 0.1,
+   "name": "Bay separation line, 1 m / 1 m, 200 mm (white)",
+   "width": 0.2,
    "colour": "white",
    "dash": [
     1.0,
@@ -114,6 +118,11 @@
     2.0,
     6.0
    ]
+  },
+  "BAYEDGE": {
+   "name": "Edge of the widened pavement (no kerb shown on RDM/1/3/3/03)",
+   "width": 0.0,
+   "colour": "grey"
   }
  },
  "pieces": {
@@ -353,6 +362,22 @@
    },
    "remark": "Entry taper A = 30 m, 25 m where the speed limit is 50 km/h or less; bay B as clicked (25 m for more than one bus); exit taper C = 18 m; 4.0 m deep; 1.0 m raised platform; flush kerbs on the tapers, raised along the bay with 2 m ramped kerbs. Bays serving opposite directions at least 60 m apart, centre to centre."
   },
+  "truck_bay": {
+   "name": "Truck parking bay (RDM/1/3/3/03)",
+   "types": [
+    "TRUCK"
+   ],
+   "frame": "road",
+   "kind": "bay",
+   "params": {
+    "bay": 70.0,
+    "entry": 15.0,
+    "exit": 10.0,
+    "depth": 3.5,
+    "taper": "straight"
+   },
+   "remark": "Entry taper 15 m, bay 70 m (varies with the design), exit taper 10 m, straight tapers; 3.5 m deep; white separation line 1 m / 1 m, 0.2 m wide, along the carriageway edge from the start point to the end point. Room for four to five heavy vehicles, bays at most 30 km apart, not where visibility is restricted (RDM 1.3 13.2). Sign I15 at the start of the entry taper, I14 up to 500 m ahead (RDM 6.2 6.4.1.1)."
+  },
   "climbing_lane": {
    "name": "Climbing lane (RDM 1.3 6.6, RDM/1/3/3/02)",
    "types": [
@@ -552,6 +577,11 @@
   "BUS": [
    {
     "piece": "bus_bay"
+   }
+  ],
+  "TRUCK": [
+   {
+    "piece": "truck_bay"
    }
   ],
   "CLIMB": [

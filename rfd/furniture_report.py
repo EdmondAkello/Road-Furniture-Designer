@@ -77,6 +77,8 @@ KIND_TEXT = {
     "sign_supplementary": "Signs outside RDM 6.2",
     "junction_skew": "Junction crossing angle",
     "bus_bay_spacing": "Bus bay spacing",
+    "truck_bay_length": "Truck parking bay length",
+    "truck_bay_spacing": "Truck parking bay spacing",
 }
 
 
@@ -489,13 +491,17 @@ def supplementary_checks(al, signs) -> List[Check]:
                   f"{', '.join(codes)}; confirm the road authority accepts them", "info", {"codes": codes})]
 
 
+TRUCK_BAY_LENGTH = 70.0         # RDM/1/3/3/03 (four to five heavy vehicles, RDM 1.3 13.2.4.1)
+TRUCK_BAY_SPACING = 30000.0     # RDM 1.3 13.2.3.1
+
+
 def junction_checks(al, junctions) -> List[Check]:
     """Junctions placed from the templates: crossing angle to RDM 1.3 9.2.3.
 
     junctions: dicts with sta, crossing_deg, kit, side (JunctionStore.junctions())."""
     from .junctions import SKEW_MINIMUM, SKEW_PREFERRED
     out = []
-    bays = [j for j in junctions if j.get("bay")]
+    bays = [j for j in junctions if j.get("bay") and j["bay"].get("kind", "bus bay") == "bus bay"]
     for i, a in enumerate(bays):                     # standard drawing note 4: opposite bays 60 m apart
         for b in bays[i + 1:]:
             if a["bay"]["side"] != b["bay"]["side"]:
@@ -506,6 +512,24 @@ def junction_checks(al, junctions) -> List[Check]:
                                      f"bus bays serving opposite directions {abs(ca - cb):.0f} m apart centre to "
                                      f"centre ({_ch(al, ca)} and {_ch(al, cb)}); at least 60 m (RDM/1/3/3/01 note 4)",
                                      "check", {"distance": abs(ca - cb)}))
+    trucks = sorted((j for j in junctions if j.get("bay") and j["bay"].get("kind") == "truck parking bay"),
+                    key=lambda j: j["bay"]["stations"][1])
+    for j in trucks:                                 # RDM 1.3 13.2.4.1: four to five heavy vehicles
+        s1, s2 = j["bay"]["stations"][1:3]
+        if abs(s2 - s1) < TRUCK_BAY_LENGTH - 1e-6:
+            out.append(Check("truck_bay_length", min(s1, s2), max(s1, s2), j["bay"]["side"],
+                             f"truck parking bay at {_ch(al, min(s1, s2))} is {abs(s2 - s1):.0f} m long: room for four "
+                             f"to five heavy vehicles needs about {TRUCK_BAY_LENGTH:.0f} m (RDM 1.3 13.2.4.1, "
+                             f"RDM/1/3/3/03)", "check", {"length": abs(s2 - s1)}))
+    for side in ("L", "R"):                          # RDM 1.3 13.2.3.1: at most 30 km apart in each direction
+        own = [j for j in trucks if j["bay"]["side"] == side]
+        for a, b in zip(own, own[1:]):
+            d = abs(b["bay"]["stations"][1] - a["bay"]["stations"][1])
+            if d > TRUCK_BAY_SPACING:
+                out.append(Check("truck_bay_spacing", a["bay"]["stations"][1], b["bay"]["stations"][1],
+                                 side, f"truck parking bays {d / 1000:.1f} km apart; at most "
+                                              f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
+                                 "check", {"distance": d}))
     for j in junctions:
         if j.get("bay"):
             continue

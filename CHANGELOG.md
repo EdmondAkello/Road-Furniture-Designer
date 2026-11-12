@@ -10,7 +10,8 @@
 - **Crossings and humps drawn as painted**: zebra bars, bar sets, BM04 triangles and filled hump footprints on the map, plan sheets and DXF; transverse items go in with one click from the Linear tab.
 - **Bus bays** (RDM/1/3/3/01) placed with two clicks: tapers in the direction of travel, kerb, platform, separation line, shelter position and Bus Stop sign; 60 m spacing check for opposite bays.
 - **Climbing lanes** (RDM 1.3 6.6, RDM/1/3/3/02): proposed from the profile against Table 6.6 (with the AADT rule) or placed by two clicks; 100 m tapers, lane width per 6.6.3, LM26 / LM03 lines, WSCM-I1 / I2 signs.
-- Excel sheet **Widenings**: the widening table for Civil 3D (bus bays and climbing lanes).
+- **Truck parking bays** (RDM/1/3/3/03) placed with two clicks: straight 15 m entry and 10 m exit tapers, 3.5 m deep, widened pavement edge and LM05 separation line; I15 at the entry taper and I14 300 m ahead proposed (RDM 6.2 6.4.1.1); checks for a bay under 70 m (four to five heavy vehicles) and bays over 30 km apart (RDM 1.3 13.2).
+- Excel sheet **Widenings**: the widening table for Civil 3D (bus bays, truck parking bays and climbing lanes).
 - **Crossing extent and refuges**: crossings run between the ETW edges or between two clicked kerbs; a refuge / median width splits them into two zebras with a kerbed refuge island (new item `REFUGE`), with leg-length and refuge-width checks.
 - **Installable plugin ZIP from CI** (`.github/workflows/plugin-zip.yml`): built, checked (`tools/check_plugin_zip.py`), installed into QGIS 3.44 and loaded on every push; attached to a draft release for `v*` tags. The README explains where to download it.
 - User guide: Junctions tab, supplementary signs, installing from the plugin ZIP; minor-road junctions, bus bays, climbing lanes, the Widenings table and crossing extent and refuges (section 16 renamed "Junctions, bus bays and climbing lanes").
@@ -22,6 +23,7 @@
 - WSCM sign artwork: no seams in the colour fills; closed frames on WSCM-I1 and I2 (drafting slips on the sheet).
 - Core tests pass flat sequences to `pytest.approx` (pytest 9).
 - The Linear tab was still wider than a 380 px dock on QGIS 3.44 (CI failure): the two group titles and two checkbox captions are shortened, with the full wording kept as the tooltip.
+- LM05 (bay separation line) is 0.2 m wide (RDM 6.1 Table 4.1); bus bays counted half its painted area.
 - CI uses `actions/checkout@v5` and `actions/setup-python@v6` (Node.js 24).
 
 ## 0.8.0 — 2026-11-11

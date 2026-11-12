@@ -844,8 +844,9 @@ class SignStore(QObject):
         ml.commitChanges()
 
     def add_junction(self, pl, kit, piece="", guides=True, params=None):
-        """Place junction pieces or a bus bay; where our road is the minor road, also propose its R2 Give
-        Way; a bus bay proposes its bus stop sign. Returns (pieces, findings, signs proposed)."""
+        """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give
+        Way; a bus bay proposes its bus stop sign, a truck parking bay I15 and I14, a climbing lane I1 / I2.
+        Returns (pieces, findings, signs proposed)."""
         from .rfd import junctions as J
         n, finds = self.junctions.add(pl, kit, piece, guides, params)
         signs = 0
@@ -854,13 +855,24 @@ class SignStore(QObject):
             if j and j["bay"]:
                 b = j["bay"]
                 s0, s1, s2, _s3 = b["stations"]
-                lane = b.get("kind") == "climbing lane"
-                todo = ([("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)"),
-                         ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)")] if lane
-                        else [("WSCM-I3", s1, "Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)")])
-                for code, at, why in todo:
+                kind = b.get("kind")
+                lane = kind == "climbing lane"
+                if lane:
+                    todo = [("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)", 0.0),
+                            ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)", b["depth"])]
+                elif kind == "truck parking bay":
+                    back = s0 - (s1 - s0) / abs(s1 - s0) * self.TRUCK_I14_AHEAD
+                    todo = [("I15", s0, "Lay-by at the start of the entry taper, facing oncoming traffic "
+                                        "(RDM 6.2 6.4.1.1)", 0.0)]
+                    if self.al.sta_start <= back <= self.al.sta_end:
+                        todo.append(("I14", back, f"Lay-by ahead, {self.TRUCK_I14_AHEAD:.0f} m before the bay; "
+                                                  "RDM 6.2 6.4.1.1 allows up to 500 m", 0.0))
+                else:
+                    todo = [("WSCM-I3", s1, "Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)",
+                             b["depth"])]
+                for code, at, why, wide in todo:
                     off = (self.al.edges.offset("ETW", b["side"], at) if self.al.edges else None) or 3.5
-                    off += (b["depth"] if not lane or at == s2 else 0.0) + 1.5
+                    off += wide + 1.5
                     x, y, _ = self.al.point_at(at, off if b["side"] == "R" else -off)
                     try:
                         self.add_sign(x, y, code, facing="Forward" if b["side"] == "L" else "Backward",
@@ -879,6 +891,8 @@ class SignStore(QObject):
                 except ValueError:
                     pass
         return n, finds, signs
+
+    TRUCK_I14_AHEAD = 300.0                 # m before the entry taper (RDM 6.2 6.4.1.1: up to 500 m)
 
     def propose_climbing_lanes(self, aadt=None):
         """Climbing lanes the profile asks for (RDM 1.3 6.6), placed as proposals. Returns (lanes, notes)."""
