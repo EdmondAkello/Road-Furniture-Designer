@@ -221,6 +221,39 @@ def geometry(al, run: Run, step: float = 5.0) -> List[List[Tuple[float, float]]]
     return parts
 
 
+def line_layout(item, speed: Optional[float], flip: bool = False) -> List[Tuple[float, bool, dict]]:
+    """The painted lines of a marking item: (offset to the left of the run's line, broken, dims) for each.
+    Double lines and the combined line (CLS) are spaced by the line spacing plus the width; the CLS's first
+    kind (continuous) lies on the left of the chainage direction (traffic keeps left, so it prohibits forward
+    traffic), and a flipped run swaps them."""
+    d = item.dims(speed) if item.is_marking else {}
+    kinds = list(item.composite or (["line"] * max(1, item.lines if item.is_marking else 1)))
+    if flip:
+        kinds = kinds[::-1]
+    spacing = float(d.get("spacing") or 0.1) + float(d.get("width") or 0.1)
+    n = len(kinds)
+    out = []
+    for j, kind in enumerate(kinds):
+        left = -(j - (n - 1) / 2.0) * spacing
+        broken = bool(item.is_marking and kind != "continuous" and d.get("mark") and d.get("gap"))
+        out.append((left, broken, d))
+    return out
+
+
+def painted_lines(al, run: "Run", item, step: float = 2.0):
+    """[(polyline parts, broken, dims)] for each painted line of a marking run, in map coordinates."""
+    from dataclasses import replace
+    run = clamp_run(al, run)
+    v = al.speed_at((run.sta_start + run.sta_end) / 2)
+    out = []
+    for left, broken, d in line_layout(item, v, bool(getattr(run, "flip", False))):
+        # offsets are to the right of the chainage; a run on the left side counts them the other way
+        shift = -left
+        rr = replace(run, offset=run.offset + (shift if run.side != "L" else -shift))
+        out.append((geometry(al, rr, step=step), broken, d))
+    return out
+
+
 ZEBRA = {"BM01", "BM02", "BM03"}
 CALMING_FILL = {"HUMP-C", "HUMP-T", "TABLE", "TABLE-X", "BUMP"}
 # along-road length of a transverse item placed with one click (m); calming items are sized by the Calming tab
