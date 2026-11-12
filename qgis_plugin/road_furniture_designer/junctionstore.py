@@ -42,7 +42,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
-    "AM03": ("70,110,170", 0.3, False), "AM06": ("70,110,170", 0.3, False), "AM07": ("70,110,170", 0.3, False),
+    "WM-BUSSTOP": ("70,110,170", 0.4, False), "AM03": ("70,110,170", 0.3, False), "AM06": ("70,110,170", 0.3, False), "AM07": ("70,110,170", 0.3, False),
     "LM05": ("70,110,170", 0.4, False), "LM26": ("70,110,170", 0.4, False), "LM03": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
     "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True), "SPLAY-M": ("200,120,20", 0.35, True),
     "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
@@ -135,7 +135,8 @@ class JunctionStore(QObject):
                     "paint_m2": (round(sum(J.area(p.pts) for p in parts), 3) if codes[code].get("fill")
                                  else round(ln * codes[code]["width"], 3)) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
-                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")},
+                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")
+                                            if k in pc.params}, edge_code=pc.params.get("edge_code"),
                                            taper=pc.params.get("taper")))
                     if piece in J.BAY_PIECES else None,
                     "sight": json.dumps({k: pc.params[k] for k in ("speed_used", "speed_assumed", "ref", "splays",

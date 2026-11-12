@@ -249,7 +249,8 @@ def test_bus_bay():
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
     # LM05 is 0.2 m wide (RDM 6.1 Table 4.1)
-    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2 +
+                                                      pc.quantities.get("WM-BUSSTOP_m", 0.0) * J.WORD_STROKE, abs=0.01)
     assert T["codes"]["LM05"]["width"] == 0.2
 
 
@@ -269,7 +270,8 @@ def test_truck_parking_bay():
     # separation line from start point to end point, 1 m marks at 1 m gaps, 0.2 m wide
     lm = [p for p in pc.parts if p.code == "LM05"]
     assert min(p.pts[0][0] for p in lm) == pytest.approx(85) and max(p.pts[-1][0] for p in lm) == pytest.approx(180, abs=1)
-    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2 +
+                                                      pc.quantities.get("WM-BUSSTOP_m", 0.0) * J.WORD_STROKE, abs=0.01)
     # checks: a short bay, and bays more than 30 km apart in one direction; not the bus-bay spacing rule
     short, Bs = J.place_bay(al, 100, -4.0, 140, -4.0)
     ps = J.build_piece(al, short, "truck_bay", params={"bay": Bs}, templates=T)
@@ -584,3 +586,23 @@ def test_three_centred_kerb_returns():
         assert (t[0] * d[0] + t[1] * d[1]) / math.hypot(*t) == pytest.approx(1.0, abs=1e-3)   # along it
     pcs = {p.piece: p for p in J.build_kit(straight(), at(straight(), 90), "C", templates=T)}
     assert len(pcs["guides"].parts) >= 6
+
+
+def test_bus_stop_word_marking_and_edge_code():
+    """RDM 6.1 10.3: BUS STOP in each 15 m box of the bay; the carriageway edge is found by any usual code."""
+    from rfd.corridor import Edges
+    al = straight()
+    al.speeds = [(0.0, 50.0)]
+    pl, B = J.place_bay(al, 200, 4.0, 230, 4.0)
+    pc = J.build_piece(al, pl, "bus_bay", params={"bay": B}, templates=T)
+    words = [p for p in pc.parts if p.code == "WM-BUSSTOP"]
+    assert pc.quantities["WM-BUSSTOP_no"] == 2 and len(words) == 2 * (4 + 5)   # B U S + S T O P strokes, twice
+    assert all(200 <= x <= 230 and 3.5 < y < 7.5 for p in words for x, y in p.pts)   # inside the bay
+    assert J.word_strokes("STOP", 2.5)[0][0][0] < 0 < J.word_strokes("STOP", 2.5)[-1][-1][0]
+    # a corridor whose carriageway edge is coded EOP: used for the bay and the round trip
+    al.edges = Edges({("EOP", s): [(x, 3.5) for x in range(0, 401, 10)] for s in "LR"})
+    assert J.edge_code(al, "L") == "EOP" and J.edge_code(al, "L", "ETW") == "EOP"
+    pc = J.build_piece(al, pl, "bus_bay", params={"bay": B}, templates=T)
+    assert pc.params["edge_code"] == "EOP"
+    rec = {k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind", "edge_code")}
+    assert "not in the corridor yet" in J.widening_check(al, rec)[0][1]
