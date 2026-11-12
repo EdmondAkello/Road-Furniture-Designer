@@ -24,6 +24,14 @@ authors:
     email: "francenicklaus@gmail.com"
     orcid: "https://orcid.org/0009-0009-5901-4574"
 version: 0.8.0
+doi: "10.5281/zenodo.24162212"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24162212"
+    description: "Concept DOI: all versions, resolves to the latest"
+  - type: doi
+    value: "10.5281/zenodo.24162213"
+    description: "Version 0.8.0"
 date-released: "2026-11-12"
 license: GPL-2.0-or-later
 type: software

@@ -1,6 +1,6 @@
 # Road Furniture Designer (RFD)
 
-[![tests](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml/badge.svg)](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml)
+[![tests](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml/badge.svg)](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24162212.svg)](https://doi.org/10.5281/zenodo.24162212)
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
@@ -462,4 +462,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.8.0) [QGIS plugin]. https://github.com/EdmondAkello/Road-Furniture-Designer. Citation metadata is in `CITATION.cff`; a DOI will be added with the first archived release.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.8.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; version 0.8.0 is https://doi.org/10.5281/zenodo.24162213. Citation metadata is in `CITATION.cff`.
