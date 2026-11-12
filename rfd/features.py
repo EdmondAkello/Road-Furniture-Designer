@@ -83,6 +83,44 @@ class FeatureDesign:
     summary: str = ""
 
 
+def overlapping(a: float, b: float, blocks, margin: float = 0.0) -> List[str]:
+    """What of blocks ((lo, hi, what) chainage ranges) the span a-b overlaps."""
+    lo, hi = min(a, b), max(a, b)
+    return [w for x0, x1, w in blocks if lo < max(x0, x1) + margin and hi > min(x0, x1) - margin]
+
+
+def flag_overlaps(design: FeatureDesign, blocks) -> List[str]:
+    """Note where the feature itself (hump, table, bump, zebra; not its bar sets) overlaps other furniture."""
+    main = [r for r in design.runs if r.code not in ("BAR-SET",)]
+    if not main:
+        return []
+    a, b = min(r.sta_start for r in main), max(r.sta_end for r in main)
+    hits = overlapping(a, b, blocks)
+    for w in hits:
+        design.findings.append(Finding("feature_note", a, b, "Both", f"overlaps {w}: move one of them"))
+    return hits
+
+
+def omit_bars(design: FeatureDesign, blocks, margin: float = 1.0, display=None) -> int:
+    """Drop the feature's approach bar sets that fall on another piece of furniture: blocks are
+    (lo, hi, what) chainage ranges (a junction's islands and markings, a roundabout, a crossing, another
+    hump). Each dropped set is reported as a note. Returns how many were dropped."""
+    keep, n = [], 0
+    for r in design.runs:
+        hit = None
+        if r.code == "BAR-SET":
+            hit = next((w for lo, hi, w in blocks if r.sta_start < hi + margin and r.sta_end > lo - margin), None)
+        if hit is None:
+            keep.append(r)
+            continue
+        n += 1
+        ch = display(r.sta_start) if display else f"{r.sta_start:.0f}"
+        design.findings.append(Finding("feature_note", r.sta_start, r.sta_end, "Both",
+                                       f"bar set at {ch} omitted: it falls on {hit}"))
+    design.runs = keep
+    return n
+
+
 def _row(rows, speed):
     """Table row for the desired speed: the highest tabulated speed not above it (clamped)."""
     rows = sorted(rows, key=lambda r: r["speed"])

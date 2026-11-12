@@ -58,14 +58,39 @@ class Placement:
         return Frame(al, self)
 
 
-def place(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement:
-    """Placement from two clicks: the junction point (snapped to the centreline) and a point up the minor road."""
+def place(al, x0: float, y0: float, x1: float, y1: float, others=(), snap: float = 15.0, **kw) -> Placement:
+    """Placement from two clicks: the junction point (snapped to the centreline) and a point up the minor road.
+    When the second point is within `snap` m of another alignment that passes near the junction point, the
+    bearing follows that alignment (the minor road), so the user doesn't have to aim along it by hand."""
     so = al.station_offset(x0, y0)
     sta = min(max(so.station, al.sta_start), al.sta_end)
     px, py, _ = al.point_at(sta)
     if math.hypot(x1 - px, y1 - py) < 1.0:
         raise ValueError("The second point must be at least 1 m up the minor road")
-    return Placement(sta, math.atan2(y1 - py, x1 - px), **kw)
+    b = snap_bearing(px, py, x1, y1, others, snap)
+    return Placement(sta, math.atan2(y1 - py, x1 - px) if b is None else b, **kw)
+
+
+def snap_bearing(px: float, py: float, x1: float, y1: float, others=(), snap: float = 15.0,
+                 reach: float = 25.0, step: float = 15.0) -> Optional[float]:
+    """Bearing from the junction point (px, py) along another alignment towards the cursor (x1, y1): the
+    alignment must pass within `reach` m of the junction point and the cursor within `snap` m of it.
+    None when no alignment qualifies (the nearest to the cursor wins)."""
+    best = None
+    for a in others or ():
+        c, j = a.station_offset(x1, y1), a.station_offset(px, py)
+        if not (c.in_range and abs(c.offset) <= snap and abs(j.offset) <= reach):
+            continue
+        d = c.station - j.station
+        if abs(d) < 0.5:
+            continue
+        s = min(max(j.station + math.copysign(min(step, abs(d)), d), a.sta_start), a.sta_end)
+        x, y, _ = a.point_at(s)
+        if math.hypot(x - px, y - py) < 1.0:
+            continue
+        if best is None or abs(c.offset) < best[0]:
+            best = (abs(c.offset), math.atan2(y - py, x - px))
+    return None if best is None else best[1]
 
 
 def straight_road(x: float, y: float, heading: float, half: float = 400.0):
@@ -109,14 +134,40 @@ def place_bay(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement
     return pl, abs(b.station - a.station)
 
 
+def minor_legs(al, s0: float, main) -> List[float]:
+    """Bearings of our road's legs leaving the main road at our station s0, the one moving away from the
+    main road's centreline fastest first. One leg where our road starts or ends at the main road, two where it
+    crosses it (crossroads); a leg that runs along the main road (moves away by less than a fifth of the
+    sampled length) is left out unless it is the only one."""
+    step = min(15.0, max(2.0, (al.sta_end - al.sta_start) / 4))
+    mo = main.station_offset(*al.point_at(s0)[:2])
+    jx, jy, _ = main.point_at(mo.station)
+    cand = []
+    for sgn in (1, -1):
+        s = min(max(s0 + sgn * step, al.sta_start), al.sta_end)
+        if abs(s - s0) > 0.5:
+            x, y, _ = al.point_at(s)
+            cand.append((abs(main.station_offset(x, y).offset), abs(s - s0), math.atan2(y - jy, x - jx)))
+    cand.sort(reverse=True)
+    keep = [c for c in cand if c[0] >= 0.2 * c[1]]
+    return [c[2] for c in (keep or cand[:1])]
+
+
+def _angle_between(a: float, b: float) -> float:
+    return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
+
+
 def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Optional[float] = None,
-                major=None, **kw) -> Tuple[Placement, object]:
+                major=None, both: bool = False, **kw):
     """Our road joins another road. (x0, y0): a click on our road where it meets the main road (snapped to
     our centreline). The main road is `major` (another alignment) or the direction from that point to
-    (x1, y1). Returns the placement and the main road's alignment."""
+    (x1, y1). With `major`, (x1, y1), when given, picks our road's leg nearest the cursor, so where our road
+    crosses the main road the user chooses the approach by moving the mouse across.
+    Returns (placement, main road alignment); with both=True, (list of placements, one per leg, main)."""
     so = al.station_offset(x0, y0)
     s0 = min(max(so.station, al.sta_start), al.sta_end)
     px, py, _ = al.point_at(s0)
+    cursor = major is not None and x1 is not None and y1 is not None
     if major is not None:
         main, ref = major, f"alg:{major.name}"
     else:
@@ -129,19 +180,18 @@ def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Option
         raise ValueError(f"Our road at this point is beyond the ends of {getattr(main, 'name', 'the main road')}")
     ms = mo.station
     jx, jy, _ = main.point_at(ms)
-    # our road leaves the main road in the direction that takes it away from the main road's centreline
-    step = min(15.0, max(2.0, (al.sta_end - al.sta_start) / 4))
-    cand = []
-    for sgn in (1, -1):
-        s = min(max(s0 + sgn * step, al.sta_start), al.sta_end)
-        if abs(s - s0) > 0.5:
-            x, y, _ = al.point_at(s)
-            cand.append((abs(main.station_offset(x, y).offset), math.atan2(y - jy, x - jx)))
-    if not cand:
+    legs = minor_legs(al, s0, main)
+    if not legs:
         raise ValueError("Our road is too short here")
-    bearing = max(cand)[1]
-    pl = Placement(ms, bearing, role="minor", main_ref=ref, our_station=s0, **kw)
-    return pl, main
+    if cursor and len(legs) > 1 and math.hypot(x1 - jx, y1 - jy) > 1.0:
+        cb = math.atan2(y1 - jy, x1 - jx)
+        legs.sort(key=lambda b: _angle_between(b, cb))          # the leg on the cursor's side first
+    if both:
+        jid = kw.pop("junction_id", None) or _uuid.uuid4().hex[:8]
+        out = [Placement(ms, b, role="minor", main_ref=ref, our_station=s0,
+                         junction_id=jid if i == 0 else f"{jid}-{i + 1}", **kw) for i, b in enumerate(legs)]
+        return out, main
+    return Placement(ms, legs[0], role="minor", main_ref=ref, our_station=s0, **kw), main
 
 
 def minor_signs(al, pl: Placement, main) -> List[dict]:
@@ -872,8 +922,9 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     pt = lambda s, o: al.point_at(s, sg * o)[:2]
     kerb = [pt(s, edge(s) + widen(s)) for s in ss]
     if lane:
-        # new edge line along the widened edge, broken lane line along the old edge over the full width
-        parts = [Part("LM26", kerb)]
+        # RDM/1/3/3/02: the widened pavement edge with its tapers, the edge line along it, and the broken
+        # lane line along the old edge over the full width
+        parts = [Part("BAYEDGE", kerb), Part("LM26", kerb)]
         b0, b1 = sorted((s1, s2))
         s = max(b0, al.sta_start)
         while s + 2.0 <= min(b1, al.sta_end):
@@ -881,7 +932,8 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
             s += 8.0
         widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
         lm = {c: sum(length(p.pts) for p in parts if p.code == c) for c in ("LM26", "LM03")}
-        q = {"widen_m2": round(widen_area, 2), "LM26_m": round(lm["LM26"], 2), "LM03_m": round(lm["LM03"], 2),
+        q = {"edge_m": round(length(kerb), 2), "widen_m2": round(widen_area, 2), "LM26_m": round(lm["LM26"], 2),
+             "LM03_m": round(lm["LM03"], 2),
              "paint_m2": round((lm["LM26"] + lm["LM03"]) * 0.1, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
                  kind="climbing lane")
@@ -994,15 +1046,24 @@ def _main_edge(F: Frame, X: float) -> Pt:
 
 
 def build_kit(al, pl: Placement, jtype: str, templates: Optional[dict] = None,
-              guides: bool = True, splays: bool = True, splay: Optional[dict] = None) -> List[Piece]:
+              guides: bool = True, splays: bool = True, splay: Optional[dict] = None,
+              second_leg: bool = False) -> List[Piece]:
+    """second_leg: the other approach of a crossroads, so the main-road pieces (ghost islands), already
+    drawn for the first leg, are left out."""
     T = templates or load_templates()
     out = []
-    for item in T["kits"][jtype]:
-        if (item["piece"] == "guides" and not guides) or (item["piece"] == "splays" and not splays):
-            continue
+    for item in kit_items(T, jtype, guides, splays, second_leg):
         prm = dict(item.get("params") or {}, **(splay or {})) if item["piece"] == "splays" else item.get("params")
         out.append(build_piece(al, pl, item["piece"], item.get("corner", ""), prm, T))
     return out
+
+
+def kit_items(T: dict, jtype: str, guides: bool = True, splays: bool = True, second_leg: bool = False) -> List[dict]:
+    """The kit's items as placed: without guides / splays when switched off, and without the main-road pieces
+    on the second leg of a crossroads."""
+    return [dict(it) for it in T["kits"][jtype]
+            if (guides or it["piece"] != "guides") and (splays or it["piece"] != "splays")
+            and not (second_leg and T["pieces"][it["piece"]]["frame"] == "main")]
 
 
 def findings(al, pl: Placement) -> List[Tuple[str, str]]:

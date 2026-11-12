@@ -42,7 +42,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
-    "LM05": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
+    "LM05": ("70,110,170", 0.4, False), "LM26": ("70,110,170", 0.4, False), "LM03": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
     "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True),
     "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
     "TM04": ("70,110,170", 0.4, True),
@@ -162,9 +162,10 @@ class JunctionStore(QObject):
         self.changed.emit()
 
     def add(self, pl: J.Placement, kit: str, piece: str = "", guides: bool = True, params: dict = None,
-            splays: bool = True, splay: dict = None):
+            splays: bool = True, splay: dict = None, second_leg: bool = False):
         """Place a whole kit (piece '') or one piece. splays: include the visibility splays; splay: their
-        settings (main road speed, criteria). Returns (pieces placed, findings)."""
+        settings (main road speed, criteria); second_leg: the other approach of a crossroads (no main-road
+        pieces again). Returns (pieces placed, findings)."""
         if piece:
             items = [{"piece": piece, "corner": "left_turn" if self.templates["pieces"][piece]["frame"] == "corner"
                       else ""}]
@@ -174,8 +175,7 @@ class JunctionStore(QObject):
                     items = [dict(it)]
                     break
         else:
-            items = [dict(it) for it in self.templates["kits"][kit]
-                     if (guides or it["piece"] != "guides") and (splays or it["piece"] != "splays")]
+            items = J.kit_items(self.templates, kit, guides, splays, second_leg)
         if params:
             for it in items:
                 it["params"] = dict(it.get("params") or {}, **params)
@@ -193,12 +193,13 @@ class JunctionStore(QObject):
     def place(self, x0, y0, x1, y1, kit, piece="", scale=1.0, guides=True):
         return self.add(J.place(self.al, x0, y0, x1, y1, scale=scale), kit, piece, guides)
 
-    def placement_minor(self, x0, y0, x1=None, y1=None, major="", scale=1.0):
-        """Our road joins another road: the main road is the alignment named `major`, or the clicked direction."""
+    def placement_minor(self, x0, y0, x1=None, y1=None, major="", scale=1.0, both=False):
+        """Our road joins another road: the main road is the alignment named `major`, or the clicked direction.
+        With an alignment, (x1, y1) picks our road's leg nearest the cursor. both: a list, one per leg."""
         m = next((a for a in self.others() if a.name == major), None) if major else None
         if major and m is None:
             raise ValueError(f"No alignment {major!r} in the LandXML")
-        pl, _ = J.place_minor(self.al, x0, y0, x1, y1, major=m, scale=scale)
+        pl, _ = J.place_minor(self.al, x0, y0, x1, y1, major=m, scale=scale, both=both)
         return pl
 
     # ------------------------------------------------------------------ edit / rebuild
@@ -304,6 +305,27 @@ class JunctionStore(QObject):
                 p[1] += float(f["paint_m2"])
         return sorted(out.values(), key=lambda j: j["sta"] or 0.0)
 
+    FOOTPRINT_SKIP = ("GUIDE", "SPLAY-A", "SPLAY-S")
+
+    def footprints(self, al=None, reach=15.0):
+        """Chainage range on our road of each junction's islands and markings (or bay, roundabout), from
+        the vertices within `reach` m of our centreline: [(lo, hi, junction id, kit)]. Guides and splays,
+        which run well beyond the junction, don't count."""
+        al = al or self.al
+        rng = {}
+        for f in self.layer.getFeatures():
+            if f["code"] in self.FOOTPRINT_SKIP:
+                continue
+            g = f.geometry()
+            if g is None or g.isEmpty():
+                continue
+            for v in g.vertices():
+                so = al.station_offset(v.x(), v.y())
+                if so.in_range and abs(so.offset) <= reach:
+                    lo, hi, _ = rng.get(f["junction_id"], (so.station, so.station, f["kit"]))
+                    rng[f["junction_id"]] = (min(lo, so.station), max(hi, so.station), f["kit"])
+        return [(lo, hi, jid, kit) for jid, (lo, hi, kit) in rng.items()]
+
     def parts(self):
         """(code, [polyline]) for drawing: plan sheets and DXF."""
         out = []
@@ -348,9 +370,38 @@ class JunctionStore(QObject):
         self.obstruction_layers = [l.name() for l in layers]
         return found
 
+    def _symbol(self, code):
+        rgb, w, dashed = STYLE.get(code, ("110,110,110", 0.3, False))
+        props = {"line_color": rgb, "line_width": str(w), "line_width_unit": "MM"}
+        if dashed:
+            props.update({"line_style": "dash"})
+        return QgsLineSymbol.createSimple(props)
+
+    def ensure_style(self):
+        """A layer adopted from an older project keeps its saved style: add the codes it has no symbol for
+        (else a categorised renderer leaves them undrawn)."""
+        r = self.layer.renderer()
+        if not isinstance(r, QgsCategorizedSymbolRenderer) or r.classAttribute() != "code":
+            return 0
+        have = {c.value() for c in r.categories()}
+        n = 0
+        for code in list(STYLE) + list(self.templates["codes"]):
+            if code not in have:
+                r.addCategory(QgsRendererCategory(code, self._symbol(code), self.templates["codes"]
+                                                  .get(code, {}).get("name", code)))
+                have.add(code)
+                n += 1
+        if n:
+            self.layer.triggerRepaint()
+        return n
+
     def style(self):
         cats = []
-        for code, (rgb, w, dashed) in STYLE.items():
+        # every code of the templates gets a symbol: a categorised renderer draws nothing for a missing one
+        styles = dict(STYLE)
+        for code in self.templates["codes"]:
+            styles.setdefault(code, ("110,110,110", 0.3, False))
+        for code, (rgb, w, dashed) in styles.items():
             props = {"line_color": rgb, "line_width": str(w), "line_width_unit": "MM"}
             if dashed:
                 props.update({"line_style": "dash"})

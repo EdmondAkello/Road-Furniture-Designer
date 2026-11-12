@@ -1,4 +1,4 @@
-"""Enum compatibility across QGIS 3.28 - 3.44+.
+"""Enum compatibility across QGIS 3.34 - 3.44+ (the plugin needs 3.34 or later).
 
 QGIS 3.44 enforces the scoped enums (Qgis.LabelPlacement, Qgis.WkbType, ...), and
 some old unscoped aliases (e.g. QgsPalLayerSettings.OverPoint) resolve to the

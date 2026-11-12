@@ -226,6 +226,65 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     assert f.geometry().constGet().numGeometries() >= 6          # the bars, not one outline
 
 
+def test_crossroads_with_another_alignment_follows_the_mouse(tmp_path):
+    """Trial fix: where our road crosses another alignment, the leg follows the mouse, and both legs can go in."""
+    import math
+    from road_furniture_designer.maptool import PlaceJunctionTool
+    from road_furniture_designer.rfd.alignment import Alignment
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    n = (math.cos(h + math.pi / 2), math.sin(h + math.pi / 2))
+    t = (math.cos(h), math.sin(h))
+    st.junctions._others = [Alignment.from_polyline("MAJOR", [(x0 - 300 * n[0], y0 - 300 * n[1]),
+                                                              (x0 + 300 * n[0], y0 + 300 * n[1])])]
+    canvas = QgsMapCanvas()
+    canvas.setDestinationCrs(CRS)
+    cfg = {"kit": "B", "piece": "", "scale": 1.0, "guides": False, "role": "minor", "major": "MAJOR",
+           "splays": False, "both": False}
+    tool = PlaceJunctionTool(canvas, lambda: st, lambda: cfg)
+    for sgn in (1, -1):                                   # mouse ahead of / behind the junction on our road
+        tool.click(QgsPointXY(x0, y0))
+        jid = tool.click(QgsPointXY(x0 + sgn * 40 * t[0] + 5 * n[0], y0 + sgn * 40 * t[1] + 5 * n[1]))
+        f = next(f for f in st.junctions.layer.getFeatures() if f["junction_id"] == jid)
+        b = math.radians(f["bearing_deg"])
+        assert math.cos(b - h) * sgn > 0.99               # the kit faces the leg the mouse is on
+    st.remove_junction(jid)
+    cfg["both"] = True
+    tool.click(QgsPointXY(x0, y0))
+    jid = tool.click(QgsPointXY(x0 + 40 * t[0], y0 + 40 * t[1]))
+    js = [j for j in st.junctions.junctions() if j["id"].startswith(jid)]
+    assert len(js) == 2
+    r2 = [f for f in st.signs.getFeatures() if f["sign_code"] == "R2" and (f["rule"] or "").startswith("junction:")]
+    assert len(r2) >= 2 and len({round(f["chainage_m"]) for f in r2}) >= 2
+
+
+def test_hump_bar_sets_keep_off_junctions(tmp_path):
+    """Trial fix: a hump's approach bar sets are left out where they would fall on a junction kit."""
+    import math
+    from road_furniture_designer.rfd.features import FeatureConfig, design_feature
+    st, xml = _fill_road(tmp_path)
+    plan = design_feature(st.al, "hump_circular", 900.0, FeatureConfig())
+    bars = sorted((r.sta_start, r.sta_end) for r in plan.runs if r.code == "BAR-SET")
+    a, b = bars[0]                                          # the set furthest back, before the hump
+    x0, y0, h = st.al.point_at((a + b) / 2)
+    st.junctions.place(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2), kit="C")
+    d = st.add_feature("hump_circular", 900.0, FeatureConfig())
+    kept = sorted((r.sta_start, r.sta_end) for r in d.runs if r.code == "BAR-SET")
+    assert len(kept) < len(bars) and (a, b) not in kept
+    assert any("omitted" in f.text and "junction" in f.text for f in d.findings)
+    # placed the other way round: the junction removes the hump's bar sets under it
+    st.remove_junction(st.junctions.junctions()[0]["id"])
+    st.add_feature("hump_circular", 900.0, FeatureConfig(bar_markings=True))
+    before = sum(1 for f in st.lines.layer.getFeatures() if f["item_code"] == "BAR-SET")
+    from road_furniture_designer.rfd import junctions as J
+    pj = J.place(st.al, x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
+    n, finds, _ = st.add_junction(pj, "C")
+    after = sum(1 for f in st.lines.layer.getFeatures() if f["item_code"] == "BAR-SET")
+    assert after < before and any("bar set" in t for _lvl, t in finds)
+
+
 def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
     from road_furniture_designer.maptool import PlaceRunTool
     from road_furniture_designer.rfd.autoplace import AutoConfig
@@ -436,3 +495,14 @@ def test_climbing_lane_proposed_in_a_project(tmp_path):
     assert j["bay"]["kind"] == "climbing lane" and j["bay"]["side"] == "L" and j["widen_m2"] > 1000
     codes = sorted(f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{j['id']}")
     assert codes == ["WSCM-I1", "WSCM-I2"]
+    # trial fix: the lane draws its widened edge and lines, and every code has a symbol on the map
+    drawn = {f["code"] for f in st.junctions.layer.getFeatures() if f["junction_id"] == j["id"]}
+    assert drawn == {"BAYEDGE", "LM26", "LM03"}
+    styled = {c.value() for c in st.junctions.layer.renderer().categories()}
+    assert set(st.junctions.templates["codes"]) <= styled
+    # a layer saved by 0.8.0 without the LM26 / LM03 symbols gets them back when the project is reopened
+    r = st.junctions.layer.renderer()
+    for code in ("LM26", "LM03"):
+        r.deleteCategory(r.categoryIndexForValue(code))
+    assert st.junctions.ensure_style() == 2
+    assert {"LM26", "LM03"} <= {c.value() for c in st.junctions.layer.renderer().categories()}

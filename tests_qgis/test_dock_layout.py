@@ -78,3 +78,24 @@ def test_hidden_by_qt_is_not_hidden_by_the_plugin():
     plugin.action.trigger()
     assert not d.isFloating() and not d.isHidden()
     plugin.unload()
+
+
+def test_leaving_a_tab_switches_its_map_tool_off():
+    """Trial fix: the Calming tool left on while the Linear tab shows a zebra placed a hump."""
+    from road_furniture_designer.dock import RsdDock
+    iface, win = _iface()
+    d = RsdDock(iface, win)
+    labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
+    for btn, tab, other in ((d.btn_fplace, "Calming", "Linear"), (d.btn_ldraw, "Linear", "Calming"),
+                            (d.btn_jplace, "Junctions + bays", "Place")):
+        d.tabs.setCurrentIndex(labels.index(tab))
+        btn.blockSignals(True); btn.setChecked(True); btn.blockSignals(False)   # no project: skip the tool itself
+        d.tabs.setCurrentIndex(labels.index(other))
+        assert not btn.isChecked(), tab
+    # the hover read-out names what a click places
+    d._run_mode = "feature"
+    d._run_hover("Ch 0+100")
+    assert d.lbl_fhover.text().startswith("Calming - ")
+    d._run_mode = "run"
+    d._run_hover("Ch 0+100")
+    assert d.lbl_lhover.text().startswith("Linear - ")

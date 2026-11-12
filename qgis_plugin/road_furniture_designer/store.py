@@ -241,6 +241,8 @@ class SignStore(QObject):
         exj = existing(self.junctions.layer)
         if exj is not None and exj is not self.junctions.layer:
             self.junctions.bind(exj)
+        if exj is not None:
+            self.junctions.ensure_style()
         grp = root.findGroup("Road Furniture Designer") or root.insertGroup(0, "Road Furniture Designer")
         if exj is None:                # projects made before the junction layer existed
             project.addMapLayer(self.junctions.layer, False)
@@ -763,14 +765,53 @@ class SignStore(QObject):
     # ------------------------------------------------------------------ traffic calming features
     def add_feature(self, kind, station, cfg=None, auto=None):
         """Design a hump / table / bump / bar markings / crossing at a station and add its runs and signs."""
-        from .rfd.features import design_feature
+        from .rfd.features import design_feature, flag_overlaps, omit_bars
         d = design_feature(self.al, kind, station, cfg)
+        blocks = self.furniture_blocks()
+        omit_bars(d, blocks, display=self._ch)
+        flag_overlaps(d, blocks)
         if d.runs:
             self.lines.add_runs(d.runs)
         if d.signs:
             self.place_proposals(d.signs, auto)
         self.changed.emit()
         return d
+
+    def _ch(self, sta):
+        from .rfd.alignment import format_station
+        return "Ch " + format_station(self.al.display_station(sta), 1)
+
+    def junction_blocks(self):
+        """(lo, hi, what) on our road of the junction kits, roundabouts and accesses (not bays and lanes,
+        which sit beside the carriageway)."""
+        names = {"RBT": "the roundabout", "ACCESS": "the private access"}
+        return [(lo, hi, f"{names.get(kit, 'the type ' + str(kit) + ' junction')} at {self._ch(lo)}")
+                for lo, hi, _j, kit in self.junctions.footprints() if kit not in ("BUS", "TRUCK", "CLIMB")]
+
+    def furniture_blocks(self, skip_rule=None):
+        """Chainage ranges that a feature's approach bar sets must keep off: junction kits, bays and
+        roundabouts on our road, and transverse items (crossings, humps, tables, bumps; not other bar sets)."""
+        out = self.junction_blocks()
+        cat = self.lines.cat
+        for f in self.lines.layer.getFeatures():
+            it = cat[f["item_code"]] if f["item_code"] in cat else None
+            if it is None or not it.transverse or f["item_code"] == "BAR-SET":
+                continue
+            if skip_rule and (f["rule"] or "") == skip_rule:
+                continue
+            out.append((f["sta_from"], f["sta_to"], f"the {it.name.lower()} at {self._ch(f['sta_from'])}"))
+        return out
+
+    def clear_bars_at(self, junction_id, margin=1.0):
+        """Remove the proposed approach bar sets of humps and tables that fall on a junction just placed."""
+        fp = [(lo, hi) for lo, hi, j, _k in self.junctions.footprints() if j == junction_id]
+        if not fp:
+            return 0
+        lo, hi = fp[0]
+        ids = [f.id() for f in self.lines.layer.getFeatures()
+               if f["item_code"] == "BAR-SET" and f["status"] == "proposed" and (f["rule"] or "").startswith("feature:")
+               and f["sta_from"] < hi + margin and f["sta_to"] > lo - margin]
+        return self.lines._set_status_or_delete(ids) if ids else 0
 
     def features(self):
         """{group id: (kind summary, station, n runs, n signs)} of the features in the project."""
@@ -888,12 +929,12 @@ class SignStore(QObject):
                 ml.addFeature(f)
         ml.commitChanges()
 
-    def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None):
+    def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None, second_leg=False):
         """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give
         Way; a bus bay proposes its bus stop sign, a truck parking bay I15 and I14, a climbing lane I1 / I2.
         Returns (pieces, findings, signs proposed)."""
         from .rfd import junctions as J
-        n, finds = self.junctions.add(pl, kit, piece, guides, params, splays, splay)
+        n, finds = self.junctions.add(pl, kit, piece, guides, params, splays, splay, second_leg)
         signs = 0
         if pl.role == "bay":
             j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
@@ -925,6 +966,11 @@ class SignStore(QObject):
                         signs += 1
                     except ValueError:
                         pass
+        if pl.role != "bay":
+            dropped = self.clear_bars_at(pl.junction_id)
+            if dropped:
+                finds = list(finds) + [("info", f"{dropped} proposed bar set(s) of a hump or table on the junction "
+                                                f"removed")]
         if pl.role == "roundabout":
             signs += self._roundabout_signs(pl)
             self.trim_for_roundabouts()

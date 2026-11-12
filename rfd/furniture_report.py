@@ -86,6 +86,7 @@ KIND_TEXT = {
     "roundabout": "Roundabout",
     "end_control": "Control at the road's end",
     "bay_visibility": "Bay visibility",
+    "transverse_overlap": "Transverse items overlapping",
 }
 
 
@@ -502,6 +503,35 @@ TRUCK_BAY_LENGTH = 70.0         # RDM/1/3/3/03 (four to five heavy vehicles, RDM
 TRUCK_BAY_SPACING = 30000.0     # RDM 1.3 13.2.3.1
 
 
+def overlap_checks(al, runs, lcat, footprints=()) -> List[Check]:
+    """Transverse items (humps, tables, bumps, zebras; with their own hump markings) that overlap one
+    another or a junction / roundabout footprint, and approach bar sets on a junction.
+
+    Runs of one feature (same rule) count as one item; footprints: (lo, hi, what)."""
+    items = {}
+    for i, r in enumerate(runs):
+        it = lcat[r.code] if r.code in lcat else None
+        if it is None or not it.transverse or r.code == "BM04":
+            continue
+        key = (r.rule or "") if (r.rule or "").startswith("feature:") else f"run:{i}"
+        key = (key, r.code == "BAR-SET")
+        lo, hi, name = items.get(key, (r.sta_start, r.sta_end, it.name.lower()))
+        items[key] = (min(lo, r.sta_start), max(hi, r.sta_end), name if r.code != "BAR-SET" else "bar set")
+    out = []
+    mains = [(k, v) for k, v in items.items() if not k[1]]
+    for i, ((ka, _), (a0, a1, na)) in enumerate(mains):
+        for (kb, _), (b0, b1, nb) in mains[i + 1:]:
+            if a0 < b1 and b0 < a1:
+                out.append(Check("transverse_overlap", min(a0, b0), max(a1, b1), "C",
+                                 f"the {na} at {_ch(al, a0)} overlaps the {nb} at {_ch(al, b0)}", "issue"))
+    for (k, bar), (a0, a1, na) in items.items():
+        for f0, f1, what in footprints:
+            if a0 < f1 and f0 < a1:
+                out.append(Check("transverse_overlap", a0, a1, "C",
+                                 f"the {na} at {_ch(al, a0)} falls on {what}", "check" if bar else "issue"))
+    return out
+
+
 def junction_checks(al, junctions) -> List[Check]:
     """Junctions placed from the templates: crossing angle to RDM 1.3 9.2.3.
 
@@ -713,7 +743,7 @@ def end_control_checks(al, others, junctions, signs) -> List[Check]:
 
 
 def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, wanted=None,
-          vfindings=None, curves=None, junctions=None, others=None) -> FurnitureReport:
+          vfindings=None, curves=None, junctions=None, others=None, footprints=None) -> FurnitureReport:
     """barrier_cfg None: barrier warrants are not rechecked (noted). wanted / vfindings / curves: the
     autoplace proposals, findings and curve groups if the caller already has them."""
     from .autoplace import analyse, curve_groups, no_overtaking_zones, propose
@@ -745,6 +775,7 @@ def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, w
     checks += pairing_checks(al, signs)
     checks += supplementary_checks(al, signs)
     checks += junction_checks(al, junctions or [])
+    checks += overlap_checks(al, runs, lcat, footprints or [])
     checks += end_control_checks(al, others, junctions, signs)
     checks.sort(key=lambda c: ({"issue": 0, "check": 1, "info": 2}[c.level], c.start))
     real = [r for r in runs if r.code in lcat]
