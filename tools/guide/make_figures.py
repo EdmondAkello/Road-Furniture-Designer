@@ -73,6 +73,8 @@ from road_furniture_designer.rfd import junctions as J  # noqa: E402
 for a, b, off in ((2700.0, 2725.0, -5.0), (2765.0, 2790.0, 5.0)):     # bus bays, one each way, 65 m apart
     pl, B = J.place_bay(st.al, *P(a, off), *P(b, off))
     st.add_junction(pl, "BUS", params={"bay": B})
+pl, B = J.place_bay(st.al, *P(2420.0, -5.0), *P(2490.0, -5.0))       # a truck parking bay on the straight
+st.add_junction(pl, "TRUCK", params={"bay": B})
 st.accept_proposals(); st.lines.accept_proposals()
 st.auto_propose(auto)                 # leave a few proposals visible (orange) for the figures
 st.set_meta(prepared_by="E. Akello", checked_by="", approved_by="")
@@ -105,6 +107,8 @@ x, y = P(3050, 0)                                                     # crossing
 render_map(QgsRectangle(x - 160, y - 105, x + 160, y + 105), (1600, 1050), "fig_map_calming.png")
 x, y = P(2742, 0)                                                     # the two bus bays in the village
 render_map(QgsRectangle(x - 50, y - 70, x + 50, y + 70), (1000, 1400), "fig_map_busbay.png")
+x, y = P(2452, 0)                                                     # the truck parking bay
+render_map(QgsRectangle(x - 75, y - 50, x + 75, y + 50), (1500, 1000), "fig_map_truckbay.png")
 jext = QgsRectangle()                                                 # type A-1 junction with its guide lines
 for f in st.junctions.layer.getFeatures():
     if f["kit"] == "A-1":

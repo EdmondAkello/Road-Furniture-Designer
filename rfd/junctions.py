@@ -428,7 +428,7 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
         return _guides(F, spec, P, piece)
-    elif piece in ("bus_bay", "climbing_lane"):
+    elif piece in BAY_PIECES:
         return _bus_bay(F, spec, P, piece)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
@@ -519,6 +519,10 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "guide", "", parts, {}, P)
 
 
+BAY_PIECES = ("bus_bay", "truck_bay", "climbing_lane")
+BAY_KINDS = {"bus_bay": "bus bay", "truck_bay": "truck parking bay", "climbing_lane": "climbing lane"}
+
+
 def bay_stations(al, pl: Placement, P: dict, sigma: int):
     """(entry start, bay start, bay end, exit end, travel direction) in chainage. Kenya drives on the left:
     traffic on the left of the chainage direction travels with it, so its entry taper comes first."""
@@ -533,7 +537,8 @@ def bay_stations(al, pl: Placement, P: dict, sigma: int):
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
-    lane = piece == "climbing_lane"
+    lane, truck = piece == "climbing_lane", piece == "truck_bay"
+    straight = P.get("taper") == "straight"
     if lane and not P.get("depth"):                            # as wide as the reduced through lane (6.6.3)
         e0 = F.e
         P = dict(P, depth=round(e0 - 0.25 if e0 >= 3.25 else e0, 2))
@@ -549,16 +554,18 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         if t <= 0:
             return 0.0
         if t < A:
-            return depth * (1 - math.cos(math.pi * t / A)) / 2
+            return depth * t / A if straight else depth * (1 - math.cos(math.pi * t / A)) / 2
         if t <= A + P["bay"]:
             return depth
         u = t - A - P["bay"]
-        return depth * (1 + math.cos(math.pi * u / P["exit"])) / 2 if u < P["exit"] else 0.0
+        if u >= P["exit"]:
+            return 0.0
+        return depth * (1 - u / P["exit"]) if straight else depth * (1 + math.cos(math.pi * u / P["exit"])) / 2
 
     lo, hi = sorted((s0, s3))
     lo, hi = max(lo, al.sta_start), min(hi, al.sta_end)
     n = max(2, int((hi - lo) / 1.0))
-    ss = [lo + (hi - lo) * i / n for i in range(n + 1)]
+    ss = sorted(set([lo + (hi - lo) * i / n for i in range(n + 1)] + [x for x in (s1, s2) if lo < x < hi]))
     pt = lambda s, o: al.point_at(s, sg * o)[:2]
     kerb = [pt(s, edge(s) + widen(s)) for s in ss]
     if lane:
@@ -576,6 +583,21 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
                  kind="climbing lane")
         return Piece(piece, spec["name"], "lane", "", parts, q, P)
+    widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
+    sep = []                                   # separation line along the carriageway edge, 1 m marks, 1 m gaps
+    s = lo
+    while s + 1.0 <= hi:
+        sep.append(Part("LM05", [pt(s, edge(s)), pt(s + 1.0, edge(s + 1.0))]))
+        s += 2.0
+    lm05 = sum(length(p.pts) for p in sep)
+    if truck:
+        # RDM/1/3/3/03: widened pavement, no kerb shown; the separation line from start point to end point
+        parts = [Part("BAYEDGE", kerb)] + sep
+        q = {"edge_m": round(length(kerb), 2), "widen_m2": round(widen_area, 2), "LM05_m": round(lm05, 2),
+             "paint_m2": round(lm05 * 0.2, 3)}
+        P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
+                 kind=BAY_KINDS[piece])
+        return Piece(piece, spec["name"], "bay", "", parts, q, P)
     parts = [Part("KERB", kerb)]
     # loading platform behind the kerb along the bay, hatched
     b0, b1 = sorted((s1, s2))
@@ -585,21 +607,15 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     for k in range(1, int((b1 - b0) / 1.0)):
         s = b0 + k * 1.0
         parts.append(Part("BUSPLAT", [pt(s - 0.5, edge(s) + depth), pt(s + 0.5, edge(s) + depth + plat)]))
-    # separation line along the carriageway edge, 1 m marks, 1 m gaps
-    s = lo
-    while s + 1.0 <= hi:
-        parts.append(Part("LM05", [pt(s, edge(s)), pt(s + 1.0, edge(s + 1.0))]))
-        s += 2.0
+    parts += sep
     # indicative shelter position behind the platform, mid-bay
     if P.get("shelter"):
         m, L = (b0 + b1) / 2, P["shelter"] / 2
         o0, o1 = edge(m) + depth + plat + 0.5, edge(m) + depth + plat + 2.5
         parts.append(Part("SHELTER", [pt(m - L, o0), pt(m + L, o0), pt(m + L, o1), pt(m - L, o1)], True))
-    widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
-    lm05 = sum(length(p.pts) for p in parts if p.code == "LM05")
     q = {"kerb_m": round(length(kerb), 2), "raised_kerb_m": round(abs(s2 - s1) + 2 * ramp, 2),
          "island_m2": round(area(plat_ring), 2), "widen_m2": round(widen_area, 2),
-         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.1, 3)}
+         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.2, 3)}
     P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
              kind="bus bay")
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
@@ -658,7 +674,7 @@ def place_lane(al, start: float, end: float, side: str, **kw):
 
 
 def bay_table(al, rows) -> List[dict]:
-    """Widening table for Civil 3D, one row per bus bay: (entry start, bay start, bay end, exit end, side, width)."""
+    """Widening table for Civil 3D, one row per bay or lane: (entry start, bay start, bay end, exit end, side, width)."""
     out = []
     for r in rows:
         s0, s1, s2, s3 = r["stations"]

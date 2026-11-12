@@ -367,7 +367,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
     def _placement(self, lp):
         from .rfd import junctions as J
         st, s = self._store(), self._settings()
-        if s.get("kit") in ("BUS", "CLIMB"):
+        if s.get("kit") in ("BUS", "TRUCK", "CLIMB"):
             pl, B = J.place_bay(st.al, self.p0[1], self.p0[2], lp.x(), lp.y())
             self._params = {"bay": B}
             return pl, st.al
@@ -465,7 +465,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 self.failed.emit("Beyond the alignment ends")
                 return None
             self.p0 = sn
-            nxt = ("now click where the bay ends" if s.get("kit") == "BUS"
+            nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK")
                    else "now click where the full-width lane ends" if s.get("kit") == "CLIMB"
                    else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
                    else "click again to place" if s.get("role") == "minor"

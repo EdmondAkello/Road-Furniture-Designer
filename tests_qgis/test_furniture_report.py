@@ -265,6 +265,28 @@ def test_bus_bay_in_a_project(tmp_path):
     assert st.remove_junction(pl.junction_id) >= 2
 
 
+def test_truck_parking_bay_in_a_project(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.report import ReportData, write_xlsx
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    pl, B = J.place_bay(st.al, *st.al.point_at(500.0, -6.0)[:2], *st.al.point_at(570.0, -6.0)[:2])
+    n, finds, nsigns = st.add_junction(pl, "TRUCK", params={"bay": B})
+    assert n == 1 and nsigns == 2                                   # I15 at the entry taper, I14 300 m ahead
+    j = st.junctions.junctions()[0]
+    assert j["bay"]["kind"] == "truck parking bay" and j["bay"]["stations"][:2] == [485, 500] and j["kerb_m"] == 0
+    signs = {f["sign_code"]: f["chainage_m"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"}
+    assert set(signs) == {"I15", "I14"}
+    assert abs((signs["I15"] - signs["I14"]) - 300) < 1
+    assert abs(j["paint"]["LM05"][1] - j["paint"]["LM05"][0] * 0.2) < 1e-3
+    d = ReportData(st, AutoConfig())
+    write_xlsx(str(tmp_path / "t.xlsx"), d)
+    from openpyxl import load_workbook
+    rows = list(load_workbook(tmp_path / "t.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
+    assert len(rows) == 1 and rows[0][1] == "truck parking bay" and rows[0][7] == 15 and rows[0][8] == 10
+    assert st.remove_junction(pl.junction_id) >= 2
+
+
 def test_climbing_lane_proposed_in_a_project(tmp_path):
     from road_furniture_designer.rfd.profile import VerticalProfile
     st, xml = _fill_road(tmp_path)

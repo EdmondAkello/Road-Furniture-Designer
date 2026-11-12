@@ -20,9 +20,9 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "CLIMB"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == {"BUS": "bus_bay", "CLIMB": "climbing_lane"}.get(k, "guides")
+        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -39,7 +39,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "CLIMB")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -191,6 +191,35 @@ def test_bus_bay():
     assert [c.kind for c in FR.junction_checks(al, js)] == ["bus_bay_spacing"]
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
+    # LM05 is 0.2 m wide (RDM 6.1 Table 4.1)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    assert T["codes"]["LM05"]["width"] == 0.2
+
+
+def test_truck_parking_bay():
+    al = straight()
+    pl, B = J.place_bay(al, 100, 4.0, 170, 4.0)
+    pc = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    # RDM/1/3/3/03: 15 m entry, 70 m bay, 10 m exit, 3.5 m deep, straight tapers, no kerb
+    assert pc.params["side"] == "L" and pc.params["stations"] == [85, 100, 170, 180]
+    assert pc.params["kind"] == "truck parking bay" and pc.params["depth"] == 3.5
+    assert {p.code for p in pc.parts} == {"BAYEDGE", "LM05"}
+    assert pc.quantities["widen_m2"] == pytest.approx(3.5 * 70 + 3.5 * (15 + 10) / 2, rel=0.01)
+    edge = next(p for p in pc.parts if p.code == "BAYEDGE").pts
+    y_at = lambda x: min(edge, key=lambda q: abs(q[0] - x))[1]
+    assert y_at(91) == pytest.approx(3.5 + 3.5 * 6 / 15, abs=0.01)           # straight taper: linear in distance
+    assert y_at(130) == pytest.approx(7.0) and y_at(84) == pytest.approx(3.5)
+    # separation line from start point to end point, 1 m marks at 1 m gaps, 0.2 m wide
+    lm = [p for p in pc.parts if p.code == "LM05"]
+    assert min(p.pts[0][0] for p in lm) == pytest.approx(85) and max(p.pts[-1][0] for p in lm) == pytest.approx(180, abs=1)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    # checks: a short bay, and bays more than 30 km apart in one direction; not the bus-bay spacing rule
+    short, Bs = J.place_bay(al, 100, -4.0, 140, -4.0)
+    ps = J.build_piece(al, short, "truck_bay", params={"bay": Bs}, templates=T)
+    js = [{"sta": 100, "bay": pc.params}, {"sta": 120, "bay": ps.params}]
+    assert [c.kind for c in FR.junction_checks(al, js)] == ["truck_bay_length"]
+    far = dict(pc.params, stations=[s + 31000 for s in pc.params["stations"]])
+    assert [c.kind for c in FR.junction_checks(al, [{"bay": pc.params}, {"bay": far}])] == ["truck_bay_spacing"]
 
 
 def test_climbing_lanes_from_the_profile():
