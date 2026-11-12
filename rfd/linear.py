@@ -222,10 +222,10 @@ def geometry(al, run: Run, step: float = 5.0) -> List[List[Tuple[float, float]]]
 
 
 ZEBRA = {"BM01", "BM02", "BM03"}
-CALMING_FILL = {"HUMP-C", "HUMP-T", "TABLE", "BUMP"}
+CALMING_FILL = {"HUMP-C", "HUMP-T", "TABLE", "TABLE-X", "BUMP"}
 # along-road length of a transverse item placed with one click (m); calming items are sized by the Calming tab
 CLICK_LENGTH = {"BM01": 2.0, "BM02": 3.0, "BM03": 4.0, "BAR-SET": 4.8, "BM04": 2.0,
-                "HUMP-C": 3.7, "HUMP-T": 6.5, "TABLE": 8.4, "BUMP": 0.6}
+                "HUMP-C": 3.7, "HUMP-T": 6.5, "TABLE": 8.4, "TABLE-X": 8.4, "BUMP": 0.6}
 
 
 def pattern(al, run: Run, bars: int = 6, bar_width: float = 0.3) -> List[List[Tuple[float, float]]]:

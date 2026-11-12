@@ -974,6 +974,8 @@ class SignStore(QObject):
         if pl.role == "roundabout":
             signs += self._roundabout_signs(pl)
             self.trim_for_roundabouts()
+        if pl.role == "bay":
+            self.trim_for_widenings()
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -1021,6 +1023,24 @@ class SignStore(QObject):
             n += self.lines.trim(lo - centre, hi + centre, centre=True, sides=False)
             n += self.lines.trim(lo - p["flare"], hi + p["flare"], centre=False, sides=True)
         return n
+
+    def trim_for_widenings(self):
+        """Where a bus bay, truck parking bay or climbing lane widens the road, its own lines take over from
+        our road's edge line and edge studs on that side (LM05 at bays; LM26 on the new edge and LM03 along
+        the old one at climbing lanes): cut them from the start of the entry taper to the end of the exit
+        taper. Returns the runs cut."""
+        n = 0
+        for j in self.junctions.junctions():
+            b = j.get("bay")
+            if not b or not b.get("stations"):
+                continue
+            s0, _s1, _s2, s3 = b["stations"]
+            n += self.lines.trim(s0, s3, centre=False, sides=True, side=b["side"])
+        return n
+
+    def trim_for_overlays(self):
+        """Our road's markings cut back at roundabouts and widenings (after a markings proposal)."""
+        return self.trim_for_roundabouts() + self.trim_for_widenings()
 
     def _sign_facing(self, x, y, phi):
         """(facing, skew) that point a sign face in the map direction phi (radians, counter-clockwise from

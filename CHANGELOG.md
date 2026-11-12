@@ -7,6 +7,10 @@
 - Junctions: where our road joins or crosses another alignment, the kit faces the leg of our road on the mouse's side, and the preview flips as the mouse moves across the main road. The hover text names the leg. **Both legs** (Junctions tab) places a crossroads: islands, Give Way markings and an R2 on each approach, with the main-road pieces drawn once.
 - Junctions on our road: the minor road's direction follows another alignment of the LandXML when the mouse is within 15 m of it, so it doesn't have to be aimed by hand.
 - Calming tab: **Bar markings on the approaches** sits under the feature type. The placement message says how many bar sets went in, or how to switch them on.
+- Raised crossings have their own item, `TABLE-X` (Raised pedestrian crossing), with its own legend entry and fill, so they are counted apart from speed tables. Raised crossings placed before keep the `TABLE` code and are still reported as raised crossings.
+- Where a bus bay, truck parking bay or climbing lane widens the road, our road's edge line and edge studs on that side are cut from the start of the entry taper to the end of the exit taper (its own lines take over), on placing it and on every markings proposal, as at roundabouts.
+- The pre-3.34 enum fallbacks are gone (`compat.py` uses the scoped enums), and CI runs the QGIS tests on 3.34 as well as 3.44.
+- CI: `actions/upload-artifact` and `download-artifact` v6 (Node.js 24).
 - Map tools belong to their tab. Leaving the Linear, Calming or Junctions tab switches its tool off. The hover read-out starts with what a click places (`Linear - BM03:` / `Calming - Circular road hump:`), and the Calming tool has its own cursor.
 
 ### Added

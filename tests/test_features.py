@@ -57,7 +57,7 @@ def test_bump_speed_limit_and_tables_and_crossings():
     d = design_feature(road(50), "speed_table", 500)
     assert next(r for r in d.runs if r.code == "TABLE").length == pytest.approx(8.4)
     d = design_feature(road(50), "raised_crossing", 500, FeatureConfig(crossing_width=4.0))
-    assert {"TABLE", "BM03", "BM04"} <= set(codes(d)) and {p.code for p in d.signs} == {"W55"}
+    assert {"TABLE-X", "BM03", "BM04"} <= set(codes(d)) and {p.code for p in d.signs} == {"W55"}
     d = design_feature(road(50), "crossing", 500, FeatureConfig(crossing_width=3.0))
     z = next(r for r in d.runs if r.code == "BM02")
     assert z.length == pytest.approx(3.0) and run_quantities(z, CAT["BM02"])["area"] == pytest.approx(0.5 * 3 * 7)
