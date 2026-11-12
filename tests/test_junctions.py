@@ -441,7 +441,9 @@ def test_roundabout_geometry_and_checks():
     assert all(y < 0 for _, y in east.pts)                         # traffic heading west keeps to the south
     q = pc.quantities
     assert q["icd"] == 30.8 and q["width"] == pytest.approx(10.4) and q["overlaps"] == 0
-    assert [lvl for lvl, _ in pc.params["notes"]] == ["info", "info"]       # compact hint, deflection not checked
+    # compact hint and the path caveat; radial arms round a 10 m island in a 30.8 m ICD deflect little
+    assert [lvl for lvl, _ in pc.params["notes"]][:2] == ["info", "info"]
+    assert all(lvl == "check" and "entry path radius" in t for lvl, t in pc.params["notes"][2:])
     # checks: two arms only, a tiny island, an ICD over 100 m, arms too close, returns that cross
     two = J.build_piece(al, pl, "roundabout", templates=T)
     assert any(lvl == "issue" and "at least 3" in t for lvl, t in two.params["notes"])
@@ -553,3 +555,17 @@ def test_minor_road_approach_splay_on_a_bend():
     assert J.approach_splay(straight_road, ps, ms).params["clear_m"] < 0.1
     with pytest.raises(ValueError):
         J.approach_splay(straight_road, J.place(major, 0, 0, 0, 30), major)
+
+
+def test_roundabout_entry_path_radius():
+    """RDM 1.3 10.6.3.5: a 20 m island in a 40 m ICD deflects the ahead path enough (radius under 100 m); a
+    10 m island in a 60 m ICD hardly does, and is flagged."""
+    al = straight()
+    arms = [{"bearing_deg": 90, "src": "click", "half": 3.5}, {"bearing_deg": -90, "src": "click", "half": 3.5}]
+    good = J.build_piece(al, J.place_roundabout(al, 200, 0), "roundabout",
+                         params={"island": 20, "icd": 40, "arms": arms}, templates=T)
+    assert all(r is not None and r < 100 for r in good.params["quantities"]["entry_path_r"])
+    assert not [t for _l, t in good.params["notes"] if "entry path radius" in t]
+    poor = J.build_piece(al, J.place_roundabout(al, 200, 0), "roundabout",
+                         params={"island": 10, "icd": 60, "arms": arms}, templates=T)
+    assert len([t for lvl, t in poor.params["notes"] if lvl == "check" and "entry path radius" in t]) == 4
