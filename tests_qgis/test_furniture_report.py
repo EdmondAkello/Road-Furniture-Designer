@@ -204,13 +204,14 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     x0, y0, h = st.al.point_at(s_end)
     pl = st.junctions.placement_minor(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
     n, finds, nsigns = st.add_junction(pl, "B")
-    assert n == 8 and nsigns == 2                              # 6 pieces + arrows + splays; R2 and W12
+    assert n == 9 and nsigns == 2                  # 6 pieces + arrows + splays + approach splay; R2 and W12
     r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}" and f["sign_code"] == "R2"]
     assert len(r2) == 1 and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
     w12 = [f for f in st.signs.getFeatures() if f["sign_code"] == "W12"]
     assert len(w12) == 1 and w12[0]["facing"] == "Forward" and w12[0]["station_int"] < r2[0]["station_int"]
     j = st.junctions.junctions()[0]
     assert j["role"] == "minor" and abs(j["sta"] - s_end) < 0.5
+    assert j["minor_splay"]["ssd"] > 0 and "SPLAY-M" in {f["code"] for f in st.junctions.layer.getFeatures()}
     # re-running auto-placement keeps the junction's sign
     st.auto_propose()
     assert [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]

@@ -164,6 +164,21 @@ def test_our_road_joins_a_main_road():
         J.place_minor(ours, 200, 2.0)                                            # neither alignment nor click
 
 
+def test_climbing_lanes_over_consecutive_grades():
+    """Two 6 % grades of 500 m each (each inside its 700 m limit) with a short 2 % break between them: the
+    truck has not recovered, so one lane is proposed; with a long level break, none."""
+    from rfd.profile import VerticalProfile
+    al = Alignment.from_polyline("S", [(0, 0), (4000, 0)])
+    al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 60), (1000, 130, 60), (1100, 132, 60),
+                                       (1600, 162, 60), (4000, 162, 0)])
+    (c,) = J.climbing_lanes(al)
+    assert c["side"] == "L" and 1100 <= c["start"] <= 1500 and c["end"] == pytest.approx(1800, abs=40)
+    assert c["length"] > 900
+    al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 60), (1000, 130, 60), (2000, 132, 60),
+                                       (2500, 162, 60), (4000, 162, 0)])
+    assert J.climbing_lanes(al) == []
+
+
 def test_crossroads_leg_follows_the_cursor():
     """Our road crosses the main road: the leg is the one on the cursor's side; both legs on request."""
     ours = Alignment.from_polyline("OURS", [(200, 300), (200, -300)])
@@ -271,8 +286,11 @@ def test_climbing_lanes_from_the_profile():
     al = Alignment.from_polyline("S", [(0, 0), (3000, 0)])
     al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 100), (1700, 172, 200), (3000, 172, 0)])
     (c,) = J.climbing_lanes(al)
-    assert (c["start"], c["end"], c["side"], c["limit"]) == (1200, 1900, "L", 700)
-    pl, L = J.place_lane(al, c["start"], c["end"], c["side"])
+    # the 6 % grade's 700 m allowance runs out about 700 m up it (a little earlier: the sag curve's
+    # steepening part counts too); the lane ends 200 m past the climb
+    assert c["side"] == "L" and c["limit"] == 700 and c["end"] == 1900
+    assert 1150 <= c["start"] <= 1230 and c["length"] > 1000
+    pl, L = J.place_lane(al, 1200, 1900, c["side"])
     pc = J.build_piece(al, pl, "climbing_lane", params={"bay": L}, templates=T)
     assert pc.params["stations"] == [1100, 1200, 1900, 2000] and pc.params["depth"] == 3.25
     assert pc.quantities["widen_m2"] == pytest.approx(3.25 * 700 + 3.25 * 100, rel=0.01)
@@ -285,7 +303,7 @@ def test_climbing_lanes_from_the_profile():
     # downhill with the chainage: the lane serves traffic running against it, on the right
     al.profile = VerticalProfile("P", [(0, 172, 0), (1200, 100, 200), (3000, 100, 0)])
     (d,) = J.climbing_lanes(al)
-    assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700) and d["end"] == 0
+    assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700, abs=60) and d["end"] == 0
     assert J.climbing_lanes(al, aadt=1500) == []                     # RDM 1.3 6.6.2: none under 2000 pcu
     assert "6000" in J.climbing_lanes(al, aadt=8000)[0]["note"]
 
@@ -515,3 +533,23 @@ def test_turn_and_approach_arrows():
     assert {p.code for p in cross.parts} == {"AM07"} and len(cross.parts) == 3
     assert J.arrow_length(50) == 3.5 and J.arrow_length(80) == 5.0 and J.arrow_length(120) == 9.0
     assert "turn_arrow" not in {p.piece for p in J.build_kit(al, at(al, 90), "C", templates=T)}
+
+
+def test_minor_road_approach_splay_on_a_bend():
+    """RDM 1.3 Figure 9.13: our road comes round a 120 m bend onto the main road; the splay reaches across
+    the inside of the bend. A straight approach needs (almost) nothing beyond the road."""
+    major = Alignment.from_polyline("MAJOR", [(-300, 0), (300, 0)])
+    R = 120.0
+    arc = [(R - R * math.cos(t), 3.0 + R * math.sin(t)) for t in [k * math.pi / 2 / 40 for k in range(41)]]
+    ours = Alignment.from_polyline("OURS", list(reversed(arc)) )          # chainage runs towards the main road
+    ours.speeds = [(0.0, 60.0)]
+    pl, main = J.place_minor(ours, 0.0, 3.0, major=major)
+    pc = J.approach_splay(ours, pl, main)
+    assert pc.parts[0].code == "SPLAY-M" and pc.params["ssd"] > 60
+    assert pc.params["clear_m"] > 3.0                                      # across the inside of the bend
+    assert "inside of the bend" in J.approach_splay_findings(pc.params)[0][1]
+    straight_road = Alignment.from_polyline("ST", [(0, 300), (0, 3.0)])
+    ps, ms = J.place_minor(straight_road, 0.0, 3.0, major=major)
+    assert J.approach_splay(straight_road, ps, ms).params["clear_m"] < 0.1
+    with pytest.raises(ValueError):
+        J.approach_splay(straight_road, J.place(major, 0, 0, 0, 30), major)
