@@ -20,9 +20,10 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access"}.get(k, "guides")
+        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access",
+                                     "RBT": "roundabout"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -39,7 +40,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -94,7 +95,6 @@ def test_corner_islands_follow_the_skew_and_stay_clear_of_the_kerb_return():
     al = straight()
     for ang in (90, 75):
         pl = at(al, ang)
-        F = pl.frame(al)
         ci = J.build_piece(al, pl, "corner_island", "left_turn", templates=T)
         # kerb return of the A-2 guides (30 m fillet): the island lies outside the fillet circle, on the paved side
         g = J.build_piece(al, pl, "guides", params={"return_radius": 30.0}, templates=T)
@@ -352,3 +352,83 @@ def test_widening_round_trip():
                       ("ETW", "R"): [(s, 3.5) for s in stations]})
     # 5. the report check
     assert [c.kind for c in FR.junction_checks(al, [{"sta": 100, "bay": bay}]) if c.kind == "widening"] == ["widening"]
+
+
+def test_roundabout_geometry_and_checks():
+    from rfd import roundabouts as RB
+    assert RB.min_icd(10) == 30.8 and RB.min_icd(11) == pytest.approx(31.4) and RB.min_icd(2) == 28.0
+    al = Alignment.from_polyline("S", [(0, 0), (1000, 0)])
+    al.speeds = [(0.0, 80.0)]
+    pl = J.place_roundabout(al, 500, 3.0)                          # snapped to our centreline
+    assert pl.station == pytest.approx(500) and pl.role == "roundabout"
+    pc = J.build_piece(al, pl, "roundabout", params={"arms": [{"bearing_deg": 90, "src": "click", "half": 3.5}]},
+                       templates=T)
+    assert pc.params["n_arms"] == 3 and {a["src"] for a in pc.params["arms_used"]} == {"ours", "click"}
+    codes = [p.code for p in pc.parts]
+    assert codes.count("TM07") == 3 and codes.count("TM04") == 3 and codes.count("BM07") == 3
+    assert codes.count("KERB") == 4 and "RBEDGE" in codes                       # island + three splitters
+    island = pc.parts[0]
+    assert all(math.hypot(x - 500, y) == pytest.approx(5.0, abs=1e-6) for x, y in island.pts)
+    # give way lines on the circle, on the left of the traffic coming in (Kenya drives on the left)
+    for p in (p for p in pc.parts if p.code == "TM07"):
+        assert all(math.hypot(x - 500, y) == pytest.approx(15.4, abs=1e-6) for x, y in p.pts)
+    east = next(p for p in pc.parts if p.code == "TM07" and p.pts[0][0] > 505)
+    assert all(y < 0 for _, y in east.pts)                         # traffic heading west keeps to the south
+    q = pc.quantities
+    assert q["icd"] == 30.8 and q["width"] == pytest.approx(10.4) and q["overlaps"] == 0
+    assert [lvl for lvl, _ in pc.params["notes"]] == ["info", "info"]       # compact hint, deflection not checked
+    # checks: two arms only, a tiny island, an ICD over 100 m, arms too close, returns that cross
+    two = J.build_piece(al, pl, "roundabout", templates=T)
+    assert any(lvl == "issue" and "at least 3" in t for lvl, t in two.params["notes"])
+    bad = J.build_piece(al, pl, "roundabout", params={"island": 3.0, "icd": 104.0,
+                        "arms": [{"bearing_deg": 90, "src": "click"}, {"bearing_deg": 135, "src": "click"}]},
+                        templates=T)
+    t = " | ".join(t for _, t in bad.params["notes"])
+    assert "at least 4 m" in t and "exceed 100 m" in t and "deg apart" in t and "not exceed 15 m" in t
+    tight = J.build_piece(al, pl, "roundabout", params={"arms": [{"bearing_deg": 70, "src": "click"},
+                                                                 {"bearing_deg": 250, "src": "click"}]}, templates=T)
+    assert tight.quantities["overlaps"] >= 1 and any("run into each other" in t for _, t in tight.params["notes"])
+    # a sharp crest on the approach hides the entry
+    from rfd.profile import VerticalProfile
+    al.profile = VerticalProfile("P", [(0, 100, 0), (430, 117, 30), (1000, 100, 0)])
+    cr = J.build_piece(al, pl, "roundabout", params={"arms": [{"bearing_deg": 90, "src": "click"}]}, templates=T)
+    assert any("sharp crest" in t for _, t in cr.params["notes"])
+    # the report check
+    j = {"sta": 500.0, "kit": "RBT", "rbt": {"notes": bad.params["notes"]}}
+    assert sum(1 for c in FR.junction_checks(al, [j]) if c.kind == "roundabout") == len(bad.params["notes"])
+
+
+def test_control_at_our_roads_end():
+    ours = Alignment.from_polyline("OURS", [(0, 0), (300, 0)])        # ends on the main road at x = 300
+    main = Alignment.from_polyline("MAIN", [(300, -200), (300, 200)])
+    far = Alignment.from_polyline("FAR", [(1000, -200), (1000, 200)])
+    (c,) = FR.end_control_checks(ours, [main, far], [], [])
+    assert c.kind == "end_control" and "ends on MAIN" in c.text and c.start == pytest.approx(300)
+    assert FR.end_control_checks(ours, [far], [], []) == []                    # not touching another road
+    jn = [{"sta": 300.0, "role": "minor"}]
+    assert FR.end_control_checks(ours, [main], jn, []) == []                   # the junction is placed
+    r2 = [{"code": "R2", "sta": 290.0, "facing": "Forward", "side": "L"}]
+    assert FR.end_control_checks(ours, [main], [], r2) == []                   # or a Give Way stands there
+    wrong = [{"code": "R2", "sta": 290.0, "facing": "Backward", "side": "R"}]
+    assert len(FR.end_control_checks(ours, [main], [], wrong)) == 1           # facing the other way: no
+
+
+def test_bay_visibility_over_a_crest():
+    from rfd.profile import VerticalProfile
+    al = straight()
+    al.speeds = [(0.0, 80.0)]
+    pl, B = J.place_bay(al, 220, 4.0, 290, 4.0)                    # truck bay, entry taper from 205
+    bay = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T).params
+    kinds = lambda: [c.kind for c in FR.junction_checks(al, [{"sta": 220, "bay": bay}])]
+    al.profile = VerticalProfile("P", [(0, 100, 0), (400, 100, 0)])
+    assert "bay_visibility" not in kinds()                          # flat: seen from the SSD
+    al.profile = VerticalProfile("P", [(0, 100, 0), (150, 106, 30), (400, 98.5, 0)])
+    assert "bay_visibility" in kinds()                              # a sharp crest just before it
+
+
+def test_continuation_is_not_a_junction():
+    ours = Alignment.from_polyline("OURS", [(0, 0), (300, 0)])
+    onward = Alignment.from_polyline("ONWARD", [(300, 2), (900, 30)])           # the same road carrying on
+    assert FR.end_control_checks(ours, [onward], [], []) == []
+    branch = Alignment.from_polyline("BRANCH", [(300, 0), (300, 400)])          # starts here but at 90 deg
+    assert len(FR.end_control_checks(ours, [branch], [], [])) == 1

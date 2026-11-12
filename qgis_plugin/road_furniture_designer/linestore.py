@@ -8,11 +8,10 @@ and rebuilt whenever one of those fields changes.
 from __future__ import annotations
 
 from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
-from qgis.PyQt.QtGui import QColor
-from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFields, QgsGeometry, QgsLineSymbol,
-                       QgsPointXY, QgsRendererCategory, QgsVectorLayer)
+from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
+                       QgsRendererCategory, QgsVectorLayer)
 
-from .compat import WKB_MULTILINESTRING
+from .compat import WKB_MULTILINESTRING, make_field
 from .rfd.alignment import format_station
 from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_quantities, summarise
 
@@ -35,7 +34,7 @@ TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "width_m", "e
 def _fields():
     fs = QgsFields()
     for n, t in LINE_FIELDS:
-        fs.append(QgsField(n, t))
+        fs.append(make_field(n, t))
     return fs
 
 
@@ -61,7 +60,7 @@ class LineStore(QObject):
 
     def _migrate(self):
         have = {f.name() for f in self.layer.fields()}
-        missing = [QgsField(n, t) for n, t in LINE_FIELDS if n not in have]
+        missing = [make_field(n, t) for n, t in LINE_FIELDS if n not in have]
         if missing:
             self.layer.dataProvider().addAttributes(missing)
             self.layer.updateFields()
@@ -239,6 +238,39 @@ class LineStore(QObject):
 
     def accept_proposals(self, fids=None):
         return self._set_status_or_delete(fids or self.proposals(), "approved")
+
+    def trim(self, a, b, centre=True, sides=True):
+        """Cut marking and stud runs (not transverse items) over the internal stations a..b: a run inside is
+        removed, one across an end is shortened, one spanning the whole gap is split in two (the first keeps
+        its identity). centre / sides: which runs (side C, or L / R). Returns the runs cut."""
+        import dataclasses
+        a, b = sorted((a, b))
+        drop, add = [], []
+        for f in self.layer.getFeatures():
+            it = self.cat.items.get(f["item_code"])
+            if it is None or it.transverse or it.category not in ("Marking", "Road stud"):
+                continue
+            r = self.run_of(f)
+            if (r.side == "C" and not centre) or (r.side != "C" and not sides):
+                continue
+            if r.sta_end <= a + 1e-6 or r.sta_start >= b - 1e-6:
+                continue
+            drop.append(f.id())
+            if r.sta_start < a - 0.5:
+                add.append(dataclasses.replace(r, sta_end=a))
+            if r.sta_end > b + 0.5:
+                add.append(dataclasses.replace(r, sta_start=b, uuid=Run("x", 0, 0).uuid))
+        if not drop:
+            return 0
+        if self.layer.isEditable():
+            self.layer.deleteFeatures(drop)
+        else:
+            self.layer.dataProvider().deleteFeatures(drop)
+        self.add_runs(add)
+        self.layer.reload()
+        self.layer.triggerRepaint()
+        self.changed.emit()
+        return len(drop)
 
     def auto_propose_markings(self, cfg=None):
         """Replace the proposed markings and studs with the RDM 6.1 proposals."""

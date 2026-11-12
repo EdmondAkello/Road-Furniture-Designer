@@ -3,8 +3,8 @@ import random
 
 import pytest
 
-from rfd.alignment import (Alignment, Line, Spiral, parse_landxml, format_station,
-                           parse_station, StationEquation)
+from rfd.alignment import (Alignment, Spiral, parse_landxml, format_station, parse_station,
+                           StationEquation)
 from examples.make_demo_road import build, to_landxml
 
 

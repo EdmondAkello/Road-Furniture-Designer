@@ -14,7 +14,6 @@ if QgsApplication.instance() is None:
     _app.initQgis()
 
 from qgis.gui import QgsMapCanvas  # noqa: E402
-from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow, QScrollArea  # noqa: E402
 
 
@@ -28,7 +27,18 @@ def _iface():
 
 
 def test_every_tab_scrolls_and_the_dock_fits_600_px():
+    from qgis.PyQt.QtGui import QFont
     from road_furniture_designer.dock import RsdDock
+    # a known font, so the widths do not depend on the machine's default (the QGIS 3.44 CI image differs)
+    old = QgsApplication.font()
+    QgsApplication.setFont(QFont("DejaVu Sans", 9))
+    try:
+        _dock_fits(RsdDock)
+    finally:
+        QgsApplication.setFont(old)
+
+
+def _dock_fits(RsdDock):
     iface, win = _iface()
     d = RsdDock(iface, win)
     labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]

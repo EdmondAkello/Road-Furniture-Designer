@@ -38,6 +38,10 @@
   "ACCESS": {
    "name": "Private access",
    "drawing": "RDM 1.3 Figure 9.33"
+  },
+  "RBT": {
+   "name": "Roundabout",
+   "drawing": "RDM 1.3 Chapter 10; RDM 6.1 Figures 7.14-7.16"
   }
  },
  "codes": {
@@ -152,6 +156,25 @@
    "name": "Traversable drainage pipe across the access (indicative)",
    "width": 0.0,
    "colour": "blue"
+  },
+  "RBEDGE": {
+   "name": "Roundabout outer kerb with entry and exit returns",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "APRON": {
+   "name": "Mountable apron edge around the central island",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "TM04": {
+   "name": "Broken line across the exit, 600 / 300 mm, 200 mm wide (white)",
+   "width": 0.2,
+   "colour": "white",
+   "dash": [
+    0.6,
+    0.3
+   ]
   }
  },
  "pieces": {
@@ -458,6 +481,30 @@
     "road_class": null
    },
    "remark": "Entry and exit radii 6 m or more for the expected turning traffic; at least 3 m wide (0.5 m shoulders as drawn); built back to the road reserve / boundary line, at least 10 m from the road edge, with a 3 m taper to match the existing access; a traversable drainage pipe as required; located to satisfy the stop-condition visibility (RDM 1.3 9.5.4, Figure 9.12; the text's 'Section 4.5' is a cross-reference slip)."
+  },
+  "roundabout": {
+   "name": "Roundabout (RDM 1.3 Chapter 10, RDM 6.1 Figures 7.14-7.16)",
+   "types": [
+    "RBT"
+   ],
+   "frame": "road",
+   "kind": "roundabout",
+   "params": {
+    "island": 10.0,
+    "icd": null,
+    "apron": 0.0,
+    "entry": 4.0,
+    "exit": 4.5,
+    "splitter": 3.0,
+    "splitter_len": 15.0,
+    "lead_in": 15.0,
+    "flare": 25.0,
+    "entry_r": 15.0,
+    "exit_r": 20.0,
+    "arms": [],
+    "criteria": null
+   },
+   "remark": "Centre on our road; arms where our road and other alignments cross the inscribed circle, plus clicked arms. Central island, outer kerb with entry / exit returns, kerbed splitter islands with hatched lead-ins, TM07 give way and BM07 triangle 2.5 m back on each entry, TM04 across each exit, LM24 on the approach (RDM 6.1 Figure 7.14). Signs: W17 on our approaches, R2 at each entry, M5 on each splitter nose, a W24 chevron on the central island facing each entry."
   }
  },
  "kits": {
@@ -681,6 +728,11 @@
       "stop"
      ]
     }
+   }
+  ],
+  "RBT": [
+   {
+    "piece": "roundabout"
    }
   ]
  }

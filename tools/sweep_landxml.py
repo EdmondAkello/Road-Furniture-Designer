@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from rfd.alignment import parse_landxml
 from rfd.autoplace import AutoConfig, propose
 from rfd.markings import MarkingConfig, propose_markings
-from rfd.linear import LinearCatalogue, geometry, summarise, run_quantities
+from rfd.linear import LinearCatalogue
 from rfd.catalogue import Catalogue
 from tests.test_bootstrap import check_markings
 from rfd.records import build_signlist

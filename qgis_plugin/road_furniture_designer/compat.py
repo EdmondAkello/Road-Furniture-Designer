@@ -47,3 +47,13 @@ GEOM_CIRCLE = _pick(lambda: Qgis.MarkerShape.Circle,
                     lambda: __import__("qgis.core", fromlist=["x"]).QgsSimpleMarkerSymbolLayerBase.Circle)
 PROP_OFFSET = _pick(lambda: QgsSymbolLayer.Property.Offset, lambda: QgsSymbolLayer.PropertyOffset)
 WKB_MULTILINESTRING = _pick(lambda: Qgis.WkbType.MultiLineString, lambda: QgsWkbTypes.MultiLineString)
+
+
+def make_field(name, qvariant_type):
+    """A QgsField from a QVariant type: through QMetaType on QGIS 3.38+, where the QVariant form is
+    deprecated, and the old constructor before it."""
+    from qgis.core import QgsField
+    if Qgis.versionInt() >= 33800:
+        from qgis.PyQt.QtCore import QMetaType
+        return QgsField(name, QMetaType.Type(int(qvariant_type)))
+    return QgsField(name, qvariant_type)

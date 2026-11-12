@@ -10,13 +10,13 @@ from qgis.PyQt.QtWidgets import (
     QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QTabWidget, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget)
-from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
+from qgis.core import QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceJunctionTool, PlaceSignTool
-from .rfd.alignment import alignment_names, format_station, parse_landxml
+from .rfd.alignment import alignment_names, format_station
 from .rfd.legend import SCHEMES, summary as legend_summary
-from .store import SVG_DIR, SignStore
+from .store import SignStore
 
 SETTINGS_KEY = "road_furniture_designer/last_project"
 
@@ -419,6 +419,22 @@ class RsdDock(QDockWidget):
         self.spn_alength = QDoubleSpinBox(); self.spn_alength.setRange(3.0, 60.0); self.spn_alength.setSingleStep(1.0)
         self.spn_alength.setValue(10.0); self.spn_alength.setSuffix(" m")
         self.spn_alength.setToolTip("From the road edge to the fence or boundary line: at least 10 m (Figure 9.33)")
+        self.spn_rbisland = QDoubleSpinBox(); self.spn_rbisland.setRange(1.0, 60.0); self.spn_rbisland.setSingleStep(2.0)
+        self.spn_rbisland.setValue(10.0); self.spn_rbisland.setSuffix(" m")
+        self.spn_rbisland.setToolTip("Central island diameter (RDM 1.3 Table 10.1: 4-18 m; at least 4 m kerbed)")
+        self.spn_rbicd = QDoubleSpinBox(); self.spn_rbicd.setRange(0.0, 150.0); self.spn_rbicd.setSingleStep(2.0)
+        self.spn_rbicd.setSuffix(" m"); self.spn_rbicd.setSpecialValueText("Table 10.1 minimum")
+        self.spn_rbicd.setToolTip("Inscribed circle diameter; the Table 10.1 minimum for the island and the 15.5 m "
+                                  "articulated vehicle by default; not over 100 m")
+        self.spn_rbentry = QDoubleSpinBox(); self.spn_rbentry.setRange(5.0, 60.0); self.spn_rbentry.setValue(15.0)
+        self.spn_rbentry.setSuffix(" m"); self.spn_rbentry.setToolTip("Entry kerb return radius")
+        self.spn_rbexit = QDoubleSpinBox(); self.spn_rbexit.setRange(5.0, 80.0); self.spn_rbexit.setValue(20.0)
+        self.spn_rbexit.setSuffix(" m"); self.spn_rbexit.setToolTip("Exit kerb return radius")
+        self._rbt_rows = []
+        for cap, spn in (("Central island", self.spn_rbisland), ("Inscribed circle", self.spn_rbicd),
+                         ("Entry radius", self.spn_rbentry), ("Exit radius", self.spn_rbexit)):
+            jf.addRow(cap, spn)
+            self._rbt_rows.append((jf.labelForField(spn), spn))
         self._access_rows = []
         for cap, spn in (("Access width", self.spn_awidth), ("Return radius", self.spn_aradius),
                          ("To the boundary", self.spn_alength)):
@@ -868,6 +884,7 @@ class RsdDock(QDockWidget):
             return
         with _busy():
             n, findings, skipped = self.store.lines.auto_propose_markings(self.marking_config())
+            self.store.trim_for_roundabouts()
         cls = [f for f in findings if f.kind == "marking_cls"]
         notes = [f.text for f in findings if f.kind == "marking_note"] + skipped
         msg = (f"{n} marking and stud runs proposed; continuous centre line over "
@@ -957,10 +974,21 @@ class RsdDock(QDockWidget):
             return
         bus = k in ("BUS", "TRUCK", "CLIMB")
         acc = k == "ACCESS"
+        rbt = k == "RBT"
+        for lab, w in self._rbt_rows:
+            lab.setVisible(rbt); w.setVisible(rbt)
         for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale, self.chk_jsplays, self.spn_jspeed):
             w.setEnabled(not bus)
         for w in (self.cmb_jrole, self.cmb_jmajor, self.chk_jguides, self.spn_jscale):
-            w.setEnabled(w.isEnabled() and not acc)
+            w.setEnabled(w.isEnabled() and not acc and not rbt)
+        for w in (self.chk_jsplays, self.spn_jspeed):
+            w.setEnabled(w.isEnabled() and not rbt)
+        if rbt:
+            self.cmb_jpiece.addItem("Roundabout with its islands, markings and signs", "")
+            self.lbl_jhover.setText("Click the centre on our road: its arms and those of other alignments crossing the "
+                                    "circle are found. Click any other arm's direction, then right-click or press "
+                                    "Enter to place (RDM 1.3 Chapter 10).")
+            return
         for lab, w in self._access_rows:
             lab.setVisible(acc); w.setVisible(acc)
         if acc:
@@ -1002,6 +1030,9 @@ class RsdDock(QDockWidget):
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
                 "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
                 "splays": self.chk_jsplays.isChecked(),
+                "rbt": {"island": self.spn_rbisland.value(), "icd": self.spn_rbicd.value() or None,
+                        "entry_r": self.spn_rbentry.value(), "exit_r": self.spn_rbexit.value(),
+                        "criteria": self.cmb_crit.currentData()},
                 "access": {"width": self.spn_awidth.value(), "radius": self.spn_aradius.value(),
                            "length": self.spn_alength.value(), "road_class": self.cmb_mclass.currentData() or None},
                 "splay": {"speed": self.spn_jspeed.value() or None, "criteria": self.cmb_crit.currentData()}}
@@ -1042,6 +1073,15 @@ class RsdDock(QDockWidget):
             paint = sum(v[1] for v in j["paint"].values())
             where = ("joins " + (j["main_ref"][4:] if j["main_ref"].startswith("alg:") else "main road")
                      if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
+            if j.get("rbt"):
+                r = j["rbt"]
+                it = QListWidgetItem(f"{j['ch']}  roundabout ICD {r['quantities']['icd']:g} m, island {r['island']:g} m, "
+                                     f"{r['n_arms']} arms  (kerb {j['kerb_m']:.0f} m)")
+                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                self.lst_junctions.addItem(it)
+                if j["id"] == keep:
+                    self.lst_junctions.setCurrentItem(it)
+                continue
             if j.get("access"):
                 a = j["access"]
                 it = QListWidgetItem(f"{j['ch']}  access {a['width']:g} m  {'left' if j['side'] == 'L' else 'right'}  "

@@ -2,19 +2,19 @@
 
 [![tests](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml/badge.svg)](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml)
 
-A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings and speed limit zones. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
+A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
 The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.8.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.8.0)](docs/user-guide/Road_Furniture_Designer_0.8.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
 
 ```
- Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones (by hand or proposed)
+ Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
                        ─► rsd_signs / rsd_lines (GeoPackage) ─► live inventory and checks (dock)
                        ─► Inventory (Excel Tables + CSV) ─► QTO / Bill
                        ─► Road furniture report (PDF / PNG / Excel): plans, long sections, strip diagram, schedules, checks
                        ─► Georeferenced DXF ─► COPYBASE 0,0 + PASTEORIG into the project DWG
 ```
 
-For every item, the tool works out the chainage, offset, side and facing from the alignment and recomputes them whenever it moves. What the alignment decides (curve and grade warnings, no-overtaking signs and lines, edge lines, studs, embankment barriers) is proposed from the manuals; where a hump, a crossing or a speed limit goes is the designer's decision, and RFD details and signs it. Everything can also be placed or drawn by hand.
+For every item, the tool works out the chainage, offset, side and facing from the alignment and recomputes them whenever it moves. What the alignment decides (curve and grade warnings, no-overtaking signs and lines, edge lines, studs, embankment barriers) is proposed from the manuals; where a hump, a crossing, a speed limit, a junction, a roundabout or a bay goes is the designer's decision, and RFD details, signs and checks it. Everything can also be placed or drawn by hand.
 
 **Input quality.** The results are only as good as the Civil 3D model and the LandXML export. Before relying on them, check these in Civil 3D, then confirm the LandXML export includes them. Without them the tool falls back to defaults:
 - **Design speeds** defined along the alignment; otherwise 80 km/h is assumed throughout.
@@ -26,7 +26,7 @@ The dock's project summary shows which of these were found.
 
 ## Compatibility and validation
 
-- **Version 0.8.0 (QGIS 3.28+):** 286 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 40 headless QGIS tests pass on QGIS 3.34 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
+- **QGIS 3.28+:** 314 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 52 headless QGIS tests pass on QGIS 3.34 and 3.44 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. Junctions, accesses, bays, climbing lanes and roundabouts were placed on three of them and run through the report, inventory and DXF. Auto-placement of 850 signs on a 36 km road takes about 2 s. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
 - **Civil 3D:** the georeferenced DXF pasted with COPYBASE 0,0 and PASTEORIG lands on the alignment in a project drawing. The Dynamo route is parked (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures, plus 19 supplementary signs from the Ministry's standard drawings WSCM/84/2/01 (see "Sign catalogue" and "Supplementary signs"). Post and foundation types are generic and project-defined.
 
@@ -180,7 +180,7 @@ The posted limit is your decision (built-up and special areas); RFD signs it to 
 
 It flags a limit above the design speed, a very short zone, and a zone that runs off the alignment end (sign its start or end on the road beyond). **Propose from design speed** adds 50 km/h (built-up area) zones where the LandXML design speed is 50 km/h; a rural 70 or 80 km/h design speed does not by itself call for a special limit. Check each zone before accepting. A zone and its signs are listed and removed together, and the Auto tab's sign rules leave them alone.
 
-## Junction islands and markings (Junctions tab)
+## Junctions, roundabouts, accesses, bays and lanes (Junctions + bays tab)
 
 RFD does not design junctions. The islands and markings of the standard drawings RDM/1/3/2/01 (type A) and RDM/1/3/2/02 (types B, C and D) are **templates you place and fit**, either as a whole kit for a junction type or piece by piece:
 
@@ -215,7 +215,19 @@ The Excel sheet **Widenings** is the widening table for Civil 3D: widening from,
 
 **Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
 
-The pieces live in the layer `rsd_junctions` (one feature per piece and marking code, rule `junction:<id>`). Editing `sta`, `bearing_deg`, `scale` or `edge_m` in the attribute table rebuilds the piece. The templates are open data in `rfd/data/junction_templates.json`. The report lists each junction with its kerb length, island area and painted length and area per code (Excel sheet **Junctions**), and checks the crossing angle against RDM 1.3 9.2.3 (75-120 deg preferred, 60 deg minimum). Plan sheets and the DXF draw them (`RSD-JN-<code>` layers). Bus bays and climbing lanes stay manual (Linear tab) for now.
+The pieces live in the layer `rsd_junctions` (one feature per piece and marking code, rule `junction:<id>`). Editing `sta`, `bearing_deg`, `scale` or `edge_m` in the attribute table rebuilds the piece. The templates are open data in `rfd/data/junction_templates.json`. The report lists each junction with its kerb length, island area and painted length and area per code (Excel sheet **Junctions**), and checks the crossing angle against RDM 1.3 9.2.3 (75-120 deg preferred, 60 deg minimum). Plan sheets and the DXF draw them (`RSD-JN-<code>` layers).
+
+**Visibility splays** (RDM 1.3 9.5.4) come with every junction kit: the approach / give way triangles (20 m back, Table 9.7) and the stop triangles (3 m back, Table 9.8), at the main road's design speed. They are checked on the main road's profile and against QGIS layers you tick (buildings, trees, fences: **Check splays**); an obstruction in a stop splay is an issue.
+
+**Truck parking bays** (type **TRUCK**, RDM/1/3/3/03): straight 15 m / 10 m tapers, 70 m bay, 3.5 m deep, separation line, I15 and I14 proposed; checks for length and 30 km spacing (RDM 1.3 13.2).
+
+**Private accesses** (type **ACCESS**, RDM 1.3 9.11.16, Figure 9.33): returns from the shoulder edge, 3 m with shoulders, built 10 m back to the boundary with a taper, a pipe across the mouth, stop splays; checks for width, radius, length and private accesses on class A / B / UA / UC roads (Tables 2.3–2.4).
+
+**Roundabouts** (type **RBT**, RDM 1.3 Chapter 10, RDM 6.1 Figures 7.14–7.16): click the centre on our road (its arms and those of other alignments are found), click any other arm, right-click to place. Island, outer kerb with returns, splitter islands, give way markings, R2 / M5 / W24 / W17 proposed; our road's markings are cut back; checks on arms, island, ICD (Table 10.1, ≤ 100 m), width and the entry over a crest.
+
+**Round trip with Civil 3D.** Build the widenings from the Widenings table, export the LandXML again and press **Recompute all chainages**: bays and lanes keep their place (no double widening) and the report compares each with the corridor's ETW.
+
+The full rules and figures are in section 16 of the User Guide.
 
 ## Corridor restriction
 
@@ -418,7 +430,9 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 - Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
 - Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
-- Junction signing (advance direction and direction signs per RDM Table A1-1) once junction locations are available.
+- Junction signing (advance direction and direction signs per RDM Table A1-1), and signs on the main road for a junction placed on it.
+- Refinements: minor-road approach visibility on a bend (RDM 1.3 Figure 9.13), BUS word marking, three-centred kerb returns, moving a single piece, right-turn arrows, climbing lanes over consecutive grades and vertical curves, roundabout deflection and fastest paths.
+- Dual carriageways.
 - Dynamo route: parked.
 
 ## Install the development plugin

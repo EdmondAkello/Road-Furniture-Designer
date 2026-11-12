@@ -1,5 +1,4 @@
 """The DXF must carry the LandXML's own world coordinates, so signs can be pasted at original coordinates."""
-import json
 import xml.etree.ElementTree as ET
 
 import ezdxf

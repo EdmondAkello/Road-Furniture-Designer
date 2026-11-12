@@ -1,7 +1,7 @@
 import math
 import pytest
 
-from rfd.alignment import Alignment, Arc, Line, parse_landxml
+from rfd.alignment import Alignment, Arc, Line
 from rfd.autoplace import (AutoConfig, advance_distance, chevron_spacing, curve_speed, propose, space_out,
                            Proposal, sight_distances)
 from rfd.corridor import Edges, clamp_offset

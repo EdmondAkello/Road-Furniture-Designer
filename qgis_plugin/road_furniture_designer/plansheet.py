@@ -17,7 +17,6 @@ from qgis.PyQt.QtCore import QPointF, QRectF, Qt
 from qgis.PyQt.QtGui import QColor, QFontMetrics, QPainterPath, QPen, QPolygonF
 
 from .rfd.alignment import format_station
-from .rfd.corridor import edge_polylines
 from .rfd.plan_layout import SERIES_CODES, SERIES_FACTOR, callouts_by_post, leader_tip
 
 PAPER_W_MM = 420.0                     # A3 landscape; logical page is report.W wide

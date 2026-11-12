@@ -22,8 +22,7 @@ bends (Figure 4.6), lane lines on multi-lane roads.
 """
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from . import criteria as _crit

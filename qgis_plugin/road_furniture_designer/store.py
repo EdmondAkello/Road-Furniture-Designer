@@ -14,16 +14,16 @@ import uuid
 
 from qgis.PyQt.QtCore import QObject, QPointF, QVariant, pyqtSignal
 from qgis.core import (
-    QgsCoordinateReferenceSystem, QgsFeature, QgsField, QgsFields, QgsGeometry,
-    QgsPointXY, QgsProject, QgsVectorFileWriter, QgsVectorLayer, QgsWkbTypes,
-    QgsCoordinateTransformContext, QgsFeatureRequest, QgsSpatialIndex, QgsProperty,
-    QgsSvgMarkerSymbolLayer, QgsSimpleMarkerSymbolLayer, QgsMarkerSymbol, QgsSymbolLayer,
+    QgsCoordinateReferenceSystem, QgsFeature, QgsFields, QgsGeometry, QgsPointXY,
+    QgsProject, QgsVectorFileWriter, QgsVectorLayer, QgsCoordinateTransformContext, QgsFeatureRequest, QgsRectangle,
+    QgsProperty, QgsSvgMarkerSymbolLayer, QgsSimpleMarkerSymbolLayer, QgsMarkerSymbol,
     QgsSingleSymbolRenderer, QgsLineSymbol, QgsPalLayerSettings, QgsTextFormat,
-    QgsVectorLayerSimpleLabeling, Qgis, QgsSimpleMarkerSymbolLayerBase)
+    QgsVectorLayerSimpleLabeling)
 from qgis.PyQt.QtGui import QColor
 
 from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_CREATE_LAYER, FW_NO_ERROR, LABEL_OVER_POINT, MARKER_ARROWHEAD,
-                     PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT)
+                     PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT,
+                     make_field)
 from .rfd.alignment import format_station, landxml_crs, parse_landxml
 from .rfd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
 from .rfd.legend import face_svg
@@ -55,7 +55,7 @@ TRIGGERS = ("sign_code", "facing", "facing_auto", "skew", "legend", "road_class"
 def _fields(spec):
     fs = QgsFields()
     for n, t in spec:
-        fs.append(QgsField(n, t))
+        fs.append(make_field(n, t))
     return fs
 
 
@@ -109,7 +109,7 @@ class SignStore(QObject):
     def _migrate(layer):
         """Add fields introduced by newer plugin versions to an older project (data kept)."""
         have = {f.name() for f in layer.fields()}
-        missing = [QgsField(n, t) for n, t in SIGN_FIELDS if n not in have]
+        missing = [make_field(n, t) for n, t in SIGN_FIELDS if n not in have]
         if missing:
             layer.dataProvider().addAttributes(missing)
             layer.updateFields()
@@ -409,6 +409,16 @@ class SignStore(QObject):
         return out, in_range
 
     def next_post_ref(self):
+        batch = getattr(self, "_batch", None)
+        if batch is not None:                     # placing many signs: count on instead of scanning the layer
+            if batch.get("next") is None:
+                batch["next"] = int(self._scan_post_ref()[1:])
+            ref = f"P{batch['next']:03d}"
+            batch["next"] += 1
+            return ref
+        return self._scan_post_ref()
+
+    def _scan_post_ref(self):
         mx = 0
         for f in self.signs.getFeatures():
             r = f["post_ref"] or ""
@@ -418,7 +428,8 @@ class SignStore(QObject):
 
     def nearest_post(self, x, y, tol):
         best = None
-        for f in self.signs.getFeatures():
+        req = QgsFeatureRequest().setFilterRect(QgsRectangle(x - tol, y - tol, x + tol, y + tol))
+        for f in self.signs.getFeatures(req):
             p = f.geometry().asPoint()
             d = math.hypot(p.x() - x, p.y() - y)
             if d <= tol and (best is None or d < best[0]):
@@ -488,9 +499,31 @@ class SignStore(QObject):
                 self.signs.reload()
         finally:
             self._busy = False
+        if getattr(self, "_batch", None) is None:
+            self.signs.triggerRepaint()
+            self.changed.emit()
+        return fid, vals
+
+    def _begin_batch(self):
+        """Many signs at once: one edit session, committed at the end (one write and one reload)."""
+        started = not self.signs.isEditable()
+        if started:
+            self.signs.startEditing()
+        self._batch = {"started": started, "next": None}
+
+    def _end_batch(self):
+        b, self._batch = getattr(self, "_batch", None), None
+        if b and b["started"]:
+            self._busy = True
+            try:
+                if not self.signs.commitChanges():
+                    errs = "; ".join(self.signs.commitErrors())
+                    self.signs.rollBack()
+                    raise RuntimeError(f"Could not write the signs to the GeoPackage: {errs}")
+            finally:
+                self._busy = False
         self.signs.triggerRepaint()
         self.changed.emit()
-        return fid, vals
 
     # ------------------------------------------------------------------ live recompute
     def _apply(self, fid, values):
@@ -634,7 +667,7 @@ class SignStore(QObject):
                 "foundation": f["foundation"], "skew": f["skew"], "remarks": f["remarks"],
                 "face_uuid": f["face_uuid"], "install_uuid": f["install_uuid"],
                 "mirror": f["mirror"], "legend": f["legend"] or "", "road_class": f["road_class"] or "",
-                "edge_ref": f["edge_ref"] or "", "status": f["status"] or ""})
+                "edge_ref": f["edge_ref"] or "", "status": f["status"] or "", "rule": f["rule"] or ""})
         return out
 
     def signlist(self, include_proposed=True):
@@ -693,6 +726,18 @@ class SignStore(QObject):
         cfg = cfg or AutoConfig()
         ref = cfg.edge_ref or self.default_edge_ref()
         hosts = {}
+        added = 0
+        nested = getattr(self, "_batch", None) is not None
+        if not nested:
+            self._begin_batch()
+        try:
+            added = self._place_batch(props, cfg, ref, restrict, hosts)
+        finally:
+            if not nested:
+                self._end_batch()
+        return added
+
+    def _place_batch(self, props, cfg, ref, restrict, hosts):
         added = 0
         for p in props:
             sg = 1 if p.side == "R" else -1
@@ -880,6 +925,9 @@ class SignStore(QObject):
                         signs += 1
                     except ValueError:
                         pass
+        if pl.role == "roundabout":
+            signs += self._roundabout_signs(pl)
+            self.trim_for_roundabouts()
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -909,6 +957,69 @@ class SignStore(QObject):
             from qgis.core import QgsProject
             layers = [QgsProject.instance().mapLayer(i) for i in ids]
             self.junctions.check_obstructions([l for l in layers if l is not None and l.isValid()])
+
+    def trim_for_roundabouts(self):
+        """Our road's markings and studs stop at each roundabout: centre lines beyond the splitter's lead-in
+        and its LM24, edge lines and studs at the end of the entry flare. Returns the runs cut."""
+        from .rfd import roundabouts as RB
+        n = 0
+        for j in self.junctions.junctions():
+            rb = j.get("rbt")
+            if not rb:
+                continue
+            ours = [d["station"] for d in rb["detail"] if d.get("src") == "ours" and d.get("station") is not None]
+            rc = rb["quantities"]["icd"] / 2
+            lo, hi = (min(ours), max(ours)) if ours else (j["sta"] - rc, j["sta"] + rc)
+            p = dict(RB.DEFAULTS)
+            centre = p["splitter_len"] + p["lead_in"] + RB.LM24_LENGTH
+            n += self.lines.trim(lo - centre, hi + centre, centre=True, sides=False)
+            n += self.lines.trim(lo - p["flare"], hi + p["flare"], centre=False, sides=True)
+        return n
+
+    def _sign_facing(self, x, y, phi):
+        """(facing, skew) that point a sign face in the map direction phi (radians, counter-clockwise from
+        east), whatever the road it stands by."""
+        import math
+        so = self.al.station_offset(x, y)
+        h = self.al.point_at(min(max(so.station, self.al.sta_start), self.al.sta_end))[2]
+        d = math.degrees(math.remainder(phi - (h + math.pi), 2 * math.pi))
+        if abs(d) <= 90.0:
+            return "Forward", round(d, 1)
+        return "Backward", round(math.degrees(math.remainder(phi - h, 2 * math.pi)), 1)
+
+    def _roundabout_signs(self, pl):
+        """W17 on our approaches, R2 at every entry, M5 on every splitter nose, a W24 chevron on the central
+        island facing every entry (RDM 6.2 4.4, 3.3, 4.6.1). All proposals with the roundabout's rule."""
+        j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
+        if not j or not j.get("rbt"):
+            return 0
+        rule, n = f"junction:{pl.junction_id}", 0
+        for d in j["rbt"]["detail"]:
+            out = d["bearing"]                          # signs face outwards, towards the entering traffic
+            todo = [("R2", d["give_way"], "Give way at the roundabout entry (RDM 6.2, RDM 6.1 Figure 7.14)"),
+                    ("M5", d["nose"], "Keep left on the splitter island nose (RDM 6.2 3.3)"),
+                    ("W24-b", d["island_face"], "Chevron on the central island facing the entry (RDM 6.2 4.6.1)")]
+            if d["src"] == "ours" and d.get("station") is not None and d.get("advance"):
+                inbound = 1 if d["station"] < pl.station else -1
+                sta = d["station"] - inbound * d["advance"]
+                if self.al.sta_start <= sta <= self.al.sta_end:
+                    side = -1.0 if inbound > 0 else 1.0                       # the left of the approaching traffic
+                    off = ((self.al.edges.offset("ETW", "L" if side < 0 else "R", sta) if self.al.edges else None)
+                           or 3.5) + 1.5
+                    x, y, _ = self.al.point_at(sta, side * off)
+                    todo.append(("W17", (x, y), f"Roundabout ahead, {d['advance']:.0f} m before the entry at "
+                                                f"{d['speed']:.0f} km/h (RDM 6.2 4.4)"))
+            for code, (x, y), why in todo:
+                if code == "W17":                           # on our road: faces the traffic coming in
+                    facing, skew = ("Forward" if inbound > 0 else "Backward"), 0.0
+                else:
+                    facing, skew = self._sign_facing(x, y, out)
+                try:
+                    self.add_sign(x, y, code, facing=facing, skew=skew, status="proposed", rule=rule, reason=why)
+                    n += 1
+                except (ValueError, KeyError):
+                    pass
+        return n
 
     TRUCK_I14_AHEAD = 300.0                 # m before the entry taper (RDM 6.2 6.4.1.1: up to 500 m)
 

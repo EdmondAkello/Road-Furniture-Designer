@@ -9,7 +9,6 @@ table it came from (``ref``) so reports can cite it.
 from __future__ import annotations
 
 import json
-import math
 import os
 from bisect import bisect_left
 from typing import Dict, List, Optional, Tuple
