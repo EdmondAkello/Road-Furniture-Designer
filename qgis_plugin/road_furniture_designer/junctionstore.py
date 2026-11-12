@@ -33,14 +33,17 @@ FIELDS = [
     ("side", QVariant.String), ("crossing_deg", QVariant.Double),
     ("kerb_m", QVariant.Double), ("island_m2", QVariant.Double), ("line_m", QVariant.Double),
     ("paint_m2", QVariant.Double), ("widen_m2", QVariant.Double), ("bay", QVariant.String),
+    ("sight", QVariant.String),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
+NO_PAINT = ("KERB", "GUIDE", "BAYEDGE", "SPLAY-A", "SPLAY-S")
 STYLE = {   # code -> (colour, width mm, dashed)
     "KERB": ("40,40,40", 0.6, False), "GUIDE": ("120,120,120", 0.2, True),
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
-    "LM05": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False), "SHELTER": ("120,120,120", 0.3, True),
+    "LM05": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
+    "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True), "SHELTER": ("120,120,120", 0.3, True),
 }
 
 
@@ -72,6 +75,8 @@ class JunctionStore(QObject):
             self.layer.dataProvider().addAttributes(missing)
             self.layer.updateFields()
         self._busy = False
+        self.obstructions = {}          # junction_id -> splay obstructions found by check_obstructions()
+        self.obstruction_layers = None  # names of the layers last checked (None: not checked)
         self.bind(self.layer)
 
     def bind(self, layer):
@@ -118,11 +123,14 @@ class JunctionStore(QObject):
                     # piece quantities go on its first feature only, so sums over the layer are right
                     "kerb_m": pc.quantities.get("kerb_m") if code == "KERB" else None,
                     "island_m2": pc.quantities.get("island_m2") if code == "KERB" else None,
-                    "line_m": round(ln, 2) if code not in ("KERB", "GUIDE", "BAYEDGE") else None,
-                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in ("KERB", "GUIDE", "BAYEDGE") else None,
+                    "line_m": round(ln, 2) if code not in NO_PAINT else None,
+                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
                     "bay": json.dumps({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")})
-                    if piece in J.BAY_PIECES else None}
+                    if piece in J.BAY_PIECES else None,
+                    "sight": json.dumps({k: pc.params[k] for k in ("speed_used", "speed_assumed", "ref", "splays",
+                                                                     "criteria_has")})
+                    if piece == "splays" and code == next(iter(by_code), code) else None}
             for n, x in vals.items():
                 f.setAttribute(n, x)
             out.append(f)
@@ -143,8 +151,10 @@ class JunctionStore(QObject):
         self.layer.triggerRepaint()
         self.changed.emit()
 
-    def add(self, pl: J.Placement, kit: str, piece: str = "", guides: bool = True, params: dict = None):
-        """Place a whole kit (piece '') or one piece. Returns (pieces placed, findings)."""
+    def add(self, pl: J.Placement, kit: str, piece: str = "", guides: bool = True, params: dict = None,
+            splays: bool = True, splay: dict = None):
+        """Place a whole kit (piece '') or one piece. splays: include the visibility splays; splay: their
+        settings (main road speed, criteria). Returns (pieces placed, findings)."""
         if piece:
             items = [{"piece": piece, "corner": "left_turn" if self.templates["pieces"][piece]["frame"] == "corner"
                       else ""}]
@@ -154,10 +164,15 @@ class JunctionStore(QObject):
                     items = [dict(it)]
                     break
         else:
-            items = [dict(it) for it in self.templates["kits"][kit] if guides or it["piece"] != "guides"]
+            items = [dict(it) for it in self.templates["kits"][kit]
+                     if (guides or it["piece"] != "guides") and (splays or it["piece"] != "splays")]
         if params:
             for it in items:
                 it["params"] = dict(it.get("params") or {}, **params)
+        if splay:
+            for it in items:
+                if it["piece"] == "splays":
+                    it["params"] = dict(it.get("params") or {}, **{k: v for k, v in splay.items() if v})
         feats = []
         for it in items:
             feats += self._features(pl, kit, it["piece"], it.get("corner", ""), it.get("params") or {},
@@ -256,9 +271,14 @@ class JunctionStore(QObject):
                 "sta": f["our_sta"] if f["role"] == "minor" and f["our_sta"] is not None else f["sta"],
                 "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
-                "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None})
+                "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None,
+                "sight": None})
             if f["bay"]:
                 j["bay"] = json.loads(f["bay"])
+            if f["sight"]:
+                j["sight"] = json.loads(f["sight"])
+                j["sight"]["obstructions"] = self.obstructions.get(f["junction_id"], [])
+                j["sight"]["checked"] = self.obstruction_layers
             j["pieces"].add(f["piece"])
             for k in ("kerb_m", "island_m2", "widen_m2"):
                 x = f[k]
@@ -281,6 +301,38 @@ class JunctionStore(QObject):
             sta = f["our_sta"] if f["role"] == "minor" and f["our_sta"] is not None else f["sta"]
             out.append((f["code"], sta, [[(p.x(), p.y()) for p in ln] for ln in lines]))
         return out
+
+    def check_obstructions(self, layers):
+        """Features of the given vector layers (buildings, trees, fences ...) inside a visibility splay.
+        Returns {junction_id: [{kind, dir, layer, fid}]} and keeps it for the junction list and the report."""
+        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject, QgsWkbTypes
+        found = {}
+        for f in self.layer.getFeatures():
+            if f["code"] not in ("SPLAY-A", "SPLAY-S"):
+                continue
+            kind = "approach" if f["code"] == "SPLAY-A" else "stop"
+            g = f.geometry()
+            rings = g.asMultiPolyline() if g.isMultipart() else [g.asPolyline()]
+            for i, ring in enumerate(rings):
+                poly = QgsGeometry.fromPolygonXY([ring])
+                for lyr in layers:
+                    pg = QgsGeometry(poly)
+                    if lyr.crs() != self.layer.crs():
+                        pg.transform(QgsCoordinateTransform(self.layer.crs(), lyr.crs(), QgsProject.instance()))
+                    eng = QgsGeometry.createGeometryEngine(pg.constGet())
+                    eng.prepareGeometry()
+                    for o in lyr.getFeatures(QgsFeatureRequest().setFilterRect(pg.boundingBox())):
+                        og = o.geometry()
+                        if og.isEmpty() or not eng.intersects(og.constGet()):
+                            continue
+                        if (QgsWkbTypes.geometryType(og.wkbType()) != QgsWkbTypes.PointGeometry
+                                and eng.touches(og.constGet())):
+                            continue                                    # only along the edge
+                        found.setdefault(f["junction_id"], []).append(
+                            {"kind": kind, "dir": "up" if i == 0 else "down", "layer": lyr.name(), "fid": o.id()})
+        self.obstructions = found
+        self.obstruction_layers = [l.name() for l in layers]
+        return found
 
     def style(self):
         cats = []

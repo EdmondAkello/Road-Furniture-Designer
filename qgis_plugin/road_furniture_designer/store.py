@@ -843,12 +843,12 @@ class SignStore(QObject):
                 ml.addFeature(f)
         ml.commitChanges()
 
-    def add_junction(self, pl, kit, piece="", guides=True, params=None):
+    def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None):
         """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give
         Way; a bus bay proposes its bus stop sign, a truck parking bay I15 and I14, a climbing lane I1 / I2.
         Returns (pieces, findings, signs proposed)."""
         from .rfd import junctions as J
-        n, finds = self.junctions.add(pl, kit, piece, guides, params)
+        n, finds = self.junctions.add(pl, kit, piece, guides, params, splays, splay)
         signs = 0
         if pl.role == "bay":
             j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
@@ -891,6 +891,24 @@ class SignStore(QObject):
                 except ValueError:
                     pass
         return n, finds, signs
+
+    def check_sight(self, layer_ids):
+        """Check the junction visibility splays against the given layers (ids) and remember them for the
+        report. Returns (junctions with obstructions, obstructions)."""
+        from qgis.core import QgsProject
+        layers = [QgsProject.instance().mapLayer(i) for i in layer_ids]
+        layers = [l for l in layers if l is not None and l.isValid()]
+        self.set_meta(sight_layers=",".join(l.id() for l in layers))
+        found = self.junctions.check_obstructions(layers)
+        return len(found), sum(len(v) for v in found.values())
+
+    def recheck_sight(self):
+        """Re-run the splay check with the layers saved for this project (those still loaded)."""
+        ids = [i for i in (self.meta.get("sight_layers") or "").split(",") if i]
+        if ids:
+            from qgis.core import QgsProject
+            layers = [QgsProject.instance().mapLayer(i) for i in ids]
+            self.junctions.check_obstructions([l for l in layers if l is not None and l.isValid()])
 
     TRUCK_I14_AHEAD = 300.0                 # m before the entry taper (RDM 6.2 6.4.1.1: up to 500 m)
 

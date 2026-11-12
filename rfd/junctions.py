@@ -430,6 +430,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         return _guides(F, spec, P, piece)
     elif piece in BAY_PIECES:
         return _bus_bay(F, spec, P, piece)
+    elif piece == "splays":
+        return _splays(F, spec, P, piece)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
 
@@ -517,6 +519,81 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
     # main edge on the minor side, following the alignment
     parts.append(Part("GUIDE", [_main_edge(F, k / 2.0) for k in range(int(-reach * 2 / s), int(reach * 2 / s) + 1)]))
     return Piece(piece, spec["name"], "guide", "", parts, {}, P)
+
+
+SPLAY_KINDS = (("approach", "SPLAY-A"), ("stop", "SPLAY-S"))
+SPLAY_DEFAULT_SPEED = 80.0
+
+
+def _splays(F: Frame, spec, P, piece) -> Piece:
+    """Visibility splays (RDM 1.3 9.5.4, Figures 9.11-9.12): for each control (approach / give way, stop) and each
+    direction along the main road, the area between the minor road's centreline from the junction point to the
+    apex (set-back from the main road's lane edge), the sight line from the apex to the main road's centreline
+    at the sight distance, and that centreline back to the junction point. Not scaled with the kit."""
+    from .criteria import DEFAULT_ID, Criteria
+    from .features import visible_from
+    al, pl = F.al, F.pl
+    crit = Criteria.load(P.get("criteria") or DEFAULT_ID)
+    v, assumed = P.get("speed"), False
+    if not v:
+        v = al.speed_at(pl.station)
+    if not v:
+        v, assumed = SPLAY_DEFAULT_SPEED, True
+    parts, out = [], []
+    for kind, code in SPLAY_KINDS:
+        t = crit.junction_sight(kind, v)
+        if t is None:
+            continue
+        setback, L = t
+        u = F.e / F.sin + setback                  # along the minor road from the junction point
+        apex = (F.p0[0] + u * F.d[0], F.p0[1] + u * F.d[1])
+        for sg in (1, -1):                         # +1: the leg up the chainage of the main road
+            far = pl.station + sg * L
+            short = not (al.sta_start <= far <= al.sta_end)
+            far = min(max(far, al.sta_start), al.sta_end)
+            n = max(2, int(abs(far - pl.station) / 2.0) + 1)
+            cl = [al.point_at(far + (pl.station - far) * k / (n - 1))[:2] for k in range(n)]
+            parts.append(Part(code, [apex] + cl, True))
+            # vertical: the vehicle on the main road seen over the profile from the junction (Table 3.13 heights)
+            seen = visible_from(al, pl.station, L, sg * -1, crit.eye_height,
+                                float(crit.data.get("vehicle_object_height", 0.6)))
+            out.append({"kind": kind, "dir": "up" if sg > 0 else "down", "setback": setback, "length": round(L, 1),
+                        "available": round(abs(far - pl.station), 1), "short": short,
+                        "profile": None if seen is None else round(seen, 1)})
+    P = dict(P, speed_used=v, speed_assumed=assumed, ref=crit.ref("junction_sight"), splays=out,
+             criteria_has=bool(out))
+    return Piece(piece, spec["name"], "splay", "", parts, {}, P)
+
+
+def splay_findings(sight: dict) -> List[Tuple[str, str]]:
+    """(level, text) from a junction's splay record (Piece.params of 'splays', plus 'obstructions' if checked)."""
+    out = []
+    if not sight:
+        return out
+    if not sight.get("criteria_has"):
+        return [("info", "the design criteria have no junction sight table: no visibility splays drawn")]
+    v = sight.get("speed_used")
+    if sight.get("speed_assumed"):
+        out.append(("info", f"main road design speed not known: splays drawn for {v:.0f} km/h; set it on the tab"))
+    for r in sight.get("splays", []):
+        what = "approach (give way)" if r["kind"] == "approach" else "stop"
+        way = "up the chainage" if r["dir"] == "up" else "down the chainage"
+        lvl = "issue" if r["kind"] == "stop" else "check"
+        if r["short"]:
+            out.append(("info", f"{what} splay {way}: the main road ends {r['available']:.0f} m from the junction, "
+                                f"short of {r['length']:.0f} m; check the sight line beyond it on site"))
+        if r["profile"] is not None and r["profile"] < r["length"] - 1e-6:
+            out.append((lvl, f"{what} sight distance {way} is about {r['profile']:.0f} m on the main road's profile, "
+                             f"under {r['length']:.0f} m at {v:.0f} km/h ({sight.get('ref', '')})"))
+    if "checked" in sight and not sight["checked"]:
+        out.append(("info", "visibility splays not checked against obstruction layers (buildings, trees, fences); "
+                            "tick them on the Junctions + bays tab and press Check splays"))
+    for o in sight.get("obstructions", []):
+        what = "approach (give way)" if o["kind"] == "approach" else "stop"
+        lvl = "issue" if o["kind"] == "stop" else "check"
+        out.append((lvl, f"{o['layer']} feature {o['fid']} is inside the {what} visibility splay "
+                         f"{'up' if o['dir'] == 'up' else 'down'} the chainage ({sight.get('ref', '')})"))
+    return out
 
 
 BAY_PIECES = ("bus_bay", "truck_bay", "climbing_lane")
@@ -691,13 +768,14 @@ def _main_edge(F: Frame, X: float) -> Pt:
 
 
 def build_kit(al, pl: Placement, jtype: str, templates: Optional[dict] = None,
-              guides: bool = True) -> List[Piece]:
+              guides: bool = True, splays: bool = True, splay: Optional[dict] = None) -> List[Piece]:
     T = templates or load_templates()
     out = []
     for item in T["kits"][jtype]:
-        if item["piece"] == "guides" and not guides:
+        if (item["piece"] == "guides" and not guides) or (item["piece"] == "splays" and not splays):
             continue
-        out.append(build_piece(al, pl, item["piece"], item.get("corner", ""), item.get("params"), T))
+        prm = dict(item.get("params") or {}, **(splay or {})) if item["piece"] == "splays" else item.get("params")
+        out.append(build_piece(al, pl, item["piece"], item.get("corner", ""), prm, T))
     return out
 
 

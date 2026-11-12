@@ -392,7 +392,8 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""), dict(it.get("params") or {}, **self._params),
                                  st.junctions.templates) for it in st.junctions.templates["kits"][s["kit"]]]
         else:
-            pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True))
+            pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True),
+                              splays=s.get("splays", True), splay=s.get("splay"))
         return pl, pcs
 
     def canvasMoveEvent(self, e):
@@ -475,7 +476,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         try:
             pl, _ = self._placement(lp)
             n, finds, nsigns = st.add_junction(pl, s["kit"], s.get("piece") or "", s.get("guides", True),
-                                               self._params)
+                                               self._params, s.get("splays", True), s.get("splay"))
         except ValueError as ex:
             self.failed.emit(str(ex))
             return None

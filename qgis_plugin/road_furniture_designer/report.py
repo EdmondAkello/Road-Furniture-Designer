@@ -178,6 +178,8 @@ class ReportData:
         self.runs = lines.runs(include_proposed=True) if lines is not None else []
         jn = getattr(store, "junctions", None)
         self.junction_parts = jn.parts() if jn is not None else []
+        if jn is not None and hasattr(store, "recheck_sight"):
+            store.recheck_sight()                       # obstructions in the visibility splays, as of now
         self.junction_list = jn.junctions() if jn is not None else []
         self.fr = None
         if furniture and self.lcat is not None:

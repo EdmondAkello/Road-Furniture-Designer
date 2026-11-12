@@ -123,6 +123,16 @@
    "name": "Edge of the widened pavement (no kerb shown on RDM/1/3/3/03)",
    "width": 0.0,
    "colour": "grey"
+  },
+  "SPLAY-A": {
+   "name": "Visibility splay, approach / give way (RDM 1.3 Figure 9.11)",
+   "width": 0.0,
+   "colour": "green"
+  },
+  "SPLAY-S": {
+   "name": "Visibility splay, stop: always to be provided (RDM 1.3 Figure 9.12)",
+   "width": 0.0,
+   "colour": "red"
   }
  },
  "pieces": {
@@ -392,6 +402,23 @@
     "depth": null
    },
    "remark": "Tapers of 100 m; full width to where trucks are back within 15 km/h of their level speed, at least 200 m past the crest to merge; lane as wide as the adjacent through lane, which is reduced by 0.25 m where 3.25 m or more (RDM 1.3 6.6.3)."
+  },
+  "splays": {
+   "name": "Visibility splays (RDM 1.3 9.5.4)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "road",
+   "kind": "splay",
+   "params": {
+    "speed": null,
+    "criteria": null
+   },
+   "remark": "Approach (give way) triangle: 20 m back from the main road's lane edge, Table 9.7 along the main road; stop triangle: 3 m back, Table 9.8. Both sides. Keep them clear of obstructions; at least the stop splays must always be provided."
   }
  },
  "kits": {
@@ -434,6 +461,9 @@
     "params": {
      "start": 30.0
     }
+   },
+   {
+    "piece": "splays"
    }
   ],
   "A-2": [
@@ -472,6 +502,9 @@
     "params": {
      "start": 29.0
     }
+   },
+   {
+    "piece": "splays"
    }
   ],
   "B": [
@@ -506,6 +539,9 @@
     "params": {
      "start": 22.0
     }
+   },
+   {
+    "piece": "splays"
    }
   ],
   "B-Mod": [
@@ -542,6 +578,9 @@
     "params": {
      "start": 22.0
     }
+   },
+   {
+    "piece": "splays"
    }
   ],
   "C": [
@@ -572,6 +611,9 @@
     "params": {
      "start": 22.0
     }
+   },
+   {
+    "piece": "splays"
    }
   ],
   "BUS": [

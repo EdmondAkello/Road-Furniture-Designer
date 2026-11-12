@@ -200,6 +200,14 @@ class Criteria:
         t = cz["low_traffic" if low_traffic else "medium_traffic"]["fill" if fill else "cut"]
         return float(interpolate(t, v))
 
+    def junction_sight(self, kind: str, v: float):
+        """(set-back on the minor road, sight distance along the major road) for a junction visibility splay,
+        kind 'approach' (yield / give way) or 'stop'; None when the criteria file has no such table."""
+        t = (self.data.get("junction_sight") or {}).get(kind)
+        if not t:
+            return None
+        return float(t["setback"]), float(interpolate(t["distance"], v))
+
     def barrier(self) -> dict:
         return self.data.get("barrier") or {}
 
