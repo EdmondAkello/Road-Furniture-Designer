@@ -325,6 +325,15 @@ class JunctionStore(QObject):
                 p = j["paint"].setdefault(f["code"], [0.0, 0.0])
                 p[0] += float(f["line_m"] or 0.0)
                 p[1] += float(f["paint_m2"])
+        for j in out.values():
+            # raised / flush kerb: bus bays are raised along the platform and its ramps, flush along the
+            # tapers (RDM/1/3/3/01); island and roundabout kerbs are raised
+            raised = j["kerb_m"]
+            b = j.get("bay")
+            if b and b.get("kind", "bus bay") == "bus bay" and j["kerb_m"]:
+                ramp = (self.templates["pieces"]["bus_bay"]["params"].get("ramp") or 0.0)
+                raised = min(j["kerb_m"], abs(b["stations"][2] - b["stations"][1]) + 2 * ramp)
+            j["kerb_raised_m"], j["kerb_flush_m"] = raised, max(0.0, j["kerb_m"] - raised)
         return sorted(out.values(), key=lambda j: j["sta"] or 0.0)
 
     def warning_inputs(self):

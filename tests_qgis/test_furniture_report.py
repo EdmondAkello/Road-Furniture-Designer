@@ -338,6 +338,7 @@ def test_bus_bay_in_a_project(tmp_path):
     j = st.junctions.junctions()[0]
     assert j["bay"]["side"] == "L" and j["widen_m2"] > 150 and j["kerb_m"] > 60
     assert [f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"] == ["WSCM-I3"]
+    assert j["kerb_raised_m"] == 25.0 + 2 * 2.0 and abs(j["kerb_raised_m"] + j["kerb_flush_m"] - j["kerb_m"]) < 1e-6
     st.junctions.recompute_all()                                   # rebuilt from its stored parameters
     assert abs(st.junctions.junctions()[0]["widen_m2"] - j["widen_m2"]) < 1e-6
     d = ReportData(st, AutoConfig())
