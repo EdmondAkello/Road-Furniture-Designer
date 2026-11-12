@@ -300,6 +300,12 @@ def crossing_marking(out, al, cfg, station, cw, width, rule):
                             offset=(r0 + r1) / 2, width=r1 - r0, status="proposed", rule=rule,
                             reason=f"Pedestrian refuge {r1 - r0:.1f} m wide between the zebra legs "
                                    f"({cfg.ref('crossing')})"))
+        if hi - lo <= t["refuge_over"] + 1e-9:
+            w = " and ".join(f"{l1 - l0:.1f}" for l0, l1 in legs)
+            out.findings.append(Finding("feature_note", station, station, "Both",
+                                        f"refuge on a {hi - lo:.1f} m crossing, which needs none (only over "
+                                        f"{t['refuge_over']} m): it narrows the lanes to {w} m; leave it out on a "
+                                        f"single carriageway unless the road is widened for it ({cfg.ref('crossing')})"))
         if r1 - r0 < t["refuge_width"] - 1e-9:
             out.findings.append(Finding("feature_note", station, station, "Both",
                                         f"refuge {r1 - r0:.1f} m wide is under the {t['refuge_width']} m minimum "

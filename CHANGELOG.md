@@ -13,7 +13,8 @@
 - Excel sheet **Widenings**: the widening table for Civil 3D (bus bays and climbing lanes).
 - **Crossing extent and refuges**: crossings run between the ETW edges or between two clicked kerbs; a refuge / median width splits them into two zebras with a kerbed refuge island (new item `REFUGE`), with leg-length and refuge-width checks.
 - **Installable plugin ZIP from CI** (`.github/workflows/plugin-zip.yml`): built, checked (`tools/check_plugin_zip.py`), installed into QGIS 3.44 and loaded on every push; attached to a draft release for `v*` tags. The README explains where to download it.
-- User guide: Junctions tab, supplementary signs, installing from the plugin ZIP.
+- User guide: Junctions tab, supplementary signs, installing from the plugin ZIP; minor-road junctions, bus bays, climbing lanes, the Widenings table and crossing extent and refuges (section 16 renamed "Junctions, bus bays and climbing lanes").
+- Crossings: a refuge on a crossing of 10.5 m or less is flagged as not needed, with the lane widths it leaves (on a single carriageway it only narrows the lanes).
 
 ### Fixed
 - Installing from GitHub's "Download ZIP" failed (`ModuleNotFoundError`): that is the source repository; the README and guide now point to the plugin ZIP.
