@@ -20,10 +20,11 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS",
+                                                 "RBT", "SIG"}
     for k, items in T["kits"].items():
         assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access",
-                                     "RBT": "roundabout"}.get(k, "guides")
+                                     "RBT": "roundabout", "SIG": "signal_crossroads"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -40,7 +41,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT", "SIG")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -648,3 +649,32 @@ def test_joining_a_clicked_main_road_near_our_road_end():
     # further in, the click stays where it is; a 45 m stub behind it is a real leg (our road crosses)
     pl, main = J.place_minor(ours, 0.0, -45.0, 100, 40)
     assert pl.our_station == pytest.approx(45.0) and len(J.minor_legs(ours, 45.0, main)) == 2
+
+
+def test_alignment_running_on_past_the_junction():
+    """Trial (Olkaria 16+700): the alignment runs on 40 m past the junction on a slight curve; the long leg
+    is our road, not the tail."""
+    ours = Alignment.from_polyline("OURS", [(30, 1500), (8, 600), (0, 40), (1.5, 0)])   # ends 40 m past y = 40
+    major_click = (100, 45)
+    pl, main = J.place_minor(ours, 0.0, 40.0, *major_click)
+    assert math.sin(pl.bearing) > 0.99                                    # north, up our road
+    assert len(J.minor_legs(ours, pl.our_station, main)) == 2             # the tail is a leg for Both legs
+
+
+def test_signalised_crossroads():
+    """RDM 6.1 7.8 / Figure 7.12: four arms, each with a crossing, a stop line on the approach half, a centre
+    line and an arrow; kerb returns at the corners; W46 on our approaches."""
+    al = straight()
+    for ang in (90, 75):
+        pc = J.build_kit(al, at(al, ang), "SIG", templates=T)[0]
+        q = pc.quantities
+        assert pc.params["arms"] == 4 and q["TM01_m"] == pytest.approx(4 * 3.5, abs=0.1) and q["AM07_no"] == 12
+        # stop lines are on the approach half for left-hand traffic: on the west arm, north of the centre line
+        stops = [p for p in pc.parts if p.code == "TM01"]
+        west = min(stops, key=lambda p: p.pts[0][0])
+        assert all(y >= -1e-6 for _, y in west.pts) and west.pts[0][0] < 185
+        # crossings between the stop line and the junction
+        bm = [p for p in pc.parts if p.code == "BM02" and p.pts[0][1] < 4 and p.pts[0][0] < 200]
+        assert bm and all(west.pts[0][0] < x < 200 for p in bm for x, _ in p.pts)
+    out = J.junction_warnings(al, [J.JunctionAt("s", "main", 200, "L", kit="SIG")])
+    assert sorted((p.code, p.facing) for p in out) == [("W46", "Backward"), ("W46", "Forward")]

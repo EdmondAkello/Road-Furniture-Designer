@@ -976,7 +976,7 @@ class SignStore(QObject):
             self.trim_for_roundabouts()
         if pl.role == "bay":
             self.trim_for_widenings()
-        if kit in J.JUNCTION_KITS and not piece:
+        if kit in J.JUNCTION_KITS + J.SIGNAL_KITS and not piece:
             signs += self.refresh_junction_warnings()
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):

@@ -156,7 +156,7 @@ def minor_legs(al, s0: float, main) -> List[float]:
             cand.append((rate, rest, math.atan2(y - jy, x - jx)))
     # a stub of our road shorter than MIN_LEG behind the junction point is not a leg
     real = [c for c in cand if c[1] >= MIN_LEG] or sorted(cand, key=lambda c: -c[1])[:1]
-    real.sort(key=lambda c: (-round(c[0], 2), -c[1]))   # leaving fastest, then the longer one
+    real.sort(key=lambda c: -c[1])                      # the longer leg first: where our road lies
     keep = [c for c in real if c[0] >= 0.2]
     return [c[2] for c in (keep or real[:1])]
 
@@ -597,6 +597,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         return _access(F, spec, P, piece)
     elif piece == "roundabout":
         return _roundabout(F, spec, P, piece)
+    elif piece == "signal_crossroads":
+        return _signal_crossroads(F, spec, P, piece, T)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
 
@@ -799,6 +801,82 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
     # main edge on the minor side, following the alignment
     parts.append(Part("GUIDE", [_main_edge(F, k / 2.0) for k in range(int(-reach * 2 / s), int(reach * 2 / s) + 1)]))
     return Piece(piece, spec["name"], "guide", "", parts, {}, dict(P, rows=rows))
+
+
+def _signal_crossroads(F: Frame, spec, P, piece, T) -> Piece:
+    """A four-arm signal-controlled crossroads without islands (RDM 6.1 7.8, Figure 7.12), single
+    carriageways: kerb returns on the four corners (guides), and on every arm a pedestrian crossing in BM02
+    blocks where the kerb runs straight, the TM01 stop line across the approach half behind it, an LM24 centre
+    line leading in and an AM07 arrow in the approach lane. Not scaled; the signals are designed separately."""
+    O, t, d = F.p0, F.t, F.d
+    e = F.e                                   # main road half-width (edge offset)
+    w = float(P.get("minor_half", 3.5))       # minor road half-width
+    R = float(P.get("return_radius", 12.0))
+    cw = float(P.get("crossing", 3.0))        # BM02: 3 m blocks along the road
+    gap = float(P.get("stop_gap", 1.5))       # stop line this far behind the crossing
+    L_cl = float(P.get("centre_line", 30.0))
+    nl = lambda u: (-u[1], u[0])
+    add = lambda a, b, k=1.0: (a[0] + k * b[0], a[1] + k * b[1])
+    cross2 = lambda a, b: a[0] * b[1] - a[1] * b[0]
+    nm, nd = nl(t), nl(d)
+    parts: List[Part] = []
+    reach = {}                               # arm -> distance of the furthest kerb tangent from O along it
+    for sm in (1, -1):
+        for sd in (1, -1):
+            # fillet centre: R outside both edges of the corner (main edge sm, minor edge sd)
+            A = add(O, nm, sm * (e + R))
+            B = add(O, nd, sd * (w + R))
+            den = cross2(t, d)
+            lam = cross2((B[0] - A[0], B[1] - A[1]), d) / den
+            C = add(A, t, lam)
+            T1 = add(C, nm, -sm * R)          # on the main edge
+            T2 = add(C, nd, -sd * R)          # on the minor edge
+            a0 = math.atan2(T1[1] - C[1], T1[0] - C[0])
+            a1 = math.atan2(T2[1] - C[1], T2[0] - C[0])
+            da = math.remainder(a1 - a0, 2 * math.pi)
+            parts.append(Part("GUIDE", [(C[0] + R * math.cos(a0 + da * k / 24), C[1] + R * math.sin(a0 + da * k / 24))
+                                        for k in range(25)]))
+            # this corner's road edges, on from its tangent points
+            parts.append(Part("GUIDE", [T1, add(T1, t, (1 if (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1] > 0 else -1) * 40.0)]))
+            parts.append(Part("GUIDE", [T2, add(T2, d, (1 if (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1] > 0 else -1) * 40.0)]))
+            km = (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1]
+            kd = (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1]
+            for arm, k in ((("m", 1 if km > 0 else -1), abs(km)), (("d", 1 if kd > 0 else -1), abs(kd))):
+                reach[arm] = max(reach.get(arm, 0.0), k)
+    L_arrow = arrow_length(F.al.speed_at(F.pl.station) or 50.0)
+    for (ax, sg), k in reach.items():
+        u, n_, half = (t, nm, e) if ax == "m" else (d, nd, w)
+        x0 = k + 0.5                                                     # crossing's near edge
+        # BM02 blocks across the full width, 0.5 m wide, 0.5 m apart
+        o = -half + 0.25
+        while o + 0.5 <= half - 0.25 + 1e-6:
+            q = [add(add(O, u, sg * x0), n_, o), add(add(O, u, sg * (x0 + cw)), n_, o),
+                 add(add(O, u, sg * (x0 + cw)), n_, o + 0.5), add(add(O, u, sg * x0), n_, o + 0.5)]
+            parts.append(Part("BM02", q, True))
+            o += 1.0
+        # traffic arriving on this arm heads -sg*u and keeps left: its lane is on the -sg side of n_
+        xs = x0 + cw + gap
+        side = -sg
+        parts.append(Part("TM01", [add(add(O, u, sg * xs), n_, 0.0), add(add(O, u, sg * xs), n_, side * half)]))
+        parts.append(Part("LM24", [add(O, u, sg * xs), add(O, u, sg * (xs + L_cl))]))
+        lane_c = side * half / 2
+        for poly in arrow_shapes("all", L_arrow):
+            # arrow x runs tail -> tip towards the junction
+            parts.append(Part("AM07", [add(add(O, u, sg * (xs + 2.0 + L_arrow - x)), n_, lane_c - sg * y)
+                                       for x, y in poly], True))
+    q: Dict[str, float] = {}
+    codes = T["codes"]
+    for pt in parts:
+        if pt.code == "GUIDE":
+            continue
+        if codes[pt.code].get("fill"):
+            q[f"{pt.code}_no"] = q.get(f"{pt.code}_no", 0) + 1
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + area(pt.pts), 3)
+        else:
+            ln = length(pt.pts)
+            q[f"{pt.code}_m"] = round(q.get(f"{pt.code}_m", 0.0) + ln, 3)
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + ln * codes[pt.code]["width"], 3)
+    return Piece(piece, spec["name"], "marking", "", parts, q, dict(P, arms=len(reach)))
 
 
 SPLAY_KINDS = (("approach", "SPLAY-A"), ("stop", "SPLAY-S"))
@@ -1510,7 +1588,8 @@ def skew_degrees(al, pl: Placement) -> float:
 
 # --------------------------------------------------------------------------- junction warning signs
 JUNCTION_KITS = ("A-1", "A-2", "B", "B-Mod", "C")
-WARN_CODES = ("W1", "W2", "W5", "W11", "W12")
+SIGNAL_KITS = ("SIG",)
+WARN_CODES = ("W1", "W2", "W5", "W11", "W12", "W46")
 CROSS_TOL = 10.0                    # m: side roads on opposite sides closer than this make a crossroads
 STAGGER = 60.0                      # m: RDM 6.2 4.2.1 - staggered crossroads sign where junctions are this close
 
@@ -1540,6 +1619,17 @@ def junction_warnings(al, junctions: Sequence[JunctionAt], speed=None) -> List["
     from .autoplace import Proposal, advance_distance
     out = []
     v_at = speed or (lambda s: al.speed_at(s) or 80.0)
+    for j in junctions:                                     # signals: W46 on our approaches (RDM 6.2)
+        if j.kit not in SIGNAL_KITS:
+            continue
+        dirs = (1, -1) if j.role == "main" or j.crossing else ((-1,) if j.up else (1,))
+        a = advance_distance(v_at(j.station))
+        for d in dirs:
+            s = j.station - d * a
+            if al.sta_start <= s <= al.sta_end:
+                out.append(Proposal("W46", s, "L" if d > 0 else "R", "Forward" if d > 0 else "Backward",
+                                    f"junction:{j.id}", f"Traffic signals {a:.0f} m ahead (RDM 6.2)"))
+    junctions = [j for j in junctions if j.kit not in SIGNAL_KITS]
     main = sorted([j for j in junctions if j.role == "main" and j.kit in JUNCTION_KITS], key=lambda j: j.station)
     for d in (1, -1):                                       # 1: traffic in the chainage direction
         seq = main if d > 0 else main[::-1]
