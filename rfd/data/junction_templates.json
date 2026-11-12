@@ -203,6 +203,11 @@
    "name": "Word marking BUS STOP (RDM 6.1 10.3, Table 6.2)",
    "width": 0.2,
    "colour": "white"
+  },
+  "WIDEN": {
+   "name": "Widened carriageway edge for an island (guide for the corridor)",
+   "width": 0.0,
+   "colour": "grey"
   }
  },
  "pieces": {
@@ -423,7 +428,7 @@
     "nose": 2.0,
     "three_centred": true
    },
-   "remark": "Construction only: no quantities. Kerb returns are three-centred curves R1 : R2 : R3 = 2 : 1 : 3 (RDM 1.3 Figure 9.25), R2 half the return radius within 8-12 m (set 'r2' to choose it, or 'three_centred': false for a single-radius fillet); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1)."
+   "remark": "Construction only: no quantities. Kerb returns are three-centred curves R1 : R2 : R3 = 2 : 1 : 3 (RDM 1.3 Figure 9.25), R2 half the return radius within 8-12 m (set 'r2' to choose it, or 'three_centred': false for a single-radius fillet); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1). On a corner with an island the return is drawn from the widened bellmouth, clear of the island by the turning roadway ('slip': 4.9 m in A-1, 5.5 m (W2) in A-2), with the widened edges tapering back over 'slip_taper' (30 m). The minor road's edges flare out by half the splitter's width around it ('minor_flare') and taper back, so its lanes keep their width."
   },
   "bus_bay": {
    "name": "Bus bay (RDM/1/3/3/01)",
@@ -538,8 +543,7 @@
   "turn_arrow": {
    "name": "Right-turn arrows in the right-turn lane (RDM 6.1 6.4.3)",
    "types": [
-    "A-1",
-    "B-Mod"
+    "A-1"
    ],
    "frame": "main",
    "kind": "marking",
@@ -585,6 +589,23 @@
    "kind": "splay",
    "params": {},
    "remark": "Where our road is the minor road: the sight lines from one stopping sight distance back to the give way line and its sign. Added with the splays when our road joins another road."
+  },
+  "main_widening": {
+   "name": "Main road widening for the ghost island (lanes keep their width)",
+   "types": [
+    "A-1",
+    "B-Mod"
+   ],
+   "frame": "main",
+   "kind": "widening",
+   "params": {
+    "width": 3.0,
+    "from": -30.0,
+    "to": 59.5,
+    "taper_from": 60.0,
+    "taper_to": 63.0
+   },
+   "remark": "Both edges move out by half the ghost island's width over the right-turn lane and the island, tapering back; goes into the Widenings table for the Civil 3D corridor. Lengths indicative (RDM/1/3/2/01: 106 m approach taper); set them from the junction design."
   }
  },
  "kits": {
@@ -593,11 +614,22 @@
     "piece": "guides",
     "params": {
      "nose": 3.0,
-     "return_radius": 30.0
+     "return_radius": 30.0,
+     "slip": {
+      "left_turn": 4.9
+     },
+     "minor_flare": {
+      "half": 1.5,
+      "to": 30.0,
+      "taper": 15.0
+     }
     }
    },
    {
     "piece": "ghost_island"
+   },
+   {
+    "piece": "main_widening"
    },
    {
     "piece": "turn_arrow"
@@ -646,7 +678,16 @@
     "piece": "guides",
     "params": {
      "nose": 4.0,
-     "return_radius": 30.0
+     "return_radius": 30.0,
+     "slip": {
+      "left_turn": 5.5,
+      "other": 5.5
+     },
+     "minor_flare": {
+      "half": 1.7,
+      "to": 25.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -693,7 +734,15 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 25.0
+     "return_radius": 25.0,
+     "slip": {
+      "left_turn": 4.9
+     },
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -736,7 +785,12 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 15.0
+     "return_radius": 15.0,
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -746,9 +800,13 @@
     "piece": "ghost_wedge"
    },
    {
-    "piece": "turn_arrow",
+    "piece": "main_widening",
     "params": {
-     "y": -1.5
+     "width": 3.5,
+     "from": -48.0,
+     "to": 50.0,
+     "taper_from": 30.0,
+     "taper_to": 30.0
     }
    },
    {
@@ -787,7 +845,12 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 15.0
+     "return_radius": 15.0,
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {

@@ -606,3 +606,29 @@ def test_bus_stop_word_marking_and_edge_code():
     assert pc.params["edge_code"] == "EOP"
     rec = {k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind", "edge_code")}
     assert "not in the corridor yet" in J.widening_check(al, rec)[0][1]
+
+
+def test_islands_never_narrow_the_existing_lanes():
+    """Islands come with their widenings: ghost islands with the main road widened on both sides, corner
+    islands off the (widened) edge with a bellmouth behind them, splitters with the minor road flared."""
+    al = straight()                                  # no corridor edges: ETW taken as 3.5 m
+    for ang in (90, 70):
+        pl = at(al, ang)
+        for k in ("A-1", "A-2", "B", "B-Mod", "C"):
+            pcs = {p.piece: p for p in J.build_kit(al, pl, k, templates=T, splays=False)}
+            ea = J.kit_edge_add(T, k)
+            # a ghost island in the middle: the widening adds at least its half-width to each side
+            for g in ("ghost_island", "ghost_lead", "ghost_wedge"):
+                if g in pcs:
+                    half = max(abs(y) for p in pcs[g].parts for _, y in p.pts)
+                    assert ea >= half - 1e-6, (k, g)
+                    assert "main_widening" in pcs
+            # corner islands and their hatching stay off the (widened) through lane
+            for c in ("corner_island", "corner_hatch"):
+                if c in pcs:
+                    assert all(y > 3.5 + ea for p in pcs[c].parts for _, y in p.pts), (k, c, ang)
+            # the guides carry the bellmouth and the minor flare as widening rows
+            kinds = {r["kind"] for r in pcs["guides"].params["rows"]}
+            assert "minor road flare at the splitter" in kinds
+            if "corner_island" in pcs:
+                assert "bellmouth behind a corner island" in kinds
