@@ -379,13 +379,22 @@ def test_roundabout_in_a_project(tmp_path):
     from road_furniture_designer.report import ReportData, write_xlsx
     from road_furniture_designer.rfd.autoplace import AutoConfig
     st, xml = _fill_road(tmp_path)
+    from road_furniture_designer.rfd.markings import MarkingConfig
+    st.lines.auto_propose_markings(MarkingConfig())
+    before = len(st.lines.runs())
     x, y, h = st.al.point_at(800.0)
     pl = J.place_roundabout(st.al, x, y)
     side = math.degrees(h) + 90.0                                         # a third arm, square on the left
     n, finds, nsigns = st.add_junction(pl, "RBT", "", False, {"island": 12.0, "arms": [
         {"bearing_deg": side, "src": "click", "half": 3.5}]}, False, None)
     j = st.junctions.junctions()[0]
-    assert j["kit"] == "RBT" and j["rbt"]["n_arms"] == 3 and j["kerb_m"] > 100 and j["island_m2"] > 100
+    assert j["kit"] == "RBT" and j["rbt"]["n_arms"] == 3
+    # our road's markings stop short of the roundabout and carry on beyond it
+    cat = st.lines.cat
+    long_runs = [r for r in st.lines.runs() if not cat[r.code].transverse and cat[r.code].category in ("Marking", "Road stud")]
+    assert long_runs and not [r for r in long_runs if r.sta_start < 790.0 < r.sta_end or r.sta_start < 810.0 < r.sta_end]
+    assert any(r.sta_end <= 770.0 for r in long_runs) and any(r.sta_start >= 830.0 for r in long_runs)
+    assert len(st.lines.runs()) >= before - 2 and j["kerb_m"] > 100 and j["island_m2"] > 100
     signs = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
     codes = sorted(f["sign_code"] for f in signs)
     assert codes.count("R2") == 3 and codes.count("M5") == 3 and codes.count("W24-b") == 3 and codes.count("W17") == 2

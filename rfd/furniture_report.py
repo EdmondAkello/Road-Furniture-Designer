@@ -83,6 +83,8 @@ KIND_TEXT = {
     "access": "Private access",
     "widening": "Widening vs corridor",
     "roundabout": "Roundabout",
+    "end_control": "Control at the road's end",
+    "bay_visibility": "Bay visibility",
 }
 
 
@@ -516,6 +518,24 @@ def junction_checks(al, junctions) -> List[Check]:
                                      f"bus bays serving opposite directions {abs(ca - cb):.0f} m apart centre to "
                                      f"centre ({_ch(al, ca)} and {_ch(al, cb)}); at least 60 m (RDM/1/3/3/01 note 4)",
                                      "check", {"distance": abs(ca - cb)}))
+    from .criteria import Criteria
+    from .features import visible_from
+    crit = None
+    for j in junctions:                              # bays not where visibility is restricted (RDM 1.3 13.2)
+        bay = j.get("bay")
+        if not bay or bay.get("kind") not in ("bus bay", "truck parking bay"):
+            continue
+        crit = crit or Criteria.load()
+        s0, s3 = bay["stations"][0], bay["stations"][3]
+        dirn = 1 if s3 >= s0 else -1
+        v = al.speed_at(s0) or 80.0
+        need = crit.ssd(v)
+        seen = visible_from(al, s0, need, dirn, crit.eye_height, crit.object_height)
+        if seen is not None and seen < need - 1e-6:
+            out.append(Check("bay_visibility", min(s0, s3), max(s0, s3), bay["side"],
+                             f"{bay['kind']} at {_ch(al, s0)}: its entry is seen from about {seen:.0f} m on the "
+                             f"profile, under the stopping sight distance of {need:.0f} m at {v:.0f} km/h; bays "
+                             f"should not be sited where visibility is restricted (RDM 1.3 13.2)", "check"))
     from .junctions import widening_check
     for j in junctions:                              # round trip: placed widenings vs the re-imported corridor
         if j.get("bay"):
@@ -651,8 +671,40 @@ class FurnitureReport:
         return [c for c in self.checks if c.kind in kinds]
 
 
+END_TOUCH = 15.0        # m: our road's end this close to another alignment's centreline meets that road
+END_CONTROL_NEAR = 60.0 # m: a junction or an R1 / R2 this close to the end controls it
+
+
+def end_control_checks(al, others, junctions, signs) -> List[Check]:
+    """Our road starting or ending on another road of the LandXML: its traffic must give way or stop there.
+    A check when neither a junction (ours as the minor road, or a roundabout) nor an R1 / R2 facing traffic
+    towards that end is within END_CONTROL_NEAR."""
+    out = []
+    for sta, towards in ((al.sta_start, "Backward"), (al.sta_end, "Forward")):
+        x, y, _ = al.point_at(sta)
+        hit = None
+        for o in others or []:
+            so = o.station_offset(x, y)
+            if so.in_range and abs(so.offset) <= END_TOUCH:
+                hit = o
+                break
+        if hit is None:
+            continue
+        near = lambda s: abs(s - sta) <= END_CONTROL_NEAR
+        if any(near(j.get("sta") or -1e9) and (j.get("role") in ("minor", "roundabout") or j.get("rbt"))
+               for j in junctions or []):
+            continue
+        if any(s["code"] in ("R1", "R2") and s.get("facing") == towards and near(s["sta"]) for s in signs or []):
+            continue
+        out.append(Check("end_control", sta, sta, "Both",
+                         f"our road {'starts' if sta == al.sta_start else 'ends'} on {hit.name} at {_ch(al, sta)} "
+                         f"without give way or stop control: place the junction (our road joins another road) or an "
+                         f"R1 / R2 (RDM 6.2, RDM 6.1 5.3)", "check"))
+    return out
+
+
 def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, wanted=None,
-          vfindings=None, curves=None, junctions=None) -> FurnitureReport:
+          vfindings=None, curves=None, junctions=None, others=None) -> FurnitureReport:
     """barrier_cfg None: barrier warrants are not rechecked (noted). wanted / vfindings / curves: the
     autoplace proposals, findings and curve groups if the caller already has them."""
     from .autoplace import analyse, curve_groups, no_overtaking_zones, propose
@@ -684,6 +736,7 @@ def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, w
     checks += pairing_checks(al, signs)
     checks += supplementary_checks(al, signs)
     checks += junction_checks(al, junctions or [])
+    checks += end_control_checks(al, others, junctions, signs)
     checks.sort(key=lambda c: ({"issue": 0, "check": 1, "info": 2}[c.level], c.start))
     real = [r for r in runs if r.code in lcat]
     return FurnitureReport(

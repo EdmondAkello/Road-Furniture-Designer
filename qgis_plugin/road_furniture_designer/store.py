@@ -882,6 +882,7 @@ class SignStore(QObject):
                         pass
         if pl.role == "roundabout":
             signs += self._roundabout_signs(pl)
+            self.trim_for_roundabouts()
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -911,6 +912,24 @@ class SignStore(QObject):
             from qgis.core import QgsProject
             layers = [QgsProject.instance().mapLayer(i) for i in ids]
             self.junctions.check_obstructions([l for l in layers if l is not None and l.isValid()])
+
+    def trim_for_roundabouts(self):
+        """Our road's markings and studs stop at each roundabout: centre lines beyond the splitter's lead-in
+        and its LM24, edge lines and studs at the end of the entry flare. Returns the runs cut."""
+        from .rfd import roundabouts as RB
+        n = 0
+        for j in self.junctions.junctions():
+            rb = j.get("rbt")
+            if not rb:
+                continue
+            ours = [d["station"] for d in rb["detail"] if d.get("src") == "ours" and d.get("station") is not None]
+            rc = rb["quantities"]["icd"] / 2
+            lo, hi = (min(ours), max(ours)) if ours else (j["sta"] - rc, j["sta"] + rc)
+            p = dict(RB.DEFAULTS)
+            centre = p["splitter_len"] + p["lead_in"] + RB.LM24_LENGTH
+            n += self.lines.trim(lo - centre, hi + centre, centre=True, sides=False)
+            n += self.lines.trim(lo - p["flare"], hi + p["flare"], centre=False, sides=True)
+        return n
 
     def _sign_facing(self, x, y, phi):
         """(facing, skew) that point a sign face in the map direction phi (radians, counter-clockwise from

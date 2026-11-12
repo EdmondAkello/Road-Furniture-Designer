@@ -185,7 +185,8 @@ class ReportData:
         if furniture and self.lcat is not None:
             from .rfd import furniture_report as FR
             self.fr = FR.build(self.al, self.runs, self.lcat, self.signs, self.cfg, barrier_cfg, feature_cfg,
-                               vfindings=self.findings, curves=self.curves, junctions=self.junction_list)
+                               vfindings=self.findings, curves=self.curves, junctions=self.junction_list,
+                               others=store.other_alignments() if hasattr(store, "other_alignments") else None)
 
     def renderer(self, path):
         r = self._svg.get(path)

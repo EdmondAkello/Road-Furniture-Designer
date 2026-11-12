@@ -397,3 +397,31 @@ def test_roundabout_geometry_and_checks():
     # the report check
     j = {"sta": 500.0, "kit": "RBT", "rbt": {"notes": bad.params["notes"]}}
     assert sum(1 for c in FR.junction_checks(al, [j]) if c.kind == "roundabout") == len(bad.params["notes"])
+
+
+def test_control_at_our_roads_end():
+    ours = Alignment.from_polyline("OURS", [(0, 0), (300, 0)])        # ends on the main road at x = 300
+    main = Alignment.from_polyline("MAIN", [(300, -200), (300, 200)])
+    far = Alignment.from_polyline("FAR", [(1000, -200), (1000, 200)])
+    (c,) = FR.end_control_checks(ours, [main, far], [], [])
+    assert c.kind == "end_control" and "ends on MAIN" in c.text and c.start == pytest.approx(300)
+    assert FR.end_control_checks(ours, [far], [], []) == []                    # not touching another road
+    jn = [{"sta": 300.0, "role": "minor"}]
+    assert FR.end_control_checks(ours, [main], jn, []) == []                   # the junction is placed
+    r2 = [{"code": "R2", "sta": 290.0, "facing": "Forward", "side": "L"}]
+    assert FR.end_control_checks(ours, [main], [], r2) == []                   # or a Give Way stands there
+    wrong = [{"code": "R2", "sta": 290.0, "facing": "Backward", "side": "R"}]
+    assert len(FR.end_control_checks(ours, [main], [], wrong)) == 1           # facing the other way: no
+
+
+def test_bay_visibility_over_a_crest():
+    from rfd.profile import VerticalProfile
+    al = straight()
+    al.speeds = [(0.0, 80.0)]
+    pl, B = J.place_bay(al, 220, 4.0, 290, 4.0)                    # truck bay, entry taper from 205
+    bay = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T).params
+    kinds = lambda: [c.kind for c in FR.junction_checks(al, [{"sta": 220, "bay": bay}])]
+    al.profile = VerticalProfile("P", [(0, 100, 0), (400, 100, 0)])
+    assert "bay_visibility" not in kinds()                          # flat: seen from the SSD
+    al.profile = VerticalProfile("P", [(0, 100, 0), (150, 106, 30), (400, 98.5, 0)])
+    assert "bay_visibility" in kinds()                              # a sharp crest just before it

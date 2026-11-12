@@ -41,7 +41,7 @@ jobs:
       - name: Install test tools
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends python3-pytest python3-pip
+          apt-get install -y --no-install-recommends python3-pytest python3-pip fonts-dejavu-core
           python3 -m pip install --break-system-packages -r requirements.txt
       - name: Copy the core into the plugin
         run: python3 tools/build_plugin.py
