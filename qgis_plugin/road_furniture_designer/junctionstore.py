@@ -402,7 +402,7 @@ class JunctionStore(QObject):
         seen = {}
         for f in self.layer.getFeatures():
             jid = f["junction_id"]
-            if jid in seen or f["kit"] not in J.JUNCTION_KITS:
+            if jid in seen or f["kit"] not in J.JUNCTION_KITS + J.SIGNAL_KITS:
                 continue
             role = f["role"] or "main"
             pl = J.Placement(float(f["sta"]), math.radians(float(f["bearing_deg"])), junction_id=jid, role=role,

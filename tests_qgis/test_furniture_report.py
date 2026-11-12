@@ -335,6 +335,19 @@ def test_move_a_junction_piece(tmp_path):
                for f in st.junctions.layer.getFeatures())
 
 
+def test_signalised_crossroads_in_a_project(tmp_path):
+    import math
+    from road_furniture_designer.rfd import junctions as J
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    pl = J.place(st.al, x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
+    n, finds, nsigns = st.add_junction(pl, "SIG")
+    assert n == 1 and nsigns == 2
+    assert sorted(f["facing"] for f in st.signs.getFeatures() if f["sign_code"] == "W46") == ["Backward", "Forward"]
+    codes = {f["code"] for f in st.junctions.layer.getFeatures()}
+    assert {"BM02", "TM01", "LM24", "AM07", "GUIDE"} <= codes
+
+
 def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
     from road_furniture_designer.maptool import PlaceRunTool
     from road_furniture_designer.rfd.autoplace import AutoConfig

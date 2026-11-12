@@ -1060,6 +1060,11 @@ class RsdDock(QDockWidget):
                                     "of travel; the Bus Stop sign is proposed.")
             return
         self._junction_role_changed()
+        if k == "SIG":
+            self.chk_jboth.setEnabled(False)            # the kit has all four arms already
+            self.lbl_jhover.setText("Click the junction centre on our road, then a point up the crossing road: four "
+                                    "arms with kerb returns, crossings, stop lines and arrows (RDM 6.1 Figure 7.12); "
+                                    "W46 Traffic Signals Ahead is proposed on our approaches.")
         self.cmb_jpiece.addItem(f"Whole type {k} kit", "")
         for pid in [it["piece"] for it in self._jt["kits"][k]]:
             if self.cmb_jpiece.findData(pid) < 0:
