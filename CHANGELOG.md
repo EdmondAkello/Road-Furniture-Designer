@@ -1,14 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — 2026-11-12
 
 ### Added
+- **Roundabouts** (RDM 1.3 Chapter 10, RDM 6.1 Figures 7.14-7.16), type RBT: centre on our road; arms from our road and other alignments crossing the circle, plus clicked arms (right-click / Enter to place). Central island, outer kerb with entry / exit returns, kerbed splitter islands with hatched lead-ins, TM07 + BM07 on entries, TM04 on exits, LM24; R2, M5, W24 chevrons and W17 proposed. Checks: 3-5 arms at least 60 deg apart, island at least 4 m, ICD at least the Table 10.1 minimum and not over 100 m, circulatory width 6.5-15 m, crossing returns, compact-roundabout hint, entry visible from the SSD over the profile.
 - Our road's markings and studs are cut back at a roundabout (centre lines beyond the splitter lead-in, edge lines and studs at the end of the flare), on placing it and on every markings proposal.
 - Checks: control at our road's end where it starts or ends on another alignment (a junction or an R1 / R2 within 60 m); bus and truck bay entries seen from the stopping sight distance (RDM 1.3 13.2).
-- **Roundabouts** (RDM 1.3 Chapter 10, RDM 6.1 Figures 7.14-7.16), type RBT: centre on our road; arms from our road and other alignments crossing the circle, plus clicked arms (right-click / Enter to place). Central island, outer kerb with entry / exit returns, kerbed splitter islands with hatched lead-ins, TM07 + BM07 on entries, TM04 on exits, LM24; R2, M5, W24 chevrons and W17 proposed. Checks: 3-5 arms at least 60 deg apart, island at least 4 m, ICD at least the Table 10.1 minimum and not over 100 m, circulatory width 6.5-15 m, crossing returns, compact-roundabout hint, entry visible from the SSD over the profile.
 - **Supplementary signs from the standard drawings WSCM/84/2/01** (Jan 2024): 19 signs with no RDM 6.2 equivalent, coded `WSCM-` so they never collide with RDM numbers (catalogue now 270 signs). `tools/extract_wscm_signs.py`, `rfd/data/wscm_signs.json`, and `rfd/data/wscm_crossref.json` mapping all 75 WSCM codes to RDM 6.2. WSCM-M14 (End of All Prohibitions) ends speed limits, no-overtaking zones and clearways in the pairing checks; WSCM-M9 is ended by WSCM-M8 or M14. The furniture checks list the WSCM signs used.
 - **Junction islands and markings as templates** (Junctions tab) from RDM/1/3/2/01-02: kits for types A-1, A-2, B, B-Mod and C, or single pieces, placed with two clicks (junction point, then a point up the minor road) so they take the skew; optional scale; guide lines (edges, kerb returns, Rc arcs) for sketching. Layer `rsd_junctions`, open data `rfd/data/junction_templates.json`, report schedule and Excel sheet, crossing angle check (RDM 1.3 9.2.3), plan sheets and DXF layers `RSD-JN-*`.
-
 - **Our road joining another road** (Junctions tab): the main road is another alignment of the LandXML or a clicked direction; markings on our approach, R2 Give Way proposed (kept when auto-placement is re-run, removed with the junction).
 - **Crossings and humps drawn as painted**: zebra bars, bar sets, BM04 triangles and filled hump footprints on the map, plan sheets and DXF; transverse items go in with one click from the Linear tab.
 - **Bus bays** (RDM/1/3/3/01) placed with two clicks: tapers in the direction of travel, kerb, platform, separation line, shelter position and Bus Stop sign; 60 m spacing check for opposite bays.
@@ -22,27 +21,6 @@
 - **Installable plugin ZIP from CI** (`.github/workflows/plugin-zip.yml`): built, checked (`tools/check_plugin_zip.py`), installed into QGIS 3.44 and loaded on every push; attached to a draft release for `v*` tags. The README explains where to download it.
 - User guide: Junctions tab, supplementary signs, installing from the plugin ZIP; minor-road junctions, bus bays, climbing lanes, the Widenings table and crossing extent and refuges (section 16 renamed "Junctions, bus bays and climbing lanes").
 - Crossings: a refuge on a crossing of 10.5 m or less is flagged as not needed, with the lane widths it leaves (on a single carriageway it only narrows the lanes).
-
-### Changed
-- **Faster sign placement**: auto-placement and other batches of signs are written in one edit session and committed once (850 signs on a 36 km road: about 16 s down to 2 s); post numbers are counted on and the nearest post is found by a box query instead of scanning the layer.
-- **Faster DXF export**: the 8 MB sign-block library is read once per session, and the drawing extents use the sign insertion points instead of every block's geometry.
-- Fields are created through QMetaType on QGIS 3.38+ (the QVariant constructor is deprecated); the QGIS test run went from about 4,700 warnings to one (GDAL's).
-- Housekeeping: unused imports and variables removed; an unclosed file in a test.
-
-### Fixed
-- The control-at-the-road's-end check took the same road carrying on (another alignment starting where ours ends, in line) for a junction.
-- Installing from GitHub's "Download ZIP" failed (`ModuleNotFoundError`): that is the source repository; the README and guide now point to the plugin ZIP.
-- The dock needed at least 1166 x 1048 px, so its bottom buttons were out of reach on a 1080p screen, and it disappeared when a neighbouring panel was resized. Every tab now scrolls and shrinks to a 380 px panel, and the toolbar button only reacts to clicks (show, bring to front, re-dock).
-- WSCM sign artwork: no seams in the colour fills; closed frames on WSCM-I1 and I2 (drafting slips on the sheet).
-- Core tests pass flat sequences to `pytest.approx` (pytest 9).
-- The Linear tab was still wider than a 380 px dock on QGIS 3.44 (CI failure): the two group titles and two checkbox captions are shortened, with the full wording kept as the tooltip.
-- LM05 (bay separation line) is 0.2 m wide (RDM 6.1 Table 4.1); bus bays counted half its painted area.
-- The dock-width test uses a fixed font (DejaVu Sans 9), installed in the QGIS CI image, so it no longer depends on the machine's default font.
-- CI uses `actions/checkout@v5` and `actions/setup-python@v6` (Node.js 24).
-
-## 0.8.0 — 2026-11-11
-
-### Added
 - **Linear furniture layer** (`rsd_lines`): markings, road studs, barriers and transverse items as runs with an item code, chainages, side and an offset from a corridor edge or the centreline; geometry, length and quantities rebuilt on every edit. Open catalogue `rfd/data/furniture_linear.json` (`RFD_FURNITURE_PATH`). Inventory `Linear` sheet and quantities; DXF layers `RSD-MARK-*`, `RSD-STUD-*`, `RSD-BARRIER-*`.
 - **Markings and road studs** (RDM 6.1): broken, combined (LM28) and double continuous (LM32) centre lines from the no-overtaking zones, LM24 on narrow roads, LM26/LM27 edge lines, studs at 6, 9 and 12 m. The passing sight distance is the one basis for the P32 signs and the continuous line.
 - **Embankment barriers** (RDM 1.3 Chapter 12): fill height from the hinge to original ground at the toe (section ground line, else a TIN, else the daylight point), Figure 12.4 warrant, Table 12.6 run-out carried to the tangent point, 30 m minimum, gaps under 80 m closed, set-back, terminals, clear-zone findings.
@@ -56,10 +34,23 @@
 - CI (core tests, QGIS tests in the official QGIS container, Bandit), citation, contributing guide and templates.
 
 ### Changed
+- **Faster sign placement**: auto-placement and other batches of signs are written in one edit session and committed once (850 signs on a 36 km road: about 16 s down to 2 s); post numbers are counted on and the nearest post is found by a box query instead of scanning the layer.
+- **Faster DXF export**: the 8 MB sign-block library is read once per session, and the drawing extents use the sign insertion points instead of every block's geometry.
+- Fields are created through QMetaType on QGIS 3.38+ (the QVariant constructor is deprecated); the QGIS test run went from about 4,700 warnings to one (GDAL's).
+- Housekeeping: unused imports and variables removed; an unclosed file in a test.
 - The report is the **Road furniture report**; the plan sheets are road furniture plans.
 - The end of a no-overtaking zone is P32 with the END plate instead of an END legend on the P32 (the legend never showed on the face). Older projects' END legends still count as ends in the checks.
 
 ### Fixed
+- The control-at-the-road's-end check took the same road carrying on (another alignment starting where ours ends, in line) for a junction.
+- Installing from GitHub's "Download ZIP" failed (`ModuleNotFoundError`): that is the source repository; the README and guide now point to the plugin ZIP.
+- The dock needed at least 1166 x 1048 px, so its bottom buttons were out of reach on a 1080p screen, and it disappeared when a neighbouring panel was resized. Every tab now scrolls and shrinks to a 380 px panel, and the toolbar button only reacts to clicks (show, bring to front, re-dock).
+- WSCM sign artwork: no seams in the colour fills; closed frames on WSCM-I1 and I2 (drafting slips on the sheet).
+- Core tests pass flat sequences to `pytest.approx` (pytest 9).
+- The Linear tab was still wider than a 380 px dock on QGIS 3.44 (CI failure): the two group titles and two checkbox captions are shortened, with the full wording kept as the tooltip.
+- LM05 (bay separation line) is 0.2 m wide (RDM 6.1 Table 4.1); bus bays counted half its painted area.
+- The dock-width test uses a fixed font (DejaVu Sans 9), installed in the QGIS CI image, so it no longer depends on the machine's default font.
+- CI uses `actions/checkout@v5` and `actions/setup-python@v6` (Node.js 24).
 - Running auto-placement again over accepted signs duplicated chevrons and distance plates.
 - Plan sheets failed when the LandXML held a second alignment.
 
