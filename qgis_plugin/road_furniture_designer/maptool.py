@@ -371,8 +371,8 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             pl, B = J.place_bay(st.al, self.p0[1], self.p0[2], lp.x(), lp.y())
             self._params = {"bay": B}
             return pl, st.al
-        self._params = None
-        if s.get("role") == "minor":
+        self._params = dict(s["access"]) if s.get("kit") == "ACCESS" and s.get("access") else None
+        if s.get("role") == "minor" and s.get("kit") != "ACCESS":
             pl = st.junctions.placement_minor(self.p0[1], self.p0[2], lp.x(), lp.y(), major=s.get("major") or "",
                                               scale=s.get("scale", 1.0))
         else:
@@ -389,8 +389,14 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""),
                                  dict(it.get("params") or {}, **(self._params or {})), st.junctions.templates)]
         elif self._params:
-            pcs = [J.build_piece(main, pl, it["piece"], it.get("corner", ""), dict(it.get("params") or {}, **self._params),
-                                 st.junctions.templates) for it in st.junctions.templates["kits"][s["kit"]]]
+            pcs = []
+            for it in st.junctions.templates["kits"][s["kit"]]:
+                prm = dict(it.get("params") or {}, **self._params)
+                if it["piece"] == "splays":
+                    if not s.get("splays", True):
+                        continue
+                    prm.update({k: v for k, v in (s.get("splay") or {}).items() if v})
+                pcs.append(J.build_piece(main, pl, it["piece"], it.get("corner", ""), prm, st.junctions.templates))
         else:
             pcs = J.build_kit(main, pl, s["kit"], st.junctions.templates, guides=s.get("guides", True),
                               splays=s.get("splays", True), splay=s.get("splay"))

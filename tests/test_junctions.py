@@ -20,9 +20,9 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane"}.get(k, "guides")
+        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -39,7 +39,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -285,3 +285,33 @@ def test_visibility_splays():
     (lvl, text), = J.splay_findings(rec)
     assert lvl == "issue" and "Buildings feature 7" in text and "stop visibility splay up" in text
     assert any("not checked" in t for _, t in J.splay_findings(dict(pc.params, obstructions=[], checked=None)))
+
+
+def test_private_access():
+    al = Alignment.from_polyline("S", [(0, 0), (1000, 0)])
+    al.speeds = [(0.0, 80.0)]
+    pl = J.place(al, 500, 0, 500, 30)                              # square, on the left
+    pc = J.build_piece(al, pl, "access", templates=T)
+    edges = [p for p in pc.parts if p.code == "ACCESS"]
+    # RDM 1.3 Figure 9.33: 6 m returns from the road edge (3.5 m here, no corridor), formation 3 + 2 x 0.5 m,
+    # built 10 m back to the boundary, 3 m taper
+    assert sorted(round(p.pts[0][0], 2) for p in edges) == [492.0, 508.0] and all(p.pts[0][1] == pytest.approx(3.5) for p in edges)
+    assert all(p.pts[-1][1] == pytest.approx(3.5 + 13.0) for p in edges)
+    paved = [p for p in pc.parts if p.code == "ACCESS-P"]
+    assert sorted(round(p.pts[0][0], 2) for p in paved) == [498.5, 501.5]
+    assert pc.quantities["pipe_no"] == 1 and pc.quantities["pipe_m"] == 5.0 and pc.quantities["area_m2"] > 4 * 13
+    assert pc.params["notes"] == []
+    # the kit carries the stop splays only (RDM 1.3 9.11.16)
+    kit = J.build_kit(al, pl, "ACCESS", T)
+    assert [k.piece for k in kit] == ["access", "splays"] and {p.code for p in kit[1].parts} == {"SPLAY-S"}
+    # checks: narrow, tight radius, short of the boundary, class A road (Table 2.3)
+    bad = J.build_piece(al, pl, "access", params={"width": 2.5, "radius": 4.0, "length": 8.0, "road_class": "A"},
+                        templates=T)
+    lv = [lvl for lvl, _ in bad.params["notes"]]
+    assert lv.count("issue") == 1 and lv.count("check") == 3
+    assert any("Tables 2.3 and 2.4" in t for _, t in bad.params["notes"])
+    j = {"sta": 500.0, "side": "L", "kit": "ACCESS", "access": {"notes": bad.params["notes"]}, "crossing_deg": 90.0}
+    assert [c.kind for c in FR.junction_checks(al, [j])].count("access") == 4
+    # skewed access: the returns still start on the road edge
+    sk = J.build_piece(al, J.place(al, 500, 0, 520, 30), "access", templates=T)
+    assert all(p.pts[0][1] == pytest.approx(3.5) for p in sk.parts if p.code == "ACCESS")

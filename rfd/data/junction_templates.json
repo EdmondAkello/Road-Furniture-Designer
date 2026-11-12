@@ -34,6 +34,10 @@
   "CLIMB": {
    "name": "Climbing lane",
    "drawing": "RDM/1/3/3/02"
+  },
+  "ACCESS": {
+   "name": "Private access",
+   "drawing": "RDM 1.3 Figure 9.33"
   }
  },
  "codes": {
@@ -133,6 +137,21 @@
    "name": "Visibility splay, stop: always to be provided (RDM 1.3 Figure 9.12)",
    "width": 0.0,
    "colour": "red"
+  },
+  "ACCESS": {
+   "name": "Private access formation edge with 6 m returns",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "ACCESS-P": {
+   "name": "Private access paved edge (3.0 m)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "PIPE": {
+   "name": "Traversable drainage pipe across the access (indicative)",
+   "width": 0.0,
+   "colour": "blue"
   }
  },
  "pieces": {
@@ -410,7 +429,8 @@
     "A-2",
     "B",
     "B-Mod",
-    "C"
+    "C",
+    "ACCESS"
    ],
    "frame": "road",
    "kind": "splay",
@@ -419,6 +439,25 @@
     "criteria": null
    },
    "remark": "Approach (give way) triangle: 20 m back from the main road's lane edge, Table 9.7 along the main road; stop triangle: 3 m back, Table 9.8. Both sides. Keep them clear of obstructions; at least the stop splays must always be provided."
+  },
+  "access": {
+   "name": "Private access (RDM 1.3 9.11.16, Figure 9.33)",
+   "types": [
+    "ACCESS"
+   ],
+   "frame": "road",
+   "kind": "access",
+   "params": {
+    "width": 3.0,
+    "shoulder": 0.5,
+    "radius": 6.0,
+    "length": 10.0,
+    "taper": 3.0,
+    "existing": null,
+    "pipe": true,
+    "road_class": null
+   },
+   "remark": "Entry and exit radii 6 m or more for the expected turning traffic; at least 3 m wide (0.5 m shoulders as drawn); built back to the road reserve / boundary line, at least 10 m from the road edge, with a 3 m taper to match the existing access; a traversable drainage pipe as required; located to satisfy the stop-condition visibility (RDM 1.3 9.5.4, Figure 9.12; the text's 'Section 4.5' is a cross-reference slip)."
   }
  },
  "kits": {
@@ -629,6 +668,19 @@
   "CLIMB": [
    {
     "piece": "climbing_lane"
+   }
+  ],
+  "ACCESS": [
+   {
+    "piece": "access"
+   },
+   {
+    "piece": "splays",
+    "params": {
+     "kinds": [
+      "stop"
+     ]
+    }
    }
   ]
  }

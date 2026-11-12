@@ -322,6 +322,34 @@ def test_visibility_splays_against_obstruction_layers(tmp_path):
     st.remove_junction(pl.junction_id)
 
 
+def test_private_access_in_a_project(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.report import ReportData, write_xlsx
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    x, y, h = st.al.point_at(700.0)
+    pl = J.place(st.al, x, y, x - 30 * math.sin(h), y + 30 * math.cos(h))     # left of the chainage
+    n, finds, nsigns = st.add_junction(pl, "ACCESS", params={"width": 3.0, "radius": 6.0, "length": 10.0,
+                                                             "road_class": "B"}, splay={"speed": 80})
+    assert n == 2 and nsigns == 0
+    j = st.junctions.junctions()[0]
+    assert j["kit"] == "ACCESS" and j["access"]["quantities"]["pipe_no"] == 1
+    assert {r["kind"] for r in j["sight"]["splays"]} == {"stop"}
+    codes = {f["code"] for f in st.junctions.layer.getFeatures()}
+    assert {"ACCESS", "ACCESS-P", "PIPE", "SPLAY-S"} <= codes and "SPLAY-A" not in codes
+    # the returns start on the shoulder edge of the corridor when it has one, else the ETW
+    edge = next(f for f in st.junctions.layer.getFeatures() if f["code"] == "ACCESS").geometry().asMultiPolyline()[0][0]
+    off = abs(st.al.station_offset(edge.x(), edge.y()).offset)
+    assert off >= 3.5 - 1e-6
+    d = ReportData(st, AutoConfig())
+    assert any(c.kind == "access" and "class B" in c.text for c in d.fr.checks)
+    write_xlsx(str(tmp_path / "a.xlsx"), d)
+    from openpyxl import load_workbook
+    rows = list(load_workbook(tmp_path / "a.xlsx")["Junctions"].iter_rows(min_row=2, values_only=True))
+    assert {r[6] for r in rows} >= {"ACCESS", "PIPE"}
+    assert st.remove_junction(pl.junction_id) >= 4
+
+
 def test_climbing_lane_proposed_in_a_project(tmp_path):
     from road_furniture_designer.rfd.profile import VerticalProfile
     st, xml = _fill_road(tmp_path)
