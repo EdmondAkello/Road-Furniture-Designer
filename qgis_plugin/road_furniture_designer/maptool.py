@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor
-from qgis.core import (QgsCoordinateTransform, QgsGeometry, QgsPointXY, QgsProject,
-                       QgsWkbTypes)
+from qgis.core import (QgsCoordinateTransform, QgsGeometry, QgsPointXY, QgsProject)
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 
 from .compat import GEOM_LINE, GEOM_POINT
@@ -402,7 +401,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 for a in arms if a["src"] != "ours"]
 
     def place_roundabout(self):
-        st, s = self._store(), self._settings()
+        st = self._store()
         from .rfd import junctions as J
         from .rfd.alignment import format_station
         if self.p0 is None:

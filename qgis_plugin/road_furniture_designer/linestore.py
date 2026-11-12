@@ -8,11 +8,10 @@ and rebuilt whenever one of those fields changes.
 from __future__ import annotations
 
 from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
-from qgis.PyQt.QtGui import QColor
-from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFields, QgsGeometry, QgsLineSymbol,
-                       QgsPointXY, QgsRendererCategory, QgsVectorLayer)
+from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
+                       QgsRendererCategory, QgsVectorLayer)
 
-from .compat import WKB_MULTILINESTRING
+from .compat import WKB_MULTILINESTRING, make_field
 from .rfd.alignment import format_station
 from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_quantities, summarise
 
@@ -35,7 +34,7 @@ TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "width_m", "e
 def _fields():
     fs = QgsFields()
     for n, t in LINE_FIELDS:
-        fs.append(QgsField(n, t))
+        fs.append(make_field(n, t))
     return fs
 
 
@@ -61,7 +60,7 @@ class LineStore(QObject):
 
     def _migrate(self):
         have = {f.name() for f in self.layer.fields()}
-        missing = [QgsField(n, t) for n, t in LINE_FIELDS if n not in have]
+        missing = [make_field(n, t) for n, t in LINE_FIELDS if n not in have]
         if missing:
             self.layer.dataProvider().addAttributes(missing)
             self.layer.updateFields()

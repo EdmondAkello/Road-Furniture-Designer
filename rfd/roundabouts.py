@@ -11,7 +11,7 @@ on the -n side of an arm (the left of a driver heading for the centre) and leave
 circulates clockwise.
 """
 import math
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 Pt = Tuple[float, float]
 

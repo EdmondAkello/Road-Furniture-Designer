@@ -22,8 +22,9 @@ Findings are information for the designer, not a verdict.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 from .alignment import format_station
 
@@ -683,11 +684,19 @@ def end_control_checks(al, others, junctions, signs) -> List[Check]:
     for sta, towards in ((al.sta_start, "Backward"), (al.sta_end, "Forward")):
         x, y, _ = al.point_at(sta)
         hit = None
+        h = al.point_at(sta)[2]
         for o in others or []:
             so = o.station_offset(x, y)
-            if so.in_range and abs(so.offset) <= END_TOUCH:
-                hit = o
-                break
+            if not (so.in_range and abs(so.offset) <= END_TOUCH):
+                continue
+            # the same road carrying on (another alignment starting or ending here, in line): not a junction
+            at_end = min(abs(so.station - o.sta_start), abs(so.station - o.sta_end)) <= END_TOUCH
+            ho = o.point_at(min(max(so.station, o.sta_start), o.sta_end))[2]
+            in_line = abs(math.sin(ho - h)) < math.sin(math.radians(30))
+            if at_end and in_line:
+                continue
+            hit = o
+            break
         if hit is None:
             continue
         near = lambda s: abs(s - sta) <= END_CONTROL_NEAR

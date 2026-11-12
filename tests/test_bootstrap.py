@@ -2,7 +2,6 @@
 
 Seeded, so a failure is reproducible: the seed is in the assertion message."""
 import math
-import os
 import random
 
 import pytest

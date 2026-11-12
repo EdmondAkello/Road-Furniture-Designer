@@ -14,7 +14,6 @@ if QgsApplication.instance() is None:
     _app.initQgis()
 
 from qgis.gui import QgsMapCanvas  # noqa: E402
-from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow, QScrollArea  # noqa: E402
 
 

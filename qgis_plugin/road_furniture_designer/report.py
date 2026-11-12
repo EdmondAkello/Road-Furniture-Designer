@@ -22,8 +22,8 @@ import math
 import os
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
-from qgis.PyQt.QtGui import (QBrush, QColor, QFont, QFontMetrics, QImage, QPageLayout, QPageSize, QPainter,
-                             QPainterPath, QPdfWriter, QPen, QPolygonF)
+from qgis.PyQt.QtGui import (QColor, QFont, QFontMetrics, QImage, QPageLayout, QPageSize, QPainter, QPainterPath,
+                             QPdfWriter, QPen, QPolygonF)
 from qgis.PyQt.QtSvg import QSvgRenderer
 
 from .rfd.alignment import format_station

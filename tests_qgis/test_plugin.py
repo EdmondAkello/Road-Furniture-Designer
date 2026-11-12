@@ -228,10 +228,12 @@ def test_directional_legend_face(store):
                             legend="< Nakuru A104 18\n> Eldoret A104 140", road_class="A")
     f = store.signs.getFeature(fid)
     path = os.path.join(os.path.splitext(store.gpkg)[0] + "_faces", f["face_svg"])
-    svg = open(path).read()
+    with open(path, encoding="utf-8") as fh:
+        svg = fh.read()
     assert "Nakuru" in svg and "Eldoret" in svg and "#0b7a3b" in svg      # green: class A
     store.set_fields(fid, {"legend": "^ Molo 2", "road_class": "C"})
-    svg = open(path).read()
+    with open(path, encoding="utf-8") as fh:
+        svg = fh.read()
     assert "Molo" in svg and "Nakuru" not in svg and "#0b7a3b" not in svg
     rows, sl = store.summary()
     assert not [i for i in sl.issues if "legend" in i.message]

@@ -403,7 +403,6 @@ def shape_by_rule(code, cat, aspect, geom_guess):
 def add_block(doc, name, art, size=1.0, cy=0.95, mirror=False):
     """Block geometry: artwork scaled so its larger side = size, centred at (0, cy);
     post at origin, plate line along X (same convention as the placeholder blocks)."""
-    from ezdxf.colors import rgb2int
     b = art["box"]
     s = size / max(b.width, b.height)
     cx0, cy0 = (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2

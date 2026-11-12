@@ -75,13 +75,26 @@ def _georef_header(doc, crs, source, alignment_name):
     return label
 
 
+_LIBRARY_CACHE = {}
+
+
+def _library(path):
+    """The block library, read once per session (it is 8 MB; the importer only reads from it)."""
+    key = (os.path.abspath(path), os.path.getmtime(path))
+    doc = _LIBRARY_CACHE.get(key)
+    if doc is None:
+        _LIBRARY_CACHE.clear()
+        doc = _LIBRARY_CACHE[key] = ezdxf.readfile(path)
+    return doc
+
+
 def import_blocks(doc, names, library=BLOCK_LIBRARY):
     """Copy the named sign blocks from the library into doc; returns names not found."""
     from ezdxf.addons import importer
     names = [n for n in set(names) if n not in doc.blocks]
     if not names:
         return []
-    src = ezdxf.readfile(library)
+    src = _library(library)
     have = [n for n in names if n in src.blocks]
     imp = importer.Importer(src, doc)
     imp.import_blocks(have)
@@ -362,7 +375,9 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
         write_junctions(doc, msp, junctions)
     try:
         from ezdxf import bbox
-        ext = bbox.extents(msp)
+        # the drawn lines, and the sign blocks by their insertion points (recursing into every block is slow)
+        ext = bbox.extents((e for e in msp if e.dxftype() != "INSERT"), fast=True)
+        ext.extend(e.dxf.insert for e in msp if e.dxftype() == "INSERT")
         if ext.has_data:
             msp.reset_extents(ext.extmin, ext.extmax)          # sets $EXTMIN/$EXTMAX for Zoom Extents
             doc.header["$EXTMIN"], doc.header["$EXTMAX"] = ext.extmin, ext.extmax

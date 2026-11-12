@@ -131,7 +131,7 @@ def test_cli_blocks_on_errors(setup):
 
 def test_roundtrip_move_in_drawing(setup):
     """Place -> move/rotate one block in the 'drawing' -> read back -> reconcile."""
-    import ezdxf, math
+    import ezdxf
     from rfd.dxf_out import readback_dxf
     from rfd.reconcile import reconcile
     tmp, xml, xl, cat = setup

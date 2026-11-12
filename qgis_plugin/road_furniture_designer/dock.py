@@ -10,13 +10,13 @@ from qgis.PyQt.QtWidgets import (
     QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QTabWidget, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget)
-from qgis.core import Qgis, QgsCoordinateReferenceSystem, QgsProject
+from qgis.core import QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceJunctionTool, PlaceSignTool
-from .rfd.alignment import alignment_names, format_station, parse_landxml
+from .rfd.alignment import alignment_names, format_station
 from .rfd.legend import SCHEMES, summary as legend_summary
-from .store import SVG_DIR, SignStore
+from .store import SignStore
 
 SETTINGS_KEY = "road_furniture_designer/last_project"
 

@@ -31,7 +31,7 @@ median barriers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from . import criteria as _crit
 from . import terrain as _ter

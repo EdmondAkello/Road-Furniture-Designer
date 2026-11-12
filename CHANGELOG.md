@@ -23,7 +23,14 @@
 - User guide: Junctions tab, supplementary signs, installing from the plugin ZIP; minor-road junctions, bus bays, climbing lanes, the Widenings table and crossing extent and refuges (section 16 renamed "Junctions, bus bays and climbing lanes").
 - Crossings: a refuge on a crossing of 10.5 m or less is flagged as not needed, with the lane widths it leaves (on a single carriageway it only narrows the lanes).
 
+### Changed
+- **Faster sign placement**: auto-placement and other batches of signs are written in one edit session and committed once (850 signs on a 36 km road: about 16 s down to 2 s); post numbers are counted on and the nearest post is found by a box query instead of scanning the layer.
+- **Faster DXF export**: the 8 MB sign-block library is read once per session, and the drawing extents use the sign insertion points instead of every block's geometry.
+- Fields are created through QMetaType on QGIS 3.38+ (the QVariant constructor is deprecated); the QGIS test run went from about 4,700 warnings to one (GDAL's).
+- Housekeeping: unused imports and variables removed; an unclosed file in a test.
+
 ### Fixed
+- The control-at-the-road's-end check took the same road carrying on (another alignment starting where ours ends, in line) for a junction.
 - Installing from GitHub's "Download ZIP" failed (`ModuleNotFoundError`): that is the source repository; the README and guide now point to the plugin ZIP.
 - The dock needed at least 1166 x 1048 px, so its bottom buttons were out of reach on a 1080p screen, and it disappeared when a neighbouring panel was resized. Every tab now scrolls and shrinks to a 380 px panel, and the toolbar button only reacts to clicks (show, bring to front, re-dock).
 - WSCM sign artwork: no seams in the colour fills; closed frames on WSCM-I1 and I2 (drafting slips on the sheet).

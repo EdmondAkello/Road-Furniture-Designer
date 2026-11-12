@@ -13,10 +13,10 @@ import math
 import uuid as _uuid
 
 from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
-from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsField, QgsFields, QgsGeometry, QgsLineSymbol,
-                       QgsPointXY, QgsRendererCategory, QgsVectorLayer)
+from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
+                       QgsRendererCategory, QgsVectorLayer)
 
-from .compat import WKB_MULTILINESTRING
+from .compat import WKB_MULTILINESTRING, make_field
 from .rfd import junctions as J
 from .rfd.alignment import format_station
 
@@ -53,7 +53,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
 def _fields():
     fs = QgsFields()
     for n, t in FIELDS:
-        fs.append(QgsField(n, t))
+        fs.append(make_field(n, t))
     return fs
 
 
@@ -73,7 +73,7 @@ class JunctionStore(QObject):
             del w
             self.layer = QgsVectorLayer(f"{gpkg}|layername={LAYER}", "RFD junctions", "ogr")
         have = {f.name() for f in self.layer.fields()}
-        missing = [QgsField(n, t) for n, t in FIELDS if n not in have]
+        missing = [make_field(n, t) for n, t in FIELDS if n not in have]
         if missing:
             self.layer.dataProvider().addAttributes(missing)
             self.layer.updateFields()

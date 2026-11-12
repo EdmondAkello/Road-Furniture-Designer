@@ -95,7 +95,6 @@ def test_corner_islands_follow_the_skew_and_stay_clear_of_the_kerb_return():
     al = straight()
     for ang in (90, 75):
         pl = at(al, ang)
-        F = pl.frame(al)
         ci = J.build_piece(al, pl, "corner_island", "left_turn", templates=T)
         # kerb return of the A-2 guides (30 m fillet): the island lies outside the fillet circle, on the paved side
         g = J.build_piece(al, pl, "guides", params={"return_radius": 30.0}, templates=T)
@@ -425,3 +424,11 @@ def test_bay_visibility_over_a_crest():
     assert "bay_visibility" not in kinds()                          # flat: seen from the SSD
     al.profile = VerticalProfile("P", [(0, 100, 0), (150, 106, 30), (400, 98.5, 0)])
     assert "bay_visibility" in kinds()                              # a sharp crest just before it
+
+
+def test_continuation_is_not_a_junction():
+    ours = Alignment.from_polyline("OURS", [(0, 0), (300, 0)])
+    onward = Alignment.from_polyline("ONWARD", [(300, 2), (900, 30)])           # the same road carrying on
+    assert FR.end_control_checks(ours, [onward], [], []) == []
+    branch = Alignment.from_polyline("BRANCH", [(300, 0), (300, 400)])          # starts here but at 90 deg
+    assert len(FR.end_control_checks(ours, [branch], [], [])) == 1

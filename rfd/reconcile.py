@@ -6,7 +6,6 @@ alignment used to build the sign list, so chainage/offset stay consistent.
 from __future__ import annotations
 
 import json
-import math
 import shutil
 from dataclasses import dataclass
 from typing import List
