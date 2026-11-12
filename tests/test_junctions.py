@@ -479,3 +479,39 @@ def test_continuation_is_not_a_junction():
     assert FR.end_control_checks(ours, [onward], [], []) == []
     branch = Alignment.from_polyline("BRANCH", [(300, 0), (300, 400)])          # starts here but at 90 deg
     assert len(FR.end_control_checks(ours, [branch], [], [])) == 1
+
+
+def test_junction_ahead_warnings():
+    """RDM 6.2 4.2: W2 / W1 / W5 on our road as the main road, W12 / W11 where it meets a greater road."""
+    al = Alignment.from_polyline("M", [(0, 0), (2000, 0)])
+    JA = J.JunctionAt
+    out = J.junction_warnings(al, [JA("a", "main", 500, "L", kit="B"), JA("b", "main", 505, "R", kit="C"),
+                                   JA("c", "main", 1200, "L", kit="B"), JA("d", "main", 1240, "R", kit="B"),
+                                   JA("e", "main", 300, "R", kit="ACCESS"),             # accesses: no warning
+                                   JA("m", "minor", 1900, up=False), JA("x", "minor", 50, up=True, crossing=True)])
+    got = sorted((p.code, round(p.station), p.facing, p.mirror) for p in out)
+    a = 140                                                     # 80 km/h: 6 s of travel, rounded up to 10 m
+    assert got == sorted([("W1", 500 - a, "Forward", False), ("W1", 505 + a, "Backward", False),
+                          ("W5", 1200 - a, "Forward", False),       # first side road on the left, as drawn
+                          ("W5", 1240 + a, "Backward", False),      # backward traffic meets d first, on its left
+                          ("W12", 1900 - a, "Forward", False), ("W11", 50 + a, "Backward", False)])
+    lone = J.junction_warnings(al, [JA("s", "main", 800, "R", kit="C")])
+    assert sorted((p.facing, p.mirror) for p in lone) == [("Backward", True), ("Forward", False)]
+
+
+def test_turn_and_approach_arrows():
+    """RDM 6.1 6.4.3: AM03 in the right-turn lane of a ghost island kit, AM06 / AM07 on the minor approach."""
+    al = straight()                                            # main road east along x, minor road to the north
+    pcs = {p.piece: p for p in J.build_kit(al, at(al, 90), "A-1", templates=T)}
+    turn = pcs["turn_arrow"]
+    assert turn.quantities["AM03_no"] == 2 and turn.quantities["paint_m2"] > 1.0
+    xs = [x for p in turn.parts for x, _ in p.pts]
+    assert min(xs) > 200                                       # on the westbound right-turners' approach (east)
+    assert max(y for p in turn.parts for _, y in p.pts) > 1.0  # the head turns north, into the minor road
+    app = pcs["approach_arrows"]
+    assert {p.code for p in app.parts} == {"AM06"}
+    assert all(x > 200 and y > 3.5 for p in app.parts for x, y in p.pts)   # southbound lane, on the minor road
+    cross = J.build_piece(al, at(al, 90), "approach_arrows", params={"crossroads": True}, templates=T)
+    assert {p.code for p in cross.parts} == {"AM07"} and len(cross.parts) == 3
+    assert J.arrow_length(50) == 3.5 and J.arrow_length(80) == 5.0 and J.arrow_length(120) == 9.0
+    assert "turn_arrow" not in {p.piece for p in J.build_kit(al, at(al, 90), "C", templates=T)}

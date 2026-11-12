@@ -514,12 +514,17 @@ def write_junctions(doc, msp, parts):
             doc.layers.add(lay, color=col)
             if code == "GUIDE" and "DASHED" in doc.linetypes:
                 doc.layers.get(lay).dxf.linetype = "DASHED"
+        fill = codes.get(code, {}).get("fill")
         for pts in lines:
             if len(pts) < 2:
                 continue
             closed = len(pts) > 2 and pts[0] == pts[-1]
             pl = msp.add_lwpolyline(pts[:-1] if closed else pts, close=closed, dxfattribs={"layer": lay})
             pl.set_xdata(APPID, [(1000, "rsd-junction/0.1"), (1000, code), (1040, float(sta or 0.0))])
+            if fill and closed:                             # arrows: solid filled, as painted
+                h = msp.add_hatch(dxfattribs={"layer": lay})
+                h.set_solid_fill()
+                h.paths.add_polyline_path(pts[:-1], is_closed=True)
 
 
 def _dash_linetype(doc, mark: float, gap: float) -> str:

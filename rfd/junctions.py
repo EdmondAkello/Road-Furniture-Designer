@@ -379,6 +379,60 @@ def densify(pts: Sequence[Pt], step: float, closed=False) -> List[Pt]:
     return out
 
 
+# --------------------------------------------------------------------------- arrow markings
+def arrow_length(speed: float) -> float:
+    """Lane indication arrow length for the approach speed (RDM 6.1 Table 6.1)."""
+    return 3.5 if speed <= 50 else 5.0 if speed <= 100 else 9.0
+
+
+def _offset_line(pts, d):
+    """A polyline offset by d to its left, mitred at the bends."""
+    out = []
+    for i, p in enumerate(pts):
+        normals = []
+        for a, b in ((pts[i - 1], p) if i > 0 else (None, None), (p, pts[i + 1]) if i < len(pts) - 1 else (None, None)):
+            if a is None:
+                continue
+            L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            normals.append((-(b[1] - a[1]) / L, (b[0] - a[0]) / L))
+        nx, ny = (normals[0][0] + normals[-1][0]) / 2, (normals[0][1] + normals[-1][1]) / 2
+        k = nx * normals[0][0] + ny * normals[0][1] or 1.0
+        out.append((p[0] + d * nx / k, p[1] + d * ny / k))
+    return out
+
+
+def _arrow_outline(axis, half_stem, head_len, half_head) -> List[Pt]:
+    """Closed outline of an arrow along the polyline axis (tail first), with a triangular head at the end."""
+    ax = list(axis)
+    (x1, y1), (x0, y0) = ax[-1], ax[-2]
+    L = math.hypot(x1 - x0, y1 - y0)
+    u = ((x1 - x0) / L, (y1 - y0) / L)
+    n = (-u[1], u[0])
+    base = (x1 - head_len * u[0], y1 - head_len * u[1])
+    shaft = ax[:-1] + [base]
+    left, right = _offset_line(shaft, half_stem), _offset_line(shaft, -half_stem)
+    head = [(base[0] + half_head * n[0], base[1] + half_head * n[1]), (x1, y1),
+            (base[0] - half_head * n[0], base[1] - half_head * n[1])]
+    return left + head + right[::-1]
+
+
+def arrow_shapes(kind: str, L: float) -> List[List[Pt]]:
+    """Arrow markings (RDM 6.1 Table A.5, Figure 6.3) as closed outlines in a local frame: the axis along +x
+    from the tail at x = 0 to the tip at x = L; a turning branch leaves at 45 deg towards +y ('turn'), -y,
+    or both. kind: straight (AM01), turn (AM03 / AM02 by side), both_turns (AM06), all (AM07)."""
+    k = L / 3.5
+    hs, hl = 0.075 * k, 1.0 * k                         # 150 mm stem, 1.0 m head at 3.5 m
+    bend = 0.55 * L
+    c, sn = math.cos(math.radians(45)), math.sin(math.radians(45))
+    branch = lambda sg: [(0.0, 0.0), (bend, 0.0), (bend + 0.45 * L * c, sg * 0.45 * L * sn)]
+    turn = lambda sg, from_bend: _arrow_outline(branch(sg)[1 if from_bend else 0:], hs, hl * 0.85, 0.35 * k)
+    straight = lambda w: _arrow_outline([(0.0, 0.0), (L, 0.0)], hs, hl, w * k)
+    return {"straight": lambda: [straight(0.25)],
+            "turn": lambda: [turn(1, False)],
+            "both_turns": lambda: [turn(1, False), turn(-1, True)],
+            "all": lambda: [straight(0.3), turn(1, True), turn(-1, True)]}[kind]()
+
+
 # --------------------------------------------------------------------------- pieces
 @dataclass
 class Part:
@@ -474,6 +528,23 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         vc = -P.get("inner", 0.0) - lane / 2
         tri = [(apex, vc), (apex + L, vc - b / 2), (apex + L, vc + b / 2)]
         loc.append(("BM07", tri, True, fr))
+    elif piece == "turn_arrow":
+        # right-turn arrows in the right-turn lane: the right-turners come from -X towards the junction and
+        # turn towards +Y (the minor road); RDM 6.1 6.4.2-6.4.3
+        L = P.get("length") or arrow_length(al.speed_at(pl.station) or 80.0)
+        for i in range(int(P.get("count", 2))):
+            tip = P["at"] - i * P["spacing"]
+            for poly in arrow_shapes("turn", L):
+                loc.append(("AM03", [(tip - L + x, P["y"] + y) for x, y in poly], True, fr))
+    elif piece == "approach_arrows":
+        # on the minor road's approach lane, pointing at the main road (RDM 6.1 6.4.3: "on a side road
+        # approach to a main road, arrows are marked on the side road"): AM06 at a T, AM07 at a crossroads
+        L = P.get("length") or 5.0
+        kind, code = ("all", "AM07") if P.get("crossroads") else ("both_turns", "AM06")
+        vc = -P.get("inner", 0.0) - P["lane"] / 2
+        for poly in arrow_shapes(kind, L):
+            # local x (tail -> tip) runs down the minor road towards the main road (-u)
+            loc.append((code, [(P["at"] + L - x, vc - y) for x, y in poly], True, fr))
     elif piece == "minor_centre_line":
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
@@ -502,7 +573,10 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
             world = [F.minor(u, v) for u, v in pts]
             closed_w = closed
         parts.append(Part(code, world, closed_w))
-        if code not in ("KERB", "GUIDE"):
+        if codes[code].get("fill"):                      # arrows: the painted area of the outline
+            q[f"{code}_no"] = q.get(f"{code}_no", 0) + 1
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + area(world), 3)
+        elif code not in ("KERB", "GUIDE"):
             ln = length(world, closed_w)
             q[f"{code}_m"] = round(q.get(f"{code}_m", 0.0) + ln, 3)
             q["paint_m2"] = round(q.get("paint_m2", 0.0) + ln * codes[code]["width"], 3)
@@ -1090,3 +1164,78 @@ def findings(al, pl: Placement) -> List[Tuple[str, str]]:
 def skew_degrees(al, pl: Placement) -> float:
     """Departure from square, degrees (0 = square, positive when the minor road leans along the chainage)."""
     return round(90.0 - pl.frame(al).angle, 1)
+
+
+# --------------------------------------------------------------------------- junction warning signs
+JUNCTION_KITS = ("A-1", "A-2", "B", "B-Mod", "C")
+WARN_CODES = ("W1", "W2", "W5", "W11", "W12")
+CROSS_TOL = 10.0                    # m: side roads on opposite sides closer than this make a crossroads
+STAGGER = 60.0                      # m: RDM 6.2 4.2.1 - staggered crossroads sign where junctions are this close
+
+
+@dataclass
+class JunctionAt:
+    """What the warning signs need to know of a placed junction (see JunctionStore.warning_inputs)."""
+    id: str
+    role: str                       # main: a side road on our road; minor: our road meets a greater road
+    station: float                  # on our road
+    side: str = "L"                 # main role: side of the side road (L / R of the chainage direction)
+    up: bool = True                 # minor role: our leg runs towards higher chainage from the junction
+    crossing: bool = False          # minor role: our road crosses the main road (crossroads)
+    kit: str = ""
+
+
+def junction_warnings(al, junctions: Sequence[JunctionAt], speed=None) -> List["object"]:
+    """Junction Ahead warning signs (RDM 6.2 4.2) for the junctions on our road, as autoplace Proposals
+    with the rule junction:<id>:
+
+    - our road is the main road (4.2.1): W2 Side Road for a side road (mirrored for one on the traveller's
+      left), W1 Crossroads where side roads leave on both sides within 10 m, W5 Staggered Crossroads where
+      they are on opposite sides within 60 m;
+    - our road meets a road of greater importance (4.2.3): W12 T Junction, or W11 Crossroads where our road
+      crosses it, on our approach.
+    Each sign stands the RDM 6.2 2.4 advance distance before the junction, on the left of the traffic."""
+    from .autoplace import Proposal, advance_distance
+    out = []
+    v_at = speed or (lambda s: al.speed_at(s) or 80.0)
+    main = sorted([j for j in junctions if j.role == "main" and j.kit in JUNCTION_KITS], key=lambda j: j.station)
+    for d in (1, -1):                                       # 1: traffic in the chainage direction
+        seq = main if d > 0 else main[::-1]
+        used = set()
+        for i, j in enumerate(seq):
+            if j.id in used:
+                continue
+            nxt = next((k for k in seq[i + 1:] if abs(k.station - j.station) <= STAGGER), None)
+            group = [j]
+            if nxt is not None and nxt.side != j.side:
+                group.append(nxt)
+            used.update(k.id for k in group)
+            # side as the traveller sees it: L of the chainage direction is the left of forward traffic
+            left = (j.side == "L") == (d > 0)
+            if len(group) == 2 and abs(group[1].station - j.station) <= CROSS_TOL:
+                code, mirror, what = "W1", False, "Crossroads"
+            elif len(group) == 2:
+                code, mirror, what = "W5", not left, "Staggered crossroads (first side road on the " \
+                                                     f"{'left' if left else 'right'})"
+            else:
+                code, mirror, what = "W2", left, f"Side road on the {'left' if left else 'right'}"
+            sta0 = j.station
+            a = advance_distance(v_at(sta0))
+            s = sta0 - d * a
+            if not (al.sta_start <= s <= al.sta_end):
+                continue
+            out.append(Proposal(code, s, "L" if d > 0 else "R", "Forward" if d > 0 else "Backward",
+                                f"junction:{j.id}", f"{what} {a:.0f} m ahead (RDM 6.2 4.2.1)", mirror))
+    for j in junctions:
+        if j.role != "minor":
+            continue
+        a = advance_distance(v_at(j.station))
+        # traffic heading for the main road travels against the leg's direction
+        s = j.station + a if j.up else j.station - a
+        if not (al.sta_start <= s <= al.sta_end):
+            continue
+        code, what = ("W11", "Crossroads with a road of greater importance") if j.crossing else \
+            ("W12", "T junction with a road of greater importance")
+        out.append(Proposal(code, s, "R" if j.up else "L", "Backward" if j.up else "Forward",
+                            f"junction:{j.id}", f"{what} {a:.0f} m ahead (RDM 6.2 4.2.3)"))
+    return out

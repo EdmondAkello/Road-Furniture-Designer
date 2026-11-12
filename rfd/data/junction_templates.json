@@ -175,6 +175,24 @@
     0.6,
     0.3
    ]
+  },
+  "AM03": {
+   "name": "Right arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "AM06": {
+   "name": "Right and left arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "AM07": {
+   "name": "Straight, right and left arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
   }
  },
  "pieces": {
@@ -505,6 +523,43 @@
     "criteria": null
    },
    "remark": "Centre on our road; arms where our road and other alignments cross the inscribed circle, plus clicked arms. Central island, outer kerb with entry / exit returns, kerbed splitter islands with hatched lead-ins, TM07 give way and BM07 triangle 2.5 m back on each entry, TM04 across each exit, LM24 on the approach (RDM 6.1 Figure 7.14). Signs: W17 on our approaches, R2 at each entry, M5 on each splitter nose, a W24 chevron on the central island facing each entry."
+  },
+  "turn_arrow": {
+   "name": "Right-turn arrows in the right-turn lane (RDM 6.1 6.4.3)",
+   "types": [
+    "A-1",
+    "B-Mod"
+   ],
+   "frame": "main",
+   "kind": "marking",
+   "params": {
+    "at": -6.0,
+    "spacing": 30.0,
+    "count": 2,
+    "y": 0.0,
+    "length": null
+   },
+   "remark": "Two AM03 arrows in the right-turn lane, the first 6 m before the junction point, 30 m apart; length from RDM 6.1 Table 6.1 at the main road's speed. Move them to the lane the junction design gives."
+  },
+  "approach_arrows": {
+   "name": "Arrows on the minor road's approach (RDM 6.1 6.4.3)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "marking",
+   "params": {
+    "at": 10.0,
+    "lane": 3.5,
+    "inner": 0.0,
+    "length": 5.0,
+    "crossroads": false
+   },
+   "remark": "AM06 (right and left) on the approach lane, its tip 10 m from the main road's edge; AM07 at a crossroads."
   }
  },
  "kits": {
@@ -518,6 +573,9 @@
    },
    {
     "piece": "ghost_island"
+   },
+   {
+    "piece": "turn_arrow"
    },
    {
     "piece": "splitter_a1"
@@ -546,6 +604,12 @@
     "piece": "minor_centre_line",
     "params": {
      "start": 30.0
+    }
+   },
+   {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.5
     }
    },
    {
@@ -590,6 +654,12 @@
     }
    },
    {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 2.0
+    }
+   },
+   {
     "piece": "splays"
    }
   ],
@@ -627,6 +697,12 @@
     }
    },
    {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
     "piece": "splays"
    }
   ],
@@ -643,6 +719,12 @@
    },
    {
     "piece": "ghost_wedge"
+   },
+   {
+    "piece": "turn_arrow",
+    "params": {
+     "y": -1.5
+    }
    },
    {
     "piece": "splitter_teardrop"
@@ -663,6 +745,12 @@
     "piece": "minor_centre_line",
     "params": {
      "start": 22.0
+    }
+   },
+   {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
     }
    },
    {
@@ -696,6 +784,12 @@
     "piece": "minor_centre_line",
     "params": {
      "start": 22.0
+    }
+   },
+   {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
     }
    },
    {

@@ -976,6 +976,8 @@ class SignStore(QObject):
             self.trim_for_roundabouts()
         if pl.role == "bay":
             self.trim_for_widenings()
+        if kit in J.JUNCTION_KITS and not piece:
+            signs += self.refresh_junction_warnings()
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -1023,6 +1025,19 @@ class SignStore(QObject):
             n += self.lines.trim(lo - centre, hi + centre, centre=True, sides=False)
             n += self.lines.trim(lo - p["flare"], hi + p["flare"], centre=False, sides=True)
         return n
+
+    def refresh_junction_warnings(self, auto=None):
+        """Re-propose the Junction Ahead warning signs (RDM 6.2 4.2) for all junction kits together, so a
+        second side road opposite or within 60 m turns the W2s into W1 / W5. Proposed ones are replaced;
+        a sign the designer accepted is kept and not proposed again. Returns the signs proposed."""
+        from .rfd import junctions as J
+        old = [f for f in self.signs.getFeatures()
+               if f["sign_code"] in J.WARN_CODES and (f["rule"] or "").startswith("junction:")]
+        self._delete_signs([f.id() for f in old if f["status"] == "proposed"])
+        kept = {(f["rule"], f["sign_code"], f["facing"]) for f in old if f["status"] != "proposed"}
+        props = [p for p in J.junction_warnings(self.al, self.junctions.warning_inputs())
+                 if (p.rule, p.code, p.facing) not in kept]
+        return self.place_proposals(props, auto) if props else 0
 
     def trim_for_widenings(self):
         """Where a bus bay, truck parking bay or climbing lane widens the road, its own lines take over from
@@ -1112,7 +1127,9 @@ class SignStore(QObject):
                 self.signs.dataProvider().deleteFeatures(ids)
                 self.signs.reload()
             self.signs.triggerRepaint()
-        return self.junctions.remove(junction_id) + len(ids)
+        n = self.junctions.remove(junction_id) + len(ids)
+        self.refresh_junction_warnings()
+        return n
 
     def other_alignments(self):
         """The LandXML's other alignments (side roads, link roads) for reference in drawings and sheets."""
