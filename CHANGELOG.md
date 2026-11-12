@@ -20,6 +20,8 @@
 - The dock needed at least 1166 x 1048 px, so its bottom buttons were out of reach on a 1080p screen, and it disappeared when a neighbouring panel was resized. Every tab now scrolls and shrinks to a 380 px panel, and the toolbar button only reacts to clicks (show, bring to front, re-dock).
 - WSCM sign artwork: no seams in the colour fills; closed frames on WSCM-I1 and I2 (drafting slips on the sheet).
 - Core tests pass flat sequences to `pytest.approx` (pytest 9).
+- The Linear tab was still wider than a 380 px dock on QGIS 3.44 (CI failure): the two group titles and two checkbox captions are shortened, with the full wording kept as the tooltip.
+- CI uses `actions/checkout@v5` and `actions/setup-python@v6` (Node.js 24).
 
 ## 0.8.0 — 2026-11-11
 
