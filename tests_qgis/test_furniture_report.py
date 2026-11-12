@@ -489,12 +489,23 @@ def test_climbing_lane_proposed_in_a_project(tmp_path):
     st, xml = _fill_road(tmp_path)
     L = st.al.sta_end
     st.al.profile = VerticalProfile("P", [(0, 100, 0), (100, 100, 60), (L - 100, 100 + 0.07 * (L - 200), 60), (L, 100 + 0.07 * (L - 200), 0)])
+    from road_furniture_designer.rfd.markings import MarkingConfig
+    st.lines.auto_propose_markings(MarkingConfig(road_class="B"))
+    edges = lambda side: [(f["sta_from"], f["sta_to"]) for f in st.lines.layer.getFeatures()
+                          if f["item_code"] in ("LM26", "LM27") and f["side"] == side]
+    assert edges("L") and edges("R")
     n, notes = st.propose_climbing_lanes(aadt=7000)
     assert n == 1 and "required" in notes[0]
     j = st.junctions.junctions()[0]
     assert j["bay"]["kind"] == "climbing lane" and j["bay"]["side"] == "L" and j["widen_m2"] > 1000
     codes = sorted(f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{j['id']}")
     assert codes == ["WSCM-I1", "WSCM-I2"]
+    # our road's edge line on the lane's side stops at the tapers; the other side is untouched
+    s0, s3 = sorted((j["bay"]["stations"][0], j["bay"]["stations"][3]))
+    s3 = min(s3, st.al.sta_end)
+    assert all(b <= s0 + 1e-6 or a >= s3 - 1e-6 for a, b in edges("L"))
+    covered = sum(max(0.0, min(b, s3) - max(a, s0)) for a, b in edges("R"))
+    assert covered > 0.95 * (s3 - s0)
     # trial fix: the lane draws its widened edge and lines, and every code has a symbol on the map
     drawn = {f["code"] for f in st.junctions.layer.getFeatures() if f["junction_id"] == j["id"]}
     assert drawn == {"BAYEDGE", "LM26", "LM03"}

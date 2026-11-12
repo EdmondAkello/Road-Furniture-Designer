@@ -356,7 +356,16 @@
   {
    "code": "TABLE",
    "category": "Traffic calming",
-   "name": "Speed table / raised crossing (1.7 + 5.0 + 1.7 m, 100 mm)",
+   "name": "Speed table (1.7 + 5.0 + 1.7 m, 100 mm)",
+   "colour": "black",
+   "unit": "No.",
+   "transverse": true,
+   "ref": "RDM 6.4 2.5, Figure 2.4"
+  },
+  {
+   "code": "TABLE-X",
+   "category": "Traffic calming",
+   "name": "Raised pedestrian crossing (speed table 1.7 + 5.0 + 1.7 m, 100 mm)",
    "colour": "black",
    "unit": "No.",
    "transverse": true,

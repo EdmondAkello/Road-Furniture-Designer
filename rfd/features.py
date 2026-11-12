@@ -256,9 +256,9 @@ def design_feature(al, kind: str, station: float, cfg: FeatureConfig = None, gro
             t = cfg.table("speed_table")
             foot = 2 * t["ramp"] + t["flat"]
             what = "raised crossing" if kind == "raised_crossing" else "speed table"
-            detail = (f"speed table {t['ramp']} + {t['flat']} + {t['ramp']} m, {t['rise_mm']} mm "
+            detail = (f"{what} {t['ramp']} + {t['flat']} + {t['ramp']} m, {t['rise_mm']} mm "
                       f"({cfg.ref('speed_table')})")
-            code = "TABLE"
+            code = "TABLE-X" if kind == "raised_crossing" else "TABLE"
         a, b = station - foot / 2, station + foot / 2
         run(code, a, b, detail[0].upper() + detail[1:])
         if code != "BUMP":

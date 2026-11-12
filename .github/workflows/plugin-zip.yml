@@ -33,7 +33,7 @@ jobs:
           python tools/build_plugin.py "$z"
           python tools/check_plugin_zip.py "$z"
           echo "zip=$z" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: road_furniture_designer-plugin
           path: ${{ steps.build.outputs.zip }}
@@ -49,7 +49,7 @@ jobs:
       QGIS_PREFIX_PATH: /usr
       PYTHONPATH: /usr/share/qgis/python
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           name: road_furniture_designer-plugin
       - name: Unpack into a clean plugins folder and import the plugin
@@ -83,7 +83,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           name: road_furniture_designer-plugin
       - name: Create or update the release

@@ -37,8 +37,9 @@ CURVE_WARNINGS = {"W19", "W20", "W21", "W22"}
 SERIES = {"W24-a"}                              # chevrons: their own spacing (RDM 6.2 Table 4.2)
 PLATES = {"W23", "END"}                     # supplementary plates: on the post of the sign they qualify
 CROSSING_CODES = {"BM01", "BM02", "BM03"}
-FEATURE_MAIN = ("HUMP-C", "HUMP-T", "TABLE", "BUMP", "BM01", "BM02", "BM03", "BAR-SET")
-KIND_OF = {"HUMP-C": "hump_circular", "HUMP-T": "hump_trapezoidal", "BUMP": "speed_bump", "TABLE": "speed_table"}
+FEATURE_MAIN = ("HUMP-C", "HUMP-T", "TABLE-X", "TABLE", "BUMP", "BM01", "BM02", "BM03", "BAR-SET")
+KIND_OF = {"HUMP-C": "hump_circular", "HUMP-T": "hump_trapezoidal", "BUMP": "speed_bump", "TABLE": "speed_table",
+           "TABLE-X": "raised_crossing"}
 TOL = 5.0                                       # m: gaps shorter than this are not reported
 
 
@@ -190,7 +191,7 @@ def feature_groups(runs, signs, al=None) -> List[dict]:
         codes = [r.code for r in g["runs"]]
         main = next((c for c in FEATURE_MAIN if c in codes), codes[0])
         mr = [r for r in g["runs"] if r.code == main]
-        if main == "TABLE" and any(c in CROSSING_CODES for c in codes):
+        if main == "TABLE" and any(c in CROSSING_CODES for c in codes):     # raised crossings before 0.9
             kind = "raised_crossing"
         elif main in CROSSING_CODES:
             kind = "crossing"
