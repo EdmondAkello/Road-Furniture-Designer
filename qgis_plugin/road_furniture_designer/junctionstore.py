@@ -266,6 +266,42 @@ class JunctionStore(QObject):
             self._rebuild(f["piece_uuid"], {name: value})
             self.changed.emit()
 
+    def piece_at(self, x, y, tol=5.0):
+        """(piece_uuid, junction_id, role) of the placed piece nearest the point, within tol m; None if none."""
+        from qgis.core import QgsFeatureRequest, QgsRectangle
+        pt = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+        best = None
+        for f in self.layer.getFeatures(QgsFeatureRequest().setFilterRect(QgsRectangle(x - tol, y - tol, x + tol, y + tol))):
+            if f["code"] in self.FOOTPRINT_SKIP:
+                continue
+            d = f.geometry().distance(pt)
+            if d <= tol and (best is None or d < best[0]):
+                best = (d, f["piece_uuid"], f["junction_id"], f["role"] or "main")
+        return best[1:] if best else None
+
+    def move(self, piece_uuid, delta, whole=False):
+        """Move a placed piece (or, whole=True, every piece of its junction) delta m along the road it is
+        placed on, rebuilding it from its template. A junction where our road joins another road moves piece
+        by piece only (its point on our road is fixed). Returns the pieces moved."""
+        group = self._group(piece_uuid)
+        if not group:
+            return 0
+        f0 = group[0]
+        role = f0["role"] or "main"
+        uuids = [piece_uuid]
+        if whole:
+            if role == "minor":
+                raise ValueError("A junction on another road moves piece by piece: its point on our road is fixed")
+            uuids = sorted({f["piece_uuid"] for f in self.layer.getFeatures() if f["junction_id"] == f0["junction_id"]})
+        n = 0
+        for pu in uuids:
+            g = self._group(pu)
+            if g and self._rebuild(pu, {"sta": float(g[0]["sta"]) + delta}):
+                n += 1
+        self.layer.triggerRepaint()
+        self.changed.emit()
+        return n
+
     def set_scale(self, junction_id, scale):
         """Rescale every piece of a junction about its junction point."""
         for pu in {f["piece_uuid"] for f in self.layer.getFeatures() if f["junction_id"] == junction_id}:
