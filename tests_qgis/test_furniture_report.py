@@ -149,12 +149,12 @@ def test_junction_templates_in_a_project(tmp_path):
     up = lambda ang, side=1: (x0 + 30 * math.cos(h + side * math.radians(ang)),
                               y0 + 30 * math.sin(h + side * math.radians(ang)))
     n, finds = st.junctions.place(x0, y0, *up(90), kit="A-2")
-    assert n == 8 and finds == []                               # 7 pieces + splays
+    assert n == 9 and finds == []                               # 7 pieces + approach arrows + splays
     n, finds = st.junctions.place(*st.al.point_at(st.al.sta_end - 300.0)[:2],
                                   *(lambda x, y, hh: (x + 30 * math.cos(hh - math.radians(70)),
                                                       y + 30 * math.sin(hh - math.radians(70))))(*st.al.point_at(st.al.sta_end - 300.0)),
                                   kit="C", guides=False)
-    assert n == 5 and [l for l, _ in finds] == ["check"]        # 4 pieces + splays
+    assert n == 6 and [l for l, _ in finds] == ["check"]        # 4 pieces + approach arrows + splays
     js = st.junctions.junctions()
     assert [j["kit"] for j in js] == ["A-2", "C"]
     a2 = js[0]
@@ -204,9 +204,11 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     x0, y0, h = st.al.point_at(s_end)
     pl = st.junctions.placement_minor(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
     n, finds, nsigns = st.add_junction(pl, "B")
-    assert n == 7 and nsigns == 1                              # 6 pieces + splays
-    r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
-    assert [f["sign_code"] for f in r2] == ["R2"] and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
+    assert n == 8 and nsigns == 2                              # 6 pieces + arrows + splays; R2 and W12
+    r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}" and f["sign_code"] == "R2"]
+    assert len(r2) == 1 and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
+    w12 = [f for f in st.signs.getFeatures() if f["sign_code"] == "W12"]
+    assert len(w12) == 1 and w12[0]["facing"] == "Forward" and w12[0]["station_int"] < r2[0]["station_int"]
     j = st.junctions.junctions()[0]
     assert j["role"] == "minor" and abs(j["sta"] - s_end) < 0.5
     # re-running auto-placement keeps the junction's sign
@@ -283,6 +285,26 @@ def test_hump_bar_sets_keep_off_junctions(tmp_path):
     n, finds, _ = st.add_junction(pj, "C")
     after = sum(1 for f in st.lines.layer.getFeatures() if f["item_code"] == "BAR-SET")
     assert after < before and any("bar set" in t for _lvl, t in finds)
+
+
+def test_junction_ahead_warnings_on_our_road(tmp_path):
+    """RDM 6.2 4.2.1: W2 for a side road, W1 once a second side road leaves opposite it; a W2 the designer
+    accepted is kept; removing a junction re-proposes the rest."""
+    import math
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    nrm = lambda sg: (x0 + sg * 40 * math.cos(h + math.pi / 2), y0 + sg * 40 * math.sin(h + math.pi / 2))
+    warn = lambda: sorted((f["sign_code"], f["facing"], bool(f["mirror"])) for f in st.signs.getFeatures()
+                          if f["sign_code"] in ("W1", "W2", "W5"))
+    st.junctions.place(x0, y0, *nrm(1), kit="C")
+    st.refresh_junction_warnings()
+    assert warn() == [("W2", "Backward", False), ("W2", "Forward", True)]     # side road on the left of chainage
+    from road_furniture_designer.rfd import junctions as J
+    pl = J.place(st.al, x0, y0, *nrm(-1))
+    st.add_junction(pl, "C")
+    assert warn() == [("W1", "Backward", False), ("W1", "Forward", False)]
+    st.remove_junction(pl.junction_id)
+    assert [c for c, _f, _m in warn()] == ["W2", "W2"]
 
 
 def test_crossing_kerb_to_kerb_with_refuge(tmp_path):

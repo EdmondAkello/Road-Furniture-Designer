@@ -42,6 +42,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
+    "AM03": ("70,110,170", 0.3, False), "AM06": ("70,110,170", 0.3, False), "AM07": ("70,110,170", 0.3, False),
     "LM05": ("70,110,170", 0.4, False), "LM26": ("70,110,170", 0.4, False), "LM03": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
     "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True),
     "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
@@ -126,8 +127,9 @@ class JunctionStore(QObject):
                     # piece quantities go on its first feature only, so sums over the layer are right
                     "kerb_m": pc.quantities.get("kerb_m") if code == "KERB" else None,
                     "island_m2": pc.quantities.get("island_m2") if code == "KERB" else None,
-                    "line_m": round(ln, 2) if code not in NO_PAINT else None,
-                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in NO_PAINT else None,
+                    "line_m": round(ln, 2) if code not in NO_PAINT and not codes[code].get("fill") else None,
+                    "paint_m2": (round(sum(J.area(p.pts) for p in parts), 3) if codes[code].get("fill")
+                                 else round(ln * codes[code]["width"], 3)) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
                     "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")},
                                            taper=pc.params.get("taper")))
@@ -179,6 +181,12 @@ class JunctionStore(QObject):
         if params:
             for it in items:
                 it["params"] = dict(it.get("params") or {}, **params)
+        if pl.role == "minor" and pl.our_station is not None:
+            # our road crossing the main road: the approach arrows also show straight ahead (AM07)
+            crosses = len(J.minor_legs(self.al, pl.our_station, self.main_of(pl))) > 1
+            for it in items:
+                if it["piece"] == "approach_arrows":
+                    it["params"] = dict(it.get("params") or {}, crossroads=crosses)
         if splay:
             for it in items:
                 if it["piece"] == "splays":
@@ -304,6 +312,32 @@ class JunctionStore(QObject):
                 p[0] += float(f["line_m"] or 0.0)
                 p[1] += float(f["paint_m2"])
         return sorted(out.values(), key=lambda j: j["sta"] or 0.0)
+
+    def warning_inputs(self):
+        """One junctions.JunctionAt per placed junction kit, for the Junction Ahead warning signs."""
+        seen = {}
+        for f in self.layer.getFeatures():
+            jid = f["junction_id"]
+            if jid in seen or f["kit"] not in J.JUNCTION_KITS:
+                continue
+            role = f["role"] or "main"
+            pl = J.Placement(float(f["sta"]), math.radians(float(f["bearing_deg"])), junction_id=jid, role=role,
+                             main_ref=f["main_ref"] or "",
+                             our_station=None if f["our_sta"] is None or (hasattr(f["our_sta"], "isNull")
+                                                                          and f["our_sta"].isNull())
+                             else float(f["our_sta"]))
+            if role == "minor" and pl.our_station is not None:
+                try:
+                    main = self.main_of(pl)
+                except ValueError:
+                    continue
+                _, _, h = self.al.point_at(pl.our_station)
+                seen[jid] = J.JunctionAt(jid, "minor", pl.our_station, up=math.cos(pl.bearing - h) > 0,
+                                         crossing=len(J.minor_legs(self.al, pl.our_station, main)) > 1,
+                                         kit=f["kit"])
+            elif role == "main":
+                seen[jid] = J.JunctionAt(jid, "main", pl.station, side=f["side"] or "L", kit=f["kit"])
+        return list(seen.values())
 
     FOOTPRINT_SKIP = ("GUIDE", "SPLAY-A", "SPLAY-S")
 
