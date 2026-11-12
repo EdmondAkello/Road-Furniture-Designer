@@ -134,6 +134,10 @@ def place_bay(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement
     return pl, abs(b.station - a.station)
 
 
+MIN_LEG = 30.0                      # m: shorter than this, our road behind the junction point is a stub, not a leg
+END_SNAP = 30.0                     # m: a junction this close to our road's end is placed at the end
+
+
 def minor_legs(al, s0: float, main) -> List[float]:
     """Bearings of our road's legs leaving the main road at our station s0, the one moving away from the
     main road's centreline fastest first. One leg where our road starts or ends at the main road, two where it
@@ -144,13 +148,17 @@ def minor_legs(al, s0: float, main) -> List[float]:
     jx, jy, _ = main.point_at(mo.station)
     cand = []
     for sgn in (1, -1):
+        rest = (al.sta_end - s0) if sgn > 0 else (s0 - al.sta_start)    # how much of our road that way
         s = min(max(s0 + sgn * step, al.sta_start), al.sta_end)
         if abs(s - s0) > 0.5:
             x, y, _ = al.point_at(s)
-            cand.append((abs(main.station_offset(x, y).offset), abs(s - s0), math.atan2(y - jy, x - jx)))
-    cand.sort(reverse=True)
-    keep = [c for c in cand if c[0] >= 0.2 * c[1]]
-    return [c[2] for c in (keep or cand[:1])]
+            rate = abs(main.station_offset(x, y).offset) / abs(s - s0)  # how fast it leaves the main road
+            cand.append((rate, rest, math.atan2(y - jy, x - jx)))
+    # a stub of our road shorter than MIN_LEG behind the junction point is not a leg
+    real = [c for c in cand if c[1] >= MIN_LEG] or sorted(cand, key=lambda c: -c[1])[:1]
+    real.sort(key=lambda c: (-round(c[0], 2), -c[1]))   # leaving fastest, then the longer one
+    keep = [c for c in real if c[0] >= 0.2]
+    return [c[2] for c in (keep or real[:1])]
 
 
 def _angle_between(a: float, b: float) -> float:
@@ -166,6 +174,11 @@ def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Option
     Returns (placement, main road alignment); with both=True, (list of placements, one per leg, main)."""
     so = al.station_offset(x0, y0)
     s0 = min(max(so.station, al.sta_start), al.sta_end)
+    # our road joining another road usually ends there: a click near an end goes to the end
+    if s0 - al.sta_start < END_SNAP:
+        s0 = al.sta_start
+    elif al.sta_end - s0 < END_SNAP:
+        s0 = al.sta_end
     px, py, _ = al.point_at(s0)
     cursor = major is not None and x1 is not None and y1 is not None
     if major is not None:
@@ -1342,15 +1355,16 @@ RECOVERY = 300.0                    # m: a truck regains its speed over about th
 
 
 def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0, step: float = 5.0,
-                   join: float = 400.0) -> List[dict]:
+                   join: float = 150.0) -> List[dict]:
     """Climbing lanes the profile asks for (RDM 1.3 6.6), on the uphill traffic's left (Kenya drives on the
     left). AADT under 2000 pcu: none (6.6.2).
 
     The truck's speed loss is followed along the design profile, vertical curves included, rather than
     grade by grade: every metre on an up-grade over 3 % uses 1 / (its Table 6.6 length) of the allowance,
-    and flatter ground gives it back (fully over RECOVERY m of level road, proportionally less up to 3 %).
-    A lane starts where the allowance runs out and ends `merge` m past the end of that climb; consecutive
-    steep grades therefore count together, and lanes less than `join` m apart are joined into one."""
+    and ground of 3 % or less (no limit in Table 6.6) gives it back over RECOVERY m.
+    A lane starts where the allowance runs out and ends `merge` m past the end of that climb (the allowance
+    cannot run below the truck's crawl speed); consecutive steep grades therefore count together, and lanes
+    less than `join` m apart are joined into one."""
     pr = getattr(al, "profile", None)
     if pr is None or not pr.pvis or (aadt is not None and aadt < 2000):
         return []
@@ -1370,10 +1384,10 @@ def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0, step:
             ds = abs(b - a)
             lim = grade_limit(g) if g > 0 else None
             if lim is not None:
-                use += ds / lim
+                use = min(1.0, use + ds / lim)               # at most: the truck down to its crawl speed
                 climb += ds                                  # steep metres since the truck last recovered
             else:
-                use = max(0.0, use - ds * (min(3.0, 3.0 - g) / 3.0) / RECOVERY)
+                use = max(0.0, use - ds / RECOVERY)          # 3 % or less: no limit in Table 6.6
                 if use == 0.0:
                     climb = 0.0
             if use >= 1.0 and cur is None:
@@ -1383,7 +1397,7 @@ def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0, step:
                     cur["climb_end"] = b
                     cur["gmax"] = max(cur["gmax"], g)
                     cur["steep"] += ds
-                elif abs(b - cur["climb_end"]) >= merge and use < 1.0:
+                elif abs(b - cur["climb_end"]) >= merge:     # the lane ends `merge` m past its climb
                     lanes.append(cur)
                     cur = None
         if cur is not None:

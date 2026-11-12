@@ -632,3 +632,19 @@ def test_islands_never_narrow_the_existing_lanes():
             assert "minor road flare at the splitter" in kinds
             if "corner_island" in pcs:
                 assert "bellmouth behind a corner island" in kinds
+
+
+def test_joining_a_clicked_main_road_near_our_road_end():
+    """Trial (Olkaria video): our road starts on a main road given by its clicked direction. A click a few
+    metres into our road snaps to its end, and the stub behind the junction point is never taken as the leg,
+    whatever the mouse does."""
+    ours = Alignment.from_polyline("OURS", [(0, 0), (0, -500)])          # starts at 0+000, runs south
+    for back in (0.3, 8.0, 20.0, 29.0):
+        for cur in ((100, 40), (100, -60), (80, 80), (-90, 10)):
+            pl, main = J.place_minor(ours, 0.0, -back, *cur)
+            assert pl.our_station == 0.0 and math.degrees(pl.bearing) == pytest.approx(-90)
+            pcs = {p.piece: p for p in J.build_kit(main, pl, "B", templates=T)}
+            assert all(y < 0 for p in pcs["splitter_teardrop"].parts for _, y in p.pts)   # on our road
+    # further in, the click stays where it is; a 45 m stub behind it is a real leg (our road crosses)
+    pl, main = J.place_minor(ours, 0.0, -45.0, 100, 40)
+    assert pl.our_station == pytest.approx(45.0) and len(J.minor_legs(ours, 45.0, main)) == 2

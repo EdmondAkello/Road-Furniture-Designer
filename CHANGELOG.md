@@ -30,6 +30,9 @@
 - Overlap checks: a hump, table, bump or zebra that overlaps another one, or a junction or roundabout, is flagged on placing it and in the furniture checks ("Transverse items overlapping"). A bar set on a junction is a check there.
 
 ### Fixed
+- Joining a road given by its clicked direction (Olkaria trial): a click a few metres into our road could take the stub behind it as the leg and build the kit off the end of our road. A click within 30 m of our road's end now snaps to the end, and a stub under 30 m is never a leg.
+- Climbing lanes were proposed along most of a rolling road: the truck's speed loss now stops at its crawl speed, ground of 3 % or less gives the allowance back, and each lane ends 200 m past its climb.
+- Calming tab: **Bar markings** is one list (Both approaches / Forward / Backward / None), so humps can go in without bar sets.
 - **Islands no longer narrow the existing lanes** (Edmond's trial): every island comes with its widening, as on the standard drawings. Ghost-island kits (A-1, B-Mod) widen the main road on both sides by half the island's width (new piece `main_widening`, drawn as `WIDEN`), and their other pieces stand off the widened edge; corner islands (A-1, A-2, B) get a bellmouth behind them with the turning roadway (4.9 m; 5.5 m W2 in A-2) and the kerb return drawn from it; the minor road flares around its splitter. The widenings on our road go to the Widenings sheet for Civil 3D and into the round-trip check.
 - The Excel Junctions sheet was written with the Widenings rows when the project had a bus or truck bay.
 - B-Mod no longer gets right-turn arrows (they sat on its hatched wedge).
