@@ -696,6 +696,13 @@ def _furniture_sheets(wb, d, sheet):
                                     round(j["island_m2"], 2), j["status"], j["id"]])
             for c, (ln, area) in sorted(j["paint"].items()):
                 rows.append(base + [c, codes[c]["name"], round(ln, 2), "m", round(area, 3), j["status"], j["id"]])
+            if j.get("access"):
+                aq = j["access"]["quantities"]
+                rows.append(base + ["ACCESS", f"Private access {j['access']['width']:g} m, pavement to the boundary "
+                                              f"and taper (area m2)", aq.get("edge_m"), "m", aq.get("area_m2"),
+                                    j["status"], j["id"]])
+                if aq.get("pipe_no"):
+                    rows.append(base + ["PIPE", codes["PIPE"]["name"], aq.get("pipe_m"), "m", None, j["status"], j["id"]])
         bays = [j for j in jl if j.get("bay")]
         if bays:
             from .rfd.junctions import bay_table

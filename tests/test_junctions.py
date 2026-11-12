@@ -20,9 +20,9 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS"}
     for k, items in T["kits"].items():
-        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane"}.get(k, "guides")
+        assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -39,7 +39,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -188,7 +188,7 @@ def test_bus_bay():
     assert (t["start"], t["full_from"], t["full_to"], t["end"], t["width"]) == (170, 200, 225, 243, 4.0)
     # opposite bays closer than 60 m centre to centre are flagged
     js = [{"sta": 200, "bay": pc.params}, {"sta": 230, "bay": pcr.params}]
-    assert [c.kind for c in FR.junction_checks(al, js)] == ["bus_bay_spacing"]
+    assert [c.kind for c in FR.junction_checks(al, js) if c.kind != "widening"] == ["bus_bay_spacing"]
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
     # LM05 is 0.2 m wide (RDM 6.1 Table 4.1)
@@ -217,9 +217,10 @@ def test_truck_parking_bay():
     short, Bs = J.place_bay(al, 100, -4.0, 140, -4.0)
     ps = J.build_piece(al, short, "truck_bay", params={"bay": Bs}, templates=T)
     js = [{"sta": 100, "bay": pc.params}, {"sta": 120, "bay": ps.params}]
-    assert [c.kind for c in FR.junction_checks(al, js)] == ["truck_bay_length"]
+    assert [c.kind for c in FR.junction_checks(al, js) if c.kind != "widening"] == ["truck_bay_length"]
     far = dict(pc.params, stations=[s + 31000 for s in pc.params["stations"]])
-    assert [c.kind for c in FR.junction_checks(al, [{"bay": pc.params}, {"bay": far}])] == ["truck_bay_spacing"]
+    assert [c.kind for c in FR.junction_checks(al, [{"bay": pc.params}, {"bay": far}])
+            if c.kind != "widening"] == ["truck_bay_spacing"]
 
 
 def test_climbing_lanes_from_the_profile():
@@ -285,3 +286,69 @@ def test_visibility_splays():
     (lvl, text), = J.splay_findings(rec)
     assert lvl == "issue" and "Buildings feature 7" in text and "stop visibility splay up" in text
     assert any("not checked" in t for _, t in J.splay_findings(dict(pc.params, obstructions=[], checked=None)))
+
+
+def test_private_access():
+    al = Alignment.from_polyline("S", [(0, 0), (1000, 0)])
+    al.speeds = [(0.0, 80.0)]
+    pl = J.place(al, 500, 0, 500, 30)                              # square, on the left
+    pc = J.build_piece(al, pl, "access", templates=T)
+    edges = [p for p in pc.parts if p.code == "ACCESS"]
+    # RDM 1.3 Figure 9.33: 6 m returns from the road edge (3.5 m here, no corridor), formation 3 + 2 x 0.5 m,
+    # built 10 m back to the boundary, 3 m taper
+    assert sorted(round(p.pts[0][0], 2) for p in edges) == [492.0, 508.0] and all(p.pts[0][1] == pytest.approx(3.5) for p in edges)
+    assert all(p.pts[-1][1] == pytest.approx(3.5 + 13.0) for p in edges)
+    paved = [p for p in pc.parts if p.code == "ACCESS-P"]
+    assert sorted(round(p.pts[0][0], 2) for p in paved) == [498.5, 501.5]
+    assert pc.quantities["pipe_no"] == 1 and pc.quantities["pipe_m"] == 5.0 and pc.quantities["area_m2"] > 4 * 13
+    assert pc.params["notes"] == []
+    # the kit carries the stop splays only (RDM 1.3 9.11.16)
+    kit = J.build_kit(al, pl, "ACCESS", T)
+    assert [k.piece for k in kit] == ["access", "splays"] and {p.code for p in kit[1].parts} == {"SPLAY-S"}
+    # checks: narrow, tight radius, short of the boundary, class A road (Table 2.3)
+    bad = J.build_piece(al, pl, "access", params={"width": 2.5, "radius": 4.0, "length": 8.0, "road_class": "A"},
+                        templates=T)
+    lv = [lvl for lvl, _ in bad.params["notes"]]
+    assert lv.count("issue") == 1 and lv.count("check") == 3
+    assert any("Tables 2.3 and 2.4" in t for _, t in bad.params["notes"])
+    j = {"sta": 500.0, "side": "L", "kit": "ACCESS", "access": {"notes": bad.params["notes"]}, "crossing_deg": 90.0}
+    assert [c.kind for c in FR.junction_checks(al, [j])].count("access") == 4
+    # skewed access: the returns still start on the road edge
+    sk = J.build_piece(al, J.place(al, 500, 0, 520, 30), "access", templates=T)
+    assert all(p.pts[0][1] == pytest.approx(3.5) for p in sk.parts if p.code == "ACCESS")
+
+
+def test_widening_round_trip():
+    from rfd.corridor import Edges
+    al = straight()
+    pl, B = J.place_bay(al, 100, 4.0, 170, 4.0)                    # truck bay on the left: 85 / 100-170 / 180
+    stations = list(range(0, 401, 10))
+    al.edges = Edges({("ETW", "L"): [(s, 3.5) for s in stations], ("ETW", "R"): [(s, 3.5) for s in stations]})
+    pc = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    bay = pc.params
+    # 1. the corridor is not widened yet
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "info" and "not in the corridor yet" in text
+    # 2. widened as placed: ETW follows the bay at every section
+    w = lambda s: J.widen_at(s - 85, 15, 70, 10, 3.5, True)
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s)) for s in stations], ("ETW", "R"): [(s, 3.5) for s in stations]})
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "info" and "matches the corridor" in text
+    # the bay re-attaches to the edge before the widening: rebuilding it does not widen twice
+    again = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    ys = [y for p in again.parts if p.code == "BAYEDGE" for _, y in p.pts]
+    assert max(ys) == pytest.approx(7.0) and again.quantities["widen_m2"] == pytest.approx(pc.quantities["widen_m2"])
+    # 3. widened only 2.5 m: flagged with the worst section
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s) * 2.5 / 3.5) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    (lvl, text), = J.widening_check(al, bay)
+    assert lvl == "check" and "1.00 m" in text
+    # 4. a little curve widening (0.4 m) is not taken for the bay: the bay still builds on the corridor edge
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + (0.4 if 110 <= s <= 150 else 0.0)) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    cw = J.build_piece(al, pl, "truck_bay", params={"bay": B}, templates=T)
+    assert max(y for p in cw.parts if p.code == "BAYEDGE" for _, y in p.pts) == pytest.approx(7.4)
+    al.edges = Edges({("ETW", "L"): [(s, 3.5 + w(s) * 2.5 / 3.5) for s in stations],
+                      ("ETW", "R"): [(s, 3.5) for s in stations]})
+    # 5. the report check
+    assert [c.kind for c in FR.junction_checks(al, [{"sta": 100, "bay": bay}]) if c.kind == "widening"] == ["widening"]

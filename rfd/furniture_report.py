@@ -80,6 +80,8 @@ KIND_TEXT = {
     "truck_bay_length": "Truck parking bay length",
     "truck_bay_spacing": "Truck parking bay spacing",
     "junction_sight": "Junction visibility",
+    "access": "Private access",
+    "widening": "Widening vs corridor",
 }
 
 
@@ -513,6 +515,13 @@ def junction_checks(al, junctions) -> List[Check]:
                                      f"bus bays serving opposite directions {abs(ca - cb):.0f} m apart centre to "
                                      f"centre ({_ch(al, ca)} and {_ch(al, cb)}); at least 60 m (RDM/1/3/3/01 note 4)",
                                      "check", {"distance": abs(ca - cb)}))
+    from .junctions import widening_check
+    for j in junctions:                              # round trip: placed widenings vs the re-imported corridor
+        if j.get("bay"):
+            a, b = sorted((j["bay"]["stations"][0], j["bay"]["stations"][3]))
+            for level, text in widening_check(al, j["bay"]):
+                out.append(Check("widening", a, b, j["bay"]["side"], f"{text[0].upper()}{text[1:]} ({_ch(al, a)} to "
+                                 f"{_ch(al, b)})", level))
     trucks = sorted((j for j in junctions if j.get("bay") and j["bay"].get("kind") == "truck parking bay"),
                     key=lambda j: j["bay"]["stations"][1])
     for j in trucks:                                 # RDM 1.3 13.2.4.1: four to five heavy vehicles
@@ -531,21 +540,31 @@ def junction_checks(al, junctions) -> List[Check]:
                                  side, f"truck parking bays {d / 1000:.1f} km apart; at most "
                                               f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
                                  "check", {"distance": d}))
+    for j in junctions:                              # private accesses: RDM 1.3 9.11.16, Tables 2.3-2.4
+        acc = j.get("access")
+        if acc:
+            sta = j.get("sta") or 0.0
+            side = "left" if j.get("side") == "L" else "right"
+            for level, text in acc.get("notes", []):
+                out.append(Check("access", sta, sta, j.get("side") or "Both",
+                                 f"private access at {_ch(al, sta)} on the {side}: {text}", level))
     from .junctions import splay_findings
     for j in junctions:
         if j.get("bay") or not j.get("sight"):
             continue
         sta = j.get("sta") or 0.0
         for level, text in splay_findings(j["sight"]):
-            out.append(Check("junction_sight", sta, sta, "Both",
-                             f"type {j.get('kit', '')} junction at {_ch(al, sta)}: {text}", level))
+            what = "private access" if j.get("access") else f"type {j.get('kit', '')} junction"
+            out.append(Check("junction_sight", sta, sta, "Both", f"{what} at {_ch(al, sta)}: {text}", level))
     for j in junctions:
         if j.get("bay"):
             continue
         a, sta = j.get("crossing_deg"), j.get("sta")
         if a is None or sta is None:
             continue
-        where = f"type {j.get('kit', '')} junction at {_ch(al, sta)}, minor road on the {'left' if j.get('side') == 'L' else 'right'}"
+        side = "left" if j.get("side") == "L" else "right"
+        where = (f"private access at {_ch(al, sta)} on the {side}" if j.get("access")
+                 else f"type {j.get('kit', '')} junction at {_ch(al, sta)}, minor road on the {side}")
         if a < SKEW_MINIMUM:
             out.append(Check("junction_skew", sta, sta, "Both", f"{where}: crossing angle {a:.0f} deg is below the "
                              f"absolute minimum of {SKEW_MINIMUM:.0f} deg (RDM 1.3 9.2.3)", "issue", {"angle": a}))

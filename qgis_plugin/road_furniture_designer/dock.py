@@ -411,6 +411,19 @@ class RsdDock(QDockWidget):
                                    "uses its speed stations; without them 80 km/h is assumed and flagged.")
         jf.addRow("", self.chk_jsplays)
         jf.addRow("Main road speed", self.spn_jspeed)
+        self.spn_awidth = QDoubleSpinBox(); self.spn_awidth.setRange(2.0, 15.0); self.spn_awidth.setSingleStep(0.5)
+        self.spn_awidth.setValue(3.0); self.spn_awidth.setSuffix(" m")
+        self.spn_aradius = QDoubleSpinBox(); self.spn_aradius.setRange(3.0, 25.0); self.spn_aradius.setSingleStep(1.0)
+        self.spn_aradius.setValue(6.0); self.spn_aradius.setSuffix(" m")
+        self.spn_aradius.setToolTip("Entry and exit radius: 6 m or more, for the turning traffic (RDM 1.3 9.11.16)")
+        self.spn_alength = QDoubleSpinBox(); self.spn_alength.setRange(3.0, 60.0); self.spn_alength.setSingleStep(1.0)
+        self.spn_alength.setValue(10.0); self.spn_alength.setSuffix(" m")
+        self.spn_alength.setToolTip("From the road edge to the fence or boundary line: at least 10 m (Figure 9.33)")
+        self._access_rows = []
+        for cap, spn in (("Access width", self.spn_awidth), ("Return radius", self.spn_aradius),
+                         ("To the boundary", self.spn_alength)):
+            jf.addRow(cap, spn)
+            self._access_rows.append((jf.labelForField(spn), spn))
         jl.addLayout(jf)
         self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
         jl.addWidget(self.btn_jplace)
@@ -943,8 +956,19 @@ class RsdDock(QDockWidget):
         if not k:
             return
         bus = k in ("BUS", "TRUCK", "CLIMB")
+        acc = k == "ACCESS"
         for w in (self.cmb_jrole, self.chk_jguides, self.spn_jscale, self.chk_jsplays, self.spn_jspeed):
             w.setEnabled(not bus)
+        for w in (self.cmb_jrole, self.cmb_jmajor, self.chk_jguides, self.spn_jscale):
+            w.setEnabled(w.isEnabled() and not acc)
+        for lab, w in self._access_rows:
+            lab.setVisible(acc); w.setVisible(acc)
+        if acc:
+            self.cmb_jpiece.addItem("Private access with its stop splays", "")
+            self.lbl_jhover.setText("Click the access point on our road, then a point up the access. Figure 9.33: "
+                                    "returns from the shoulder edge, paved to the boundary with a 3 m taper, a pipe "
+                                    "across the mouth; stop splays (RDM 1.3 9.11.16).")
+            return
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
         self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
         if k == "CLIMB":
@@ -978,6 +1002,8 @@ class RsdDock(QDockWidget):
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
                 "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
                 "splays": self.chk_jsplays.isChecked(),
+                "access": {"width": self.spn_awidth.value(), "radius": self.spn_aradius.value(),
+                           "length": self.spn_alength.value(), "road_class": self.cmb_mclass.currentData() or None},
                 "splay": {"speed": self.spn_jspeed.value() or None, "criteria": self.cmb_crit.currentData()}}
 
     def _fill_junction_majors(self):
@@ -1016,6 +1042,17 @@ class RsdDock(QDockWidget):
             paint = sum(v[1] for v in j["paint"].values())
             where = ("joins " + (j["main_ref"][4:] if j["main_ref"].startswith("alg:") else "main road")
                      if j.get("role") == "minor" else ("left" if j["side"] == "L" else "right"))
+            if j.get("access"):
+                a = j["access"]
+                it = QListWidgetItem(f"{j['ch']}  access {a['width']:g} m  {'left' if j['side'] == 'L' else 'right'}  "
+                                     f"{j['crossing_deg']:.0f} deg  (area {a['quantities'].get('area_m2', 0):.0f} m2)"
+                                     + (f"  - {len(j['sight']['obstructions'])} obstruction(s) in the splays"
+                                        if j.get("sight") and j["sight"].get("obstructions") else ""))
+                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                self.lst_junctions.addItem(it)
+                if j["id"] == keep:
+                    self.lst_junctions.setCurrentItem(it)
+                continue
             if j.get("bay"):
                 b = j["bay"]
                 kerb = f", kerb {j['kerb_m']:.0f} m" if j["kerb_m"] else ""
