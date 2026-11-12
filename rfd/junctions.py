@@ -238,7 +238,7 @@ class Frame:
     def _edge(self) -> float:
         edges = getattr(self.al, "edges", None)
         if edges:
-            for code in ("ETW", "EOP", "EP"):
+            for code in EDGE_CODES:
                 o = edges.offset(code, self.side, self.pl.station)
                 if o is not None:
                     return abs(o)
@@ -1002,6 +1002,21 @@ def widen_at(t: float, A: float, B: float, C: float, depth: float, straight: boo
     return depth * (1 - u / C) if straight else depth * (1 + math.cos(math.pi * u / C)) / 2
 
 
+EDGE_CODES = ("ETW", "EOP", "EP", "EOTW", "EdgeOfPavement", "Edge")     # carriageway edge, in order of preference
+
+
+def edge_code(al, side: str, prefer: Optional[str] = None) -> Optional[str]:
+    """The corridor's carriageway edge code on a side: `prefer` if the corridor has it, else the first of
+    EDGE_CODES it has (Civil 3D subassemblies name the edge differently); None without edges."""
+    e = getattr(al, "edges", None)
+    if not e:
+        return None
+    for code in ((prefer,) if prefer else ()) + EDGE_CODES:
+        if e.data.get((code, side)):
+            return code
+    return None
+
+
 def base_edge(al, side: str, lo: float, hi: float, code: str = "ETW", threshold: float = WIDEN_TOL):
     """The corridor edge before a widening between stations lo and hi: (f(station) -> offset or None, widened).
     Where the corridor's sections inside lo..hi stand out from the line between the nearest sections outside
@@ -1038,15 +1053,17 @@ def widening_check(al, bay: dict) -> List[Tuple[str, str]]:
     bay: the stored record (stations, side, depth, entry, exit, taper, kind)."""
     e = getattr(al, "edges", None)
     kind = bay.get("kind", "bus bay")
-    pts = (e.data.get(("ETW", bay["side"])) if e else None) or []
+    code = edge_code(al, bay["side"], bay.get("edge_code"))
+    pts = (e.data.get((code, bay["side"])) if e and code else None) or []
     if not pts:
-        return [("info", f"{kind}: the corridor has no ETW edge on that side, so the widening cannot be compared")]
+        return [("info", f"{kind}: the corridor has no carriageway edge ({', '.join(EDGE_CODES)}) on that side, so "
+                         f"the widening cannot be compared")]
     s0, s1, s2, s3 = bay["stations"]
     dirn = 1 if s3 >= s0 else -1
     A, C, depth = float(bay["entry"]), float(bay["exit"]), float(bay["depth"])
     B = abs(s2 - s1)
     lo, hi = sorted((s0, s3))
-    base, widened = base_edge(al, bay["side"], lo, hi)
+    base, widened = base_edge(al, bay["side"], lo, hi, code)
     inside = [(st, o) for st, o in pts if lo - 1e-6 <= st <= hi + 1e-6]
     if not inside:
         return [("info", f"{kind}: no corridor section inside it, so the widening cannot be compared")]
@@ -1070,6 +1087,32 @@ def widening_check(al, bay: dict) -> List[Tuple[str, str]]:
     return [("info", f"{kind}: matches the corridor within {WIDEN_TOL:g} m at {len(devs)} section(s)")]
 
 
+# a plain stroke font for the word markings (unit box: x across 0-1, y along the road 0-1, elongated letters)
+GLYPHS = {
+    "B": [[(0, 0), (0, 1), (0.7, 1), (1, 0.85), (1, 0.62), (0.7, 0.5), (0, 0.5)],
+          [(0.7, 0.5), (1, 0.38), (1, 0.15), (0.7, 0), (0, 0)]],
+    "U": [[(0, 1), (0, 0.2), (0.25, 0), (0.75, 0), (1, 0.2), (1, 1)]],
+    "S": [[(1, 0.85), (0.75, 1), (0.25, 1), (0, 0.85), (0, 0.62), (0.25, 0.5), (0.75, 0.5), (1, 0.38), (1, 0.15),
+           (0.75, 0), (0.25, 0), (0, 0.15)]],
+    "T": [[(0, 1), (1, 1)], [(0.5, 1), (0.5, 0)]],
+    "O": [[(0.25, 0), (0.75, 0), (1, 0.2), (1, 0.8), (0.75, 1), (0.25, 1), (0, 0.8), (0, 0.2), (0.25, 0)]],
+    "P": [[(0, 0), (0, 1), (0.75, 1), (1, 0.85), (1, 0.62), (0.75, 0.5), (0, 0.5)]],
+}
+WORD_STROKE = 0.2                   # m: painted stroke of a 2.5 m letter (indicative, for the painted area)
+
+
+def word_strokes(word: str, h: float) -> List[List[Pt]]:
+    """A word marking as stroke polylines, centred on x = 0 (across the lane), y from 0 to h (along the road)."""
+    w, gap = 0.15 + 0.16 * h, 0.15 * h / 2.5 + 0.05
+    total = len(word) * w + (len(word) - 1) * gap
+    out = []
+    for i, ch in enumerate(word):
+        x0 = -total / 2 + i * (w + gap)
+        for stroke in GLYPHS[ch]:
+            out.append([(x0 + x * w, y * h) for x, y in stroke])
+    return out
+
+
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
@@ -1077,7 +1120,8 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     straight = P.get("taper") == "straight"
     # the edge before the widening: the corridor's ETW, or the line under it where the re-imported corridor
     # already carries the widening (so the bay does not widen twice)
-    base, _ = base_edge(al, "L" if sg < 0 else "R", *sorted((s0, s3)),
+    ecode = edge_code(al, "L" if sg < 0 else "R", P.get("edge_code")) or "ETW"
+    base, _ = base_edge(al, "L" if sg < 0 else "R", *sorted((s0, s3)), ecode,
                         threshold=max(WIDEN_TOL, 0.5 * float(P.get("depth") or 3.0)))
     if lane and not P.get("depth"):                            # as wide as the reduced through lane (6.6.3)
         e0 = base(s1)
@@ -1113,7 +1157,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
              "LM03_m": round(lm["LM03"], 2),
              "paint_m2": round((lm["LM26"] + lm["LM03"]) * 0.1, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind="climbing lane")
+                 kind="climbing lane", edge_code=ecode)
         return Piece(piece, spec["name"], "lane", "", parts, q, P)
     widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
     sep = []                                   # separation line along the carriageway edge, 1 m marks, 1 m gaps
@@ -1128,7 +1172,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         q = {"edge_m": round(length(kerb), 2), "widen_m2": round(widen_area, 2), "LM05_m": round(lm05, 2),
              "paint_m2": round(lm05 * 0.2, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind=BAY_KINDS[piece], taper=P.get("taper"))
+                 kind=BAY_KINDS[piece], taper=P.get("taper"), edge_code=ecode)
         return Piece(piece, spec["name"], "bay", "", parts, q, P)
     parts = [Part("KERB", kerb)]
     # loading platform behind the kerb along the bay, hatched
@@ -1140,16 +1184,34 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         s = b0 + k * 1.0
         parts.append(Part("BUSPLAT", [pt(s - 0.5, edge(s) + depth), pt(s + 0.5, edge(s) + depth + plat)]))
     parts += sep
+    # BUS STOP word marking in each 15 m box of the bay (RDM 6.1 10.3, letters per Table 6.2), read in the
+    # direction of travel: BUS nearer the approaching driver, STOP beyond it
+    if P.get("word", True) and abs(b1 - b0) >= 10.0:
+        v = al.speed_at((b0 + b1) / 2) or 50.0
+        h = 1.25 if v <= 50 else 2.5
+        boxes = max(1, int(abs(b1 - b0) // 15.0))
+        box = abs(b1 - b0) / boxes
+        o_mid = lambda st: edge(st) + depth / 2
+        first = b0 if dirn > 0 else b1
+        for k in range(boxes):
+            centre = first + dirn * box * (k + 0.5)
+            for word, back in (("BUS", -(h + 0.5)), ("STOP", 0.5)):
+                for stroke in word_strokes(word, h):
+                    # glyph x to the reader's right (dirn sign on the right-positive offset), y up = travel
+                    parts.append(Part("WM-BUSSTOP", [al.point_at(centre + dirn * (back + y), sg * o_mid(centre)
+                                                                 + dirn * x)[:2] for x, y in stroke]))
     # indicative shelter position behind the platform, mid-bay
     if P.get("shelter"):
         m, L = (b0 + b1) / 2, P["shelter"] / 2
         o0, o1 = edge(m) + depth + plat + 0.5, edge(m) + depth + plat + 2.5
         parts.append(Part("SHELTER", [pt(m - L, o0), pt(m + L, o0), pt(m + L, o1), pt(m - L, o1)], True))
+    wm = sum(length(p.pts) for p in parts if p.code == "WM-BUSSTOP")
     q = {"kerb_m": round(length(kerb), 2), "raised_kerb_m": round(abs(s2 - s1) + 2 * ramp, 2),
+         "WM-BUSSTOP_m": round(wm, 2), "WM-BUSSTOP_no": max(1, int(abs(s2 - s1) // 15.0)) if wm else 0,
          "island_m2": round(area(plat_ring), 2), "widen_m2": round(widen_area, 2),
-         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.2, 3)}
+         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.2 + wm * WORD_STROKE, 3)}
     P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-             kind="bus bay")
+             kind="bus bay", edge_code=ecode)
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
 
 
