@@ -69,6 +69,10 @@ jx, jy, jh = st.al.point_at(2300.0)                                   # a skewed
 st.junctions.place(jx, jy, jx + 30 * math.cos(jh + math.radians(80)), jy + 30 * math.sin(jh + math.radians(80)),
                    kit="A-1")
 st.add_sign(*P(2330, -7.0), "WSCM-W37", restrict=True)               # a supplementary sign (loose stones)
+from road_furniture_designer.rfd import junctions as J  # noqa: E402
+for a, b, off in ((2700.0, 2725.0, -5.0), (2765.0, 2790.0, 5.0)):     # bus bays, one each way, 65 m apart
+    pl, B = J.place_bay(st.al, *P(a, off), *P(b, off))
+    st.add_junction(pl, "BUS", params={"bay": B})
 st.accept_proposals(); st.lines.accept_proposals()
 st.auto_propose(auto)                 # leave a few proposals visible (orange) for the figures
 st.set_meta(prepared_by="E. Akello", checked_by="", approved_by="")
@@ -99,7 +103,12 @@ x, y = P(3950, 0)                                                     # embankme
 render_map(QgsRectangle(x - 300, y - 195, x + 300, y + 195), (1600, 1050), "fig_map_barrier.png")
 x, y = P(3050, 0)                                                     # crossing and hump in the village
 render_map(QgsRectangle(x - 160, y - 105, x + 160, y + 105), (1600, 1050), "fig_map_calming.png")
-jext = st.junctions.layer.extent()                                    # type A-1 junction with its guide lines
+x, y = P(2742, 0)                                                     # the two bus bays in the village
+render_map(QgsRectangle(x - 50, y - 70, x + 50, y + 70), (1000, 1400), "fig_map_busbay.png")
+jext = QgsRectangle()                                                 # type A-1 junction with its guide lines
+for f in st.junctions.layer.getFeatures():
+    if f["kit"] == "A-1":
+        jext.combineExtentWith(f.geometry().boundingBox())
 jext.grow(12)
 jw = max(jext.width(), jext.height() * 1600 / 1050)
 cx, cy = jext.center().x(), jext.center().y()

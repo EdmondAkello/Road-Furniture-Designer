@@ -111,6 +111,10 @@ def test_crossing_span_and_refuge():
     assert any("refuge" in f.text for f in long_.findings)
     narrow = design_feature(al, "crossing", 200, FeatureConfig(span=(-6.0, 6.0), refuge=1.0))
     assert any("under the 1.2 m minimum" in f.text for f in narrow.findings)
+    # a refuge on a crossing that needs none (single 7 m carriageway) is flagged
+    single = design_feature(al, "crossing", 200, FeatureConfig(carriageway=7.0, refuge=2.0))
+    assert any("needs none" in f.text and "2.5 and 2.5 m" in f.text for f in single.findings)
+    assert not any("needs none" in f.text for f in dual.findings)
     # a crossing on one side only: the refuge goes in its middle
     legs, r = crossing_legs(2.0, 12.0, 2.0)
     assert r == pytest.approx((6.0, 8.0)) and legs == [pytest.approx((2.0, 6.0)), pytest.approx((8.0, 12.0))]
