@@ -607,7 +607,13 @@ def junction_checks(al, junctions) -> List[Check]:
             for level, text in acc.get("notes", []):
                 out.append(Check("access", sta, sta, j.get("side") or "Both",
                                  f"private access at {_ch(al, sta)} on the {side}: {text}", level))
-    from .junctions import splay_findings
+    from .junctions import approach_splay_findings, splay_findings
+    for j in junctions:
+        if j.get("minor_splay"):
+            sta = j.get("sta") or 0.0
+            for level, text in approach_splay_findings(j["minor_splay"]):
+                out.append(Check("junction_sight", sta, sta, "Both",
+                                 f"type {j.get('kit', '')} junction at {_ch(al, sta)}: {text}", level))
     for j in junctions:
         if j.get("bay") or not j.get("sight"):
             continue

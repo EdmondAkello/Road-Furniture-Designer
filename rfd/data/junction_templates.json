@@ -193,6 +193,11 @@
    "width": 0.0,
    "colour": "white",
    "fill": true
+  },
+  "SPLAY-M": {
+   "name": "Minor road approach visibility splay (RDM 1.3 Figure 9.13)",
+   "width": 0.0,
+   "colour": "green"
   }
  },
  "pieces": {
@@ -560,6 +565,20 @@
     "crossroads": false
    },
    "remark": "AM06 (right and left) on the approach lane, its tip 10 m from the main road's edge; AM07 at a crossroads."
+  },
+  "approach_splay": {
+   "name": "Minor road approach visibility splay (RDM 1.3 Figure 9.13)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "road",
+   "kind": "splay",
+   "params": {},
+   "remark": "Where our road is the minor road: the sight lines from one stopping sight distance back to the give way line and its sign. Added with the splays when our road joins another road."
   }
  },
  "kits": {

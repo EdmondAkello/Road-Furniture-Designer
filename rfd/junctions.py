@@ -696,6 +696,67 @@ def _splays(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "splay", "", parts, {}, P)
 
 
+def approach_splay(our, pl: Placement, main, speed: Optional[float] = None, criteria: Optional[str] = None,
+                   lane: float = 1.75) -> Piece:
+    """The minor road approach visibility splay of RDM 1.3 Figure 9.13, where our road is the minor road: the
+    area between our approach lane and the sight lines from drivers up to one stopping sight distance (at
+    our road's design speed) back from the give way line to the line and its sign. On a bend it lies across
+    the inside of the curve and must be kept clear; params['clear_m'] is how far it reaches beyond the lane
+    centre, measured square to the road."""
+    from .criteria import DEFAULT_ID, Criteria
+    if pl.role != "minor" or pl.our_station is None:
+        raise ValueError("The approach splay is for a junction where our road is the minor road")
+    T = load_templates()
+    spec = T["pieces"]["approach_splay"]
+    crit = Criteria.load(criteria or DEFAULT_ID)
+    F = pl.frame(main)
+    s0 = pl.our_station
+    _, _, h = our.point_at(s0)
+    dirn = 1 if math.cos(pl.bearing - h) > 0 else -1          # our leg runs this way in chainage
+    sg = min(max(s0 + dirn * (F.u_edge + 0.5), our.sta_start), our.sta_end)       # the give way line
+    v = speed or our.speed_at(sg) or 50.0
+    ssd = crit.ssd(v)
+    off = lane * dirn                                           # the approaching traffic keeps left
+    far = min(max(sg + dirn * ssd, our.sta_start), our.sta_end)
+    n = max(2, int(abs(far - sg) / 2.0) + 1)
+    path = [our.point_at(sg + (far - sg) * k / (n - 1), off)[:2] for k in range(n)]
+    target = path[0]
+    # how far the sight lines reach from the lane, square to the road
+    clear = 0.0
+    for e in path[1:]:
+        ex, ey = e[0] - target[0], e[1] - target[1]
+        L = math.hypot(ex, ey) or 1.0
+        for q in path[1:]:
+            st_q = our.station_offset(*q).station
+            if (st_q - sg) * dirn > (our.station_offset(*e).station - sg) * dirn:
+                break
+            d = abs((q[0] - target[0]) * ey - (q[1] - target[1]) * ex) / L
+            clear = max(clear, d)
+    ring = [target] + path[1:]
+    parts = [Part("SPLAY-M", ring, True)]
+    P = {"speed": round(v, 1), "ssd": round(ssd, 1), "clear_m": round(clear, 2), "give_way": round(sg, 3),
+         "far": round(far, 3), "short": abs(far - sg) < ssd - 1e-6, "ref": "RDM 1.3 9.5.4, Figure 9.13"}
+    return Piece("approach_splay", spec["name"], "splay", "", parts, {"splay_m2": round(area(ring), 1)}, P)
+
+
+def approach_splay_findings(ms: dict) -> List[Tuple[str, str]]:
+    """(level, text) from a minor-approach splay record (approach_splay params + obstructions)."""
+    out = []
+    if not ms:
+        return out
+    if ms.get("clear_m", 0) > 1.5:
+        out.append(("info", f"our approach curves: keep the inside of the bend clear for {ms['clear_m']:.1f} m from "
+                            f"the lane centre over the {ms['ssd']:.0f} m stopping sight distance at "
+                            f"{ms['speed']:.0f} km/h, and the Give Way sign inside the splay ({ms['ref']})"))
+    if ms.get("short"):
+        out.append(("info", f"our road ends within the {ms['ssd']:.0f} m stopping sight distance of the give way "
+                            f"line: check the approach beyond it ({ms['ref']})"))
+    for o in ms.get("obstructions", []):
+        out.append(("check", f"{o['layer']} feature {o['fid']} is inside the minor road approach visibility splay "
+                             f"({ms['ref']})"))
+    return out
+
+
 def splay_findings(sight: dict) -> List[Tuple[str, str]]:
     """(level, text) from a junction's splay record (Piece.params of 'splays', plus 'obstructions' if checked)."""
     out = []
@@ -720,6 +781,8 @@ def splay_findings(sight: dict) -> List[Tuple[str, str]]:
         out.append(("info", "visibility splays not checked against obstruction layers (buildings, trees, fences); "
                             "tick them on the Junctions + bays tab and press Check splays"))
     for o in sight.get("obstructions", []):
+        if o["kind"] == "minor":
+            continue                                   # reported with the approach splay
         what = "approach (give way)" if o["kind"] == "approach" else "stop"
         lvl = "issue" if o["kind"] == "stop" else "check"
         out.append((lvl, f"{o['layer']} feature {o['fid']} is inside the {what} visibility splay "
@@ -1066,32 +1129,71 @@ def grade_limit(g: float) -> Optional[float]:
     return 500.0 * 8.0 / g
 
 
-def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0) -> List[dict]:
-    """Climbing lanes the profile asks for (RDM 1.3 6.6): an up-grade longer than its Table 6.6 limit gets a
-    lane from where that limit is reached to `merge` m past the end of the grade, on the uphill traffic's
-    left (Kenya drives on the left). AADT under 2000 pcu: none (6.6.2)."""
+RECOVERY = 300.0                    # m: a truck regains its speed over about this much level road (indicative)
+
+
+def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0, step: float = 5.0,
+                   join: float = 400.0) -> List[dict]:
+    """Climbing lanes the profile asks for (RDM 1.3 6.6), on the uphill traffic's left (Kenya drives on the
+    left). AADT under 2000 pcu: none (6.6.2).
+
+    The truck's speed loss is followed along the design profile, vertical curves included, rather than
+    grade by grade: every metre on an up-grade over 3 % uses 1 / (its Table 6.6 length) of the allowance,
+    and flatter ground gives it back (fully over RECOVERY m of level road, proportionally less up to 3 %).
+    A lane starts where the allowance runs out and ends `merge` m past the end of that climb; consecutive
+    steep grades therefore count together, and lanes less than `join` m apart are joined into one."""
     pr = getattr(al, "profile", None)
-    if pr is None or (aadt is not None and aadt < 2000):
+    if pr is None or not pr.pvis or (aadt is not None and aadt < 2000):
         return []
-    pv = [(s, z) for s, z, _ in pr.pvis]
+    lo, hi = max(al.sta_start, pr.start), min(al.sta_end, pr.end)
+    if hi - lo < step:
+        return []
+    n = int((hi - lo) / step)
+    ss = [lo + (hi - lo) * k / n for k in range(n + 1)]
+    note = ("consider: AADT 2000-6000 pcu with limited passing" if aadt is not None and aadt <= 6000
+            else "normally required above 6000 pcu AADT" if aadt is not None else "AADT not given")
     out = []
-    for (sa, za), (sb, zb) in zip(pv, pv[1:]):
-        L = sb - sa
-        if L <= 0:
-            continue
-        g = (zb - za) / L * 100.0
-        lim = grade_limit(g)
-        if lim is None or L <= lim:
-            continue
-        if g > 0:          # uphill with the chainage: traffic on the left of it
-            start, end, side = sa + lim, min(sb + merge, al.sta_end), "L"
-        else:              # uphill against the chainage: traffic on the right
-            start, end, side = sb - lim, max(sa - merge, al.sta_start), "R"
-        note = ("consider: AADT 2000-6000 pcu with limited passing" if aadt is not None and aadt <= 6000
-                else "normally required above 6000 pcu AADT" if aadt is not None else "AADT not given")
-        out.append({"start": start, "end": end, "side": side, "grade": round(g, 2), "length": round(L, 1),
-                    "limit": round(lim, 1), "note": note})
-    return out
+    for d, side in ((1, "L"), (-1, "R")):                  # traffic with the chainage, then against it
+        seq = ss if d > 0 else ss[::-1]
+        use, lanes, cur, climb = 0.0, [], None, 0.0
+        for a, b in zip(seq, seq[1:]):
+            g = (pr.grade((a + b) / 2) or 0.0) * d
+            ds = abs(b - a)
+            lim = grade_limit(g) if g > 0 else None
+            if lim is not None:
+                use += ds / lim
+                climb += ds                                  # steep metres since the truck last recovered
+            else:
+                use = max(0.0, use - ds * (min(3.0, 3.0 - g) / 3.0) / RECOVERY)
+                if use == 0.0:
+                    climb = 0.0
+            if use >= 1.0 and cur is None:
+                cur = {"start": b, "climb_end": b, "gmax": g, "steep": climb - (ds if lim is not None else 0.0)}
+            if cur is not None:
+                if lim is not None:
+                    cur["climb_end"] = b
+                    cur["gmax"] = max(cur["gmax"], g)
+                    cur["steep"] += ds
+                elif abs(b - cur["climb_end"]) >= merge and use < 1.0:
+                    lanes.append(cur)
+                    cur = None
+        if cur is not None:
+            lanes.append(cur)
+        joined = []
+        for ln in lanes:
+            if joined and abs(ln["start"] - joined[-1]["climb_end"]) - merge < join:
+                joined[-1].update(climb_end=ln["climb_end"], gmax=max(joined[-1]["gmax"], ln["gmax"]),
+                                  steep=joined[-1]["steep"] + ln["steep"], joined=True)
+            else:
+                joined.append(dict(ln))
+        for ln in joined:
+            end = ln["climb_end"] + d * merge
+            end = min(max(end, al.sta_start), al.sta_end)
+            out.append({"start": round(ln["start"] / 10.0) * 10.0, "end": round(end / 10.0) * 10.0, "side": side,
+                        "grade": round(ln["gmax"] * d, 2), "length": round(ln["steep"], 1),
+                        "limit": round(grade_limit(ln["gmax"]), 1), "note": note
+                        + ("; consecutive steep grades taken together" if ln.get("joined") else "")})
+    return sorted(out, key=lambda c: min(c["start"], c["end"]))
 
 
 def place_lane(al, start: float, end: float, side: str, **kw):
