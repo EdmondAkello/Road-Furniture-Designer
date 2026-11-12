@@ -183,6 +183,9 @@ def test_junction_templates_in_a_project(tmp_path):
     from openpyxl import load_workbook
     rows = list(load_workbook(tmp_path / "j.xlsx")["Junctions"].iter_rows(min_row=2, values_only=True))
     assert {r[6] for r in rows} >= {"KERB", "TM07", "BM07", "LM24", "HM07"}
+    # the corner islands' bellmouths go to Civil 3D as widenings, and the Junctions sheet keeps its items
+    wid = list(load_workbook(tmp_path / "j.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
+    assert "bellmouth behind a corner island" in {r[1] for r in wid}
     from road_furniture_designer.rfd.dxf_out import write_junctions
     import ezdxf
     doc = ezdxf.new()

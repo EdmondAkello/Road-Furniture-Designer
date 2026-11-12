@@ -570,10 +570,12 @@ def junction_checks(al, junctions) -> List[Check]:
                              f"should not be sited where visibility is restricted (RDM 1.3 13.2)", "check"))
     from .junctions import widening_check
     for j in junctions:                              # round trip: placed widenings vs the re-imported corridor
-        if j.get("bay"):
-            a, b = sorted((j["bay"]["stations"][0], j["bay"]["stations"][3]))
-            for level, text in widening_check(al, j["bay"]):
-                out.append(Check("widening", a, b, j["bay"]["side"], f"{text[0].upper()}{text[1:]} ({_ch(al, a)} to "
+        recs = ([j["bay"]] if j.get("bay") else []) + [w for w in j.get("widen") or []
+                                                       if w.get("kind", "").startswith(("main road", "minor road"))]
+        for rec in recs:
+            a, b = sorted((rec["stations"][0], rec["stations"][3]))
+            for level, text in widening_check(al, rec):
+                out.append(Check("widening", a, b, rec["side"], f"{text[0].upper()}{text[1:]} ({_ch(al, a)} to "
                                  f"{_ch(al, b)})", level))
     trucks = sorted((j for j in junctions if j.get("bay") and j["bay"].get("kind") == "truck parking bay"),
                     key=lambda j: j["bay"]["stations"][1])
