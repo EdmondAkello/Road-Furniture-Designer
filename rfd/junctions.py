@@ -596,6 +596,34 @@ def _arc(c, r, a0, a1, n=24) -> List[Pt]:
             for i in range(n + 1)]
 
 
+THREE_CENTRED = ((2.0, 0.2), (1.0, 0.6), (3.0, 0.2))     # (radius / R2, share of the turn): RDM 1.3 Fig 9.25
+
+
+def three_centred_return(p0: Pt, d: Pt, sgn: int, r2: float, step: float = 0.5) -> List[Pt]:
+    """A kerb return in the guide frame (main edge along y = 0, minor road towards +y): a compound curve of
+    radii 2 R2, R2 and 3 R2 (RDM 1.3 Figure 9.25) turning from the main edge into the minor edge through p0
+    (direction d, away from the main road). sgn: the corner on the +x side (1) or the -x side (-1). The curve
+    starts tangent to the main edge and ends tangent to the minor edge."""
+    th = math.atan2(0.0, -sgn)                          # along the main edge, towards the corner
+    turn = math.remainder(math.atan2(d[1], d[0]) - th, 2 * math.pi)
+    st = 1.0 if turn > 0 else -1.0
+    pts, pos = [(0.0, 0.0)], (0.0, 0.0)
+    nl = lambda a: (-math.sin(a), math.cos(a))
+    for k, share in THREE_CENTRED:
+        R, dl = k * r2, abs(turn) * share
+        c = (pos[0] + st * R * nl(th)[0], pos[1] + st * R * nl(th)[1])
+        n = max(2, int(R * dl / step))
+        for i in range(1, n + 1):
+            ph = th + st * dl * i / n
+            pts.append((c[0] - st * R * nl(ph)[0], c[1] - st * R * nl(ph)[1]))
+        th += st * dl
+        pos = pts[-1]
+    # slide along the main edge so the end lies on the minor edge
+    E = pts[-1]
+    xs = (d[0] * (E[1] - p0[1]) - d[1] * (E[0] - p0[0])) / d[1]
+    return [(x + xs, y) for x, y in pts]
+
+
 def _guides(F: Frame, spec, P, piece) -> Piece:
     """Construction lines in a frame with the main edge as the x-axis (x along the chainage, y to the minor road)."""
     s = F.s
@@ -617,16 +645,23 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
         # fillet centre: distance R from the main edge (y = R) and R outside the minor edge
         if abs(n[0]) < 1e-9:
             continue
-        cx = p0[0] + (R - (R - p0[1]) * n[1]) / n[0]
-        c = (cx, R)
-        t1 = (cx, 0.0)                                 # tangent on the main edge
-        t2 = (cx - R * n[0], R - R * n[1])             # tangent on the minor edge
-        a0, a1 = math.atan2(t1[1] - R, t1[0] - cx), math.atan2(t2[1] - R, t2[0] - cx)
-        while a1 - a0 > math.pi:
-            a1 -= 2 * math.pi
-        while a0 - a1 > math.pi:
-            a1 += 2 * math.pi
-        parts.append(Part("GUIDE", [W(*p) for p in _arc(c, R, a0, a1)]))
+        if P.get("three_centred", True):
+            # RDM 1.3 Figure 9.25: three-centred return R1 : R2 : R3 = 2 : 1 : 3, R2 8-12 m
+            r2 = P.get("r2") or min(max(P["return_radius"] / 2.0, 8.0), 12.0)
+            curve = three_centred_return(p0, (dx, dy), sgn, r2 * s)
+            parts.append(Part("GUIDE", [W(*p) for p in curve]))
+            t2 = curve[-1]
+        else:
+            cx = p0[0] + (R - (R - p0[1]) * n[1]) / n[0]
+            c = (cx, R)
+            t1 = (cx, 0.0)                                 # tangent on the main edge
+            t2 = (cx - R * n[0], R - R * n[1])             # tangent on the minor edge
+            a0, a1 = math.atan2(t1[1] - R, t1[0] - cx), math.atan2(t2[1] - R, t2[0] - cx)
+            while a1 - a0 > math.pi:
+                a1 -= 2 * math.pi
+            while a0 - a1 > math.pi:
+                a1 += 2 * math.pi
+            parts.append(Part("GUIDE", [W(*p) for p in _arc(c, R, a0, a1)]))
         # minor edge from the tangent point outwards
         k = (t2[0] - p0[0]) * dx + (t2[1] - p0[1]) * dy
         parts.append(Part("GUIDE", [W(t2[0], t2[1]), W(p0[0] + (k + reach) * dx, p0[1] + (k + reach) * dy)]))

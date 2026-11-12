@@ -569,3 +569,18 @@ def test_roundabout_entry_path_radius():
     poor = J.build_piece(al, J.place_roundabout(al, 200, 0), "roundabout",
                          params={"island": 10, "icd": 60, "arms": arms}, templates=T)
     assert len([t for lvl, t in poor.params["notes"] if lvl == "check" and "entry path radius" in t]) == 4
+
+
+def test_three_centred_kerb_returns():
+    """RDM 1.3 Figure 9.25: R1 : R2 : R3 = 2 : 1 : 3, tangent to the main edge and to the minor edge."""
+    for ang, sgn in ((90, 1), (90, -1), (70, 1), (110, -1)):
+        d = (math.cos(math.radians(ang)), math.sin(math.radians(ang)))
+        p0 = (sgn * d[1] * 3.5, -sgn * d[0] * 3.5)
+        c = J.three_centred_return(p0, d, sgn, 10.0)
+        assert c[0][1] == pytest.approx(0.0) and c[1][1] > 0                  # leaves the main edge tangentially
+        e = c[-1]
+        assert d[0] * (e[1] - p0[1]) - d[1] * (e[0] - p0[0]) == pytest.approx(0.0, abs=1e-6)   # on the minor edge
+        t = (e[0] - c[-2][0], e[1] - c[-2][1])
+        assert (t[0] * d[0] + t[1] * d[1]) / math.hypot(*t) == pytest.approx(1.0, abs=1e-3)   # along it
+    pcs = {p.piece: p for p in J.build_kit(straight(), at(straight(), 90), "C", templates=T)}
+    assert len(pcs["guides"].parts) >= 6
