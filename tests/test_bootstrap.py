@@ -278,7 +278,7 @@ def test_random_features(seed):
             assert al.sta_start - 1e-6 <= p.station <= al.sta_end + 1e-6, tag
             assert (p.side, p.facing) in (("L", "Forward"), ("R", "Backward")) and p.code in SCAT.signs, tag
             assert (p.station < sta) == (p.facing == "Forward"), tag
-        main = [r for r in d.runs if r.code in ("HUMP-C", "HUMP-T", "TABLE", "BUMP")]
+        main = [r for r in d.runs if r.code in ("HUMP-C", "HUMP-T", "TABLE", "TABLE-X", "BUMP")]
         if main and main[0].sta_start > al.sta_start and main[0].sta_end < al.sta_end:
             assert (main[0].sta_start + main[0].sta_end) / 2 == pytest.approx(sta), tag
         bars = sorted((r for r in d.runs if r.code == "BAR-SET"), key=lambda r: r.sta_start)

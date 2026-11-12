@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [3.44.15-trixie]
+        image: [3.34.15-bookworm, 3.44.15-trixie]
     container: qgis/qgis:${{ matrix.image }}
     env:
       QT_QPA_PLATFORM: offscreen

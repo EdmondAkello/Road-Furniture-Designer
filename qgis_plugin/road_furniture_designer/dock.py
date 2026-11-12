@@ -892,7 +892,7 @@ class RsdDock(QDockWidget):
             return
         with _busy():
             n, findings, skipped = self.store.lines.auto_propose_markings(self.marking_config())
-            self.store.trim_for_roundabouts()
+            self.store.trim_for_overlays()
         cls = [f for f in findings if f.kind == "marking_cls"]
         notes = [f.text for f in findings if f.kind == "marking_note"] + skipped
         msg = (f"{n} marking and stud runs proposed; continuous centre line over "

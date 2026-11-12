@@ -239,10 +239,11 @@ class LineStore(QObject):
     def accept_proposals(self, fids=None):
         return self._set_status_or_delete(fids or self.proposals(), "approved")
 
-    def trim(self, a, b, centre=True, sides=True):
+    def trim(self, a, b, centre=True, sides=True, side=None, keep_rule=None):
         """Cut marking and stud runs (not transverse items) over the internal stations a..b: a run inside is
         removed, one across an end is shortened, one spanning the whole gap is split in two (the first keeps
-        its identity). centre / sides: which runs (side C, or L / R). Returns the runs cut."""
+        its identity). centre / sides: which runs (side C, or L / R); side: only that side (L / R);
+        keep_rule: runs whose rule starts with it are left alone. Returns the runs cut."""
         import dataclasses
         a, b = sorted((a, b))
         drop, add = [], []
@@ -252,6 +253,10 @@ class LineStore(QObject):
                 continue
             r = self.run_of(f)
             if (r.side == "C" and not centre) or (r.side != "C" and not sides):
+                continue
+            if side and r.side != "C" and r.side != side:
+                continue
+            if keep_rule and (r.rule or "").startswith(keep_rule):
                 continue
             if r.sta_end <= a + 1e-6 or r.sta_start >= b - 1e-6:
                 continue
@@ -303,7 +308,10 @@ class LineStore(QObject):
         expr = ("collect_geometries(array_foreach(generate_series(1, num_geometries($geometry)), "
                 "make_polygon(geometry_n($geometry, @element))))")
         gen = QgsGeometryGeneratorSymbolLayer.create({"geometryModifier": expr, "SymbolType": "Fill"})
-        if code in CALMING_FILL:          # brick red with a dark edge: stands out from the markings
+        if code == "TABLE-X":             # raised crossing: the table in blue-grey, the zebra shows on it
+            fill = QgsFillSymbol.createSimple({"color": "80,110,150,190", "outline_color": "20,40,70",
+                                               "outline_width": "0.5"})
+        elif code in CALMING_FILL:        # brick red with a dark edge: stands out from the markings
             fill = QgsFillSymbol.createSimple({"color": "190,70,40,210", "outline_color": "60,20,10",
                                                "outline_width": "0.5"})
         else:
