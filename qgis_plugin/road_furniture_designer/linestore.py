@@ -321,6 +321,52 @@ class LineStore(QObject):
         sym.changeSymbolLayer(0, gen)
         return sym
 
+    @staticmethod
+    def _marking_symbol(it, rgb):
+        """A marking as painted: each of its lines (double lines and the CLS side by side, the CLS's
+        continuous line swapping sides with "flip"), broken lines dashed at their real mark / gap in metres
+        (rural or urban pattern by the run's speed), a dark casing under a coloured core."""
+        from qgis.core import (QgsGeometryGeneratorSymbolLayer, QgsProperty, QgsSimpleLineSymbolLayer,
+                               QgsSymbolLayer, QgsUnitTypes)
+        from .rfd.linear import RURAL_SPEED, line_layout
+        mu = getattr(QgsUnitTypes, "RenderMapUnits", None)
+        try:
+            from qgis.core import Qgis
+            mu = Qgis.RenderUnit.MapUnits
+        except AttributeError:
+            pass
+        rural, urban = line_layout(it, RURAL_SPEED), line_layout(it, RURAL_SPEED - 1)
+        sym = QgsLineSymbol()
+        sym.deleteSymbolLayer(0)
+        for (left, broken, d), (_l, broken_u, du) in zip(rural, urban):
+            sub = QgsLineSymbol()
+            sub.deleteSymbolLayer(0)
+            widths = (0.9, 0.5) if len(rural) == 1 else (0.7, 0.4)
+            for colour, width in (("60,60,60", widths[0]), (rgb, widths[1])):
+                ln = QgsSimpleLineSymbolLayer.create({"line_color": colour, "line_width": str(width),
+                                                      "line_width_unit": "MM", "capstyle": "flat"})
+                if broken or broken_u:
+                    ln.setUseCustomDashPattern(True)
+                    ln.setCustomDashPatternUnit(mu)
+                    ln.setCustomDashVector([float(d.get("mark") or du["mark"]), float(d.get("gap") or du["gap"])])
+                    if (d.get("mark"), d.get("gap")) != (du.get("mark"), du.get("gap")):
+                        ln.setDataDefinedProperty(QgsSymbolLayer.Property.CustomDash, QgsProperty.fromExpression(
+                            f"if(coalesce(\"speed_kmh\", {RURAL_SPEED:g}) >= {RURAL_SPEED:g}, "
+                            f"'{d['mark']:g};{d['gap']:g}', '{du['mark']:g};{du['gap']:g}')"))
+                sub.appendSymbolLayer(ln)
+            if abs(left) < 1e-9:
+                for k in range(sub.symbolLayerCount()):
+                    sym.appendSymbolLayer(sub.symbolLayer(k).clone())
+                continue
+            gen = QgsGeometryGeneratorSymbolLayer.create(
+                # real spacing, but at least 0.9 mm on screen each side so the lines stay apart at any scale
+                {"geometryModifier": f"offset_curve($geometry, if(\"flip\" = 1, -1, 1) * "
+                                     f"{1 if left > 0 else -1} * max({abs(left):.3f}, 0.0009 * @map_scale))",
+                 "SymbolType": "Line"})
+            gen.setSubSymbol(sub)
+            sym.appendSymbolLayer(gen)
+        return sym
+
     def style(self):
         cats = []
         colours = {"yellow": "230,180,0", "white": "245,245,245", "grey": "90,90,90", "black": "40,40,40"}
@@ -334,12 +380,7 @@ class LineStore(QObject):
                 elif it.is_point_series:
                     sym = QgsLineSymbol.createSimple({"color": rgb, "width": "0.8", "line_style": "dot"})
                 else:
-                    casing = QgsLineSymbol.createSimple({"color": "60,60,60", "width": "0.9"})
-                    sym = casing
-                    core = QgsLineSymbol.createSimple({
-                        "color": rgb, "width": "0.5",
-                        "line_style": "dash" if (it.dims(80).get("gap")) else "solid"})
-                    sym.appendSymbolLayer(core.symbolLayer(0).clone())
+                    sym = self._marking_symbol(it, rgb)
                 cats.append(QgsRendererCategory(it.code, sym, f"{it.code} {it.name}"))
         r = QgsCategorizedSymbolRenderer("item_code", cats)
         self.layer.setRenderer(r)
