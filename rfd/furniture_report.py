@@ -82,6 +82,7 @@ KIND_TEXT = {
     "junction_sight": "Junction visibility",
     "access": "Private access",
     "widening": "Widening vs corridor",
+    "roundabout": "Roundabout",
 }
 
 
@@ -540,6 +541,12 @@ def junction_checks(al, junctions) -> List[Check]:
                                  side, f"truck parking bays {d / 1000:.1f} km apart; at most "
                                               f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
                                  "check", {"distance": d}))
+    for j in junctions:                              # roundabouts: RDM 1.3 Chapter 10
+        rb = j.get("rbt")
+        if rb:
+            sta = j.get("sta") or 0.0
+            for level, text in rb.get("notes", []):
+                out.append(Check("roundabout", sta, sta, "Both", f"roundabout at {_ch(al, sta)}: {text}", level))
     for j in junctions:                              # private accesses: RDM 1.3 9.11.16, Tables 2.3-2.4
         acc = j.get("access")
         if acc:
@@ -557,7 +564,7 @@ def junction_checks(al, junctions) -> List[Check]:
             what = "private access" if j.get("access") else f"type {j.get('kit', '')} junction"
             out.append(Check("junction_sight", sta, sta, "Both", f"{what} at {_ch(al, sta)}: {text}", level))
     for j in junctions:
-        if j.get("bay"):
+        if j.get("bay") or j.get("rbt"):
             continue
         a, sta = j.get("crossing_deg"), j.get("sta")
         if a is None or sta is None:

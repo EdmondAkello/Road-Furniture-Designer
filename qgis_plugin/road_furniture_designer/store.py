@@ -634,7 +634,7 @@ class SignStore(QObject):
                 "foundation": f["foundation"], "skew": f["skew"], "remarks": f["remarks"],
                 "face_uuid": f["face_uuid"], "install_uuid": f["install_uuid"],
                 "mirror": f["mirror"], "legend": f["legend"] or "", "road_class": f["road_class"] or "",
-                "edge_ref": f["edge_ref"] or "", "status": f["status"] or ""})
+                "edge_ref": f["edge_ref"] or "", "status": f["status"] or "", "rule": f["rule"] or ""})
         return out
 
     def signlist(self, include_proposed=True):
@@ -880,6 +880,8 @@ class SignStore(QObject):
                         signs += 1
                     except ValueError:
                         pass
+        if pl.role == "roundabout":
+            signs += self._roundabout_signs(pl)
         if pl.role == "minor" and (not piece or piece in ("give_way_line", "give_way_triangle")):
             for sg in J.minor_signs(self.al, pl, self.junctions.main_of(pl)):
                 x, y, _ = self.al.point_at(sg["station"], (5.0 if sg["side"] == "R" else -5.0))
@@ -909,6 +911,52 @@ class SignStore(QObject):
             from qgis.core import QgsProject
             layers = [QgsProject.instance().mapLayer(i) for i in ids]
             self.junctions.check_obstructions([l for l in layers if l is not None and l.isValid()])
+
+    def _sign_facing(self, x, y, phi):
+        """(facing, skew) that point a sign face in the map direction phi (radians, counter-clockwise from
+        east), whatever the road it stands by."""
+        import math
+        so = self.al.station_offset(x, y)
+        h = self.al.point_at(min(max(so.station, self.al.sta_start), self.al.sta_end))[2]
+        d = math.degrees(math.remainder(phi - (h + math.pi), 2 * math.pi))
+        if abs(d) <= 90.0:
+            return "Forward", round(d, 1)
+        return "Backward", round(math.degrees(math.remainder(phi - h, 2 * math.pi)), 1)
+
+    def _roundabout_signs(self, pl):
+        """W17 on our approaches, R2 at every entry, M5 on every splitter nose, a W24 chevron on the central
+        island facing every entry (RDM 6.2 4.4, 3.3, 4.6.1). All proposals with the roundabout's rule."""
+        import math
+        j = next((x for x in self.junctions.junctions() if x["id"] == pl.junction_id), None)
+        if not j or not j.get("rbt"):
+            return 0
+        rule, n = f"junction:{pl.junction_id}", 0
+        for d in j["rbt"]["detail"]:
+            out = d["bearing"]                          # signs face outwards, towards the entering traffic
+            todo = [("R2", d["give_way"], "Give way at the roundabout entry (RDM 6.2, RDM 6.1 Figure 7.14)"),
+                    ("M5", d["nose"], "Keep left on the splitter island nose (RDM 6.2 3.3)"),
+                    ("W24-b", d["island_face"], "Chevron on the central island facing the entry (RDM 6.2 4.6.1)")]
+            if d["src"] == "ours" and d.get("station") is not None and d.get("advance"):
+                inbound = 1 if d["station"] < pl.station else -1
+                sta = d["station"] - inbound * d["advance"]
+                if self.al.sta_start <= sta <= self.al.sta_end:
+                    side = -1.0 if inbound > 0 else 1.0                       # the left of the approaching traffic
+                    off = ((self.al.edges.offset("ETW", "L" if side < 0 else "R", sta) if self.al.edges else None)
+                           or 3.5) + 1.5
+                    x, y, _ = self.al.point_at(sta, side * off)
+                    todo.append(("W17", (x, y), f"Roundabout ahead, {d['advance']:.0f} m before the entry at "
+                                                f"{d['speed']:.0f} km/h (RDM 6.2 4.4)"))
+            for code, (x, y), why in todo:
+                if code == "W17":                           # on our road: faces the traffic coming in
+                    facing, skew = ("Forward" if inbound > 0 else "Backward"), 0.0
+                else:
+                    facing, skew = self._sign_facing(x, y, out)
+                try:
+                    self.add_sign(x, y, code, facing=facing, skew=skew, status="proposed", rule=rule, reason=why)
+                    n += 1
+                except (ValueError, KeyError):
+                    pass
+        return n
 
     TRUCK_I14_AHEAD = 300.0                 # m before the entry taper (RDM 6.2 6.4.1.1: up to 500 m)
 

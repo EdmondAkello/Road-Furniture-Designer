@@ -67,3 +67,8 @@ def test_sign_checks_and_clearance(road):
     assert (f3.edge_ref, f3.edge_clear) == ("EPS", pytest.approx(1.0))
     assert (f4.edge_ref, f4.edge_clear) == ("ETW", pytest.approx(2.5))
     assert f3.grade == pytest.approx(-0.5)      # 300 = crest PVI
+    # an overlay's sign (a chevron on a roundabout island) is not judged against our road's edges
+    isl = build_signlist([{"ref": 9, "station": 100, "offset": 2.0, "side": "L", "facing": "Backward",
+                           "code": "W24-b", "rule": "junction:abc"}], road, cat)
+    assert not [i for i in isl.issues if i.row == 9]
+    assert [f for f in isl.faces if f.row == 9][0].edge_clear is not None

@@ -190,11 +190,16 @@ def make_face(rec: dict, al: Alignment, cat: Catalogue, issues: List[Issue]) -> 
     if al.profile is not None:
         g = al.profile.grade(f.station_internal)
         f.grade = round(g, 2) if g is not None else None
+    # signs of an overlay (junction, roundabout, bay ...) stand on its islands or by its own roads: they are
+    # placed from the overlay's geometry, so our road's corridor edges do not judge them
+    overlay = _s(rec.get("rule")).startswith("junction:")
     if al.edges:
         from .corridor import SHOULDER, TRAVELLED_WAY
         tw, tw_off = al.edges.first(TRAVELLED_WAY, side, f.station_internal)
         sh, sh_off = al.edges.first(SHOULDER, side, f.station_internal)
-        if tw_off is not None and off < tw_off - 0.05:
+        if overlay:
+            pass
+        elif tw_off is not None and off < tw_off - 0.05:
             issues.append(Issue(r, "error", f"{code} is inside the travelled way ({off:.2f} m; {tw} at {tw_off:.2f} m)"))
         elif sh_off is not None and off < sh_off - 0.05:
             issues.append(Issue(r, "warning", f"{code} is on the shoulder ({off:.2f} m; {sh} at {sh_off:.2f} m)"))
@@ -203,21 +208,21 @@ def make_face(rec: dict, al: Alignment, cat: Catalogue, issues: List[Issue]) -> 
         if ro is not None:
             f.edge_ref, f.edge_clear = ref, round(off - ro, 3)
         from .corridor import RDM_MAX_CLEAR, RDM_MIN_CLEAR, outer_limit
-        if ro is not None and ref in SHOULDER + TRAVELLED_WAY and off >= ro - 0.05 and \
+        if not overlay and ro is not None and ref in SHOULDER + TRAVELLED_WAY and off >= ro - 0.05 and \
                 not (RDM_MIN_CLEAR - 0.01 <= off - ro <= RDM_MAX_CLEAR + 0.01):
             issues.append(Issue(r, "warning", f"{code} is {off - ro:.2f} m beyond {ref}; RDM 6.2 2.4 asks for "
                                               f"{RDM_MIN_CLEAR:.1f}-{RDM_MAX_CLEAR:.1f} m"))
         lim = outer_limit(al.edges, side, f.station_internal)
-        if lim is not None and off > lim + 0.05 and (ro is None or lim >= ro + RDM_MIN_CLEAR):
+        if not overlay and lim is not None and off > lim + 0.05 and (ro is None or lim >= ro + RDM_MIN_CLEAR):
             issues.append(Issue(r, "warning", f"{code} is outside the road corridor ({off:.2f} m; corridor "
                                               f"edge at {lim:.2f} m)"))
     far_side = facing != auto_facing(side)
     # chevrons and hazard markers go on the outside of curves / at the hazard, either side
-    if far_side and not code.startswith(("W24", "W68", "W69", "W70", "RW24")):
+    if far_side and not overlay and not code.startswith(("W24", "W68", "W69", "W70", "RW24")):
         issues.append(Issue(r, "warning",
                             f"{code} faces {facing.lower()} traffic but sits on the far side "
                             f"(side {side}) - check (median / one-way / repeater?)"))
-    if off < 0.5:
+    if off < 0.5 and not overlay:
         issues.append(Issue(r, "warning", f"Offset {off} m is very close to the centreline"))
     return f
 

@@ -374,6 +374,48 @@ def test_widening_round_trip_in_a_project(tmp_path):
     assert c.level == "info" and "matches the corridor" in c.text
 
 
+def test_roundabout_in_a_project(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.report import ReportData, write_xlsx
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    x, y, h = st.al.point_at(800.0)
+    pl = J.place_roundabout(st.al, x, y)
+    side = math.degrees(h) + 90.0                                         # a third arm, square on the left
+    n, finds, nsigns = st.add_junction(pl, "RBT", "", False, {"island": 12.0, "arms": [
+        {"bearing_deg": side, "src": "click", "half": 3.5}]}, False, None)
+    j = st.junctions.junctions()[0]
+    assert j["kit"] == "RBT" and j["rbt"]["n_arms"] == 3 and j["kerb_m"] > 100 and j["island_m2"] > 100
+    signs = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
+    codes = sorted(f["sign_code"] for f in signs)
+    assert codes.count("R2") == 3 and codes.count("M5") == 3 and codes.count("W24-b") == 3 and codes.count("W17") == 2
+    # the chevron facing the clicked arm points along it, out of the roundabout
+    chev = [f for f in signs if f["sign_code"] == "W24-b"]
+    azs = sorted(round(f["face_az"]) % 360 for f in chev)
+    want = round((90.0 - side) % 360)
+    assert any(abs(math.remainder(a - want, 360)) < 2 for a in azs)
+    d = ReportData(st, AutoConfig())
+    assert any(c.kind == "roundabout" for c in d.fr.checks)
+    write_xlsx(str(tmp_path / "r.xlsx"), d)
+    from openpyxl import load_workbook
+    rows = list(load_workbook(tmp_path / "r.xlsx")["Junctions"].iter_rows(min_row=2, values_only=True))
+    assert {"KERB", "TM07", "TM04", "BM07"} <= {r[6] for r in rows}
+    st.junctions.recompute_all()                                          # rebuilt from its stored parameters
+    assert st.junctions.junctions()[0]["rbt"]["n_arms"] == 3
+    assert st.remove_junction(pl.junction_id) >= 11
+    # the same from the map tool: centre, one arm by a click, then place (right-click / Enter)
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    from road_furniture_designer.maptool import PlaceJunctionTool
+    tool = PlaceJunctionTool(QgsMapCanvas(), lambda: st, lambda: {"kit": "RBT", "rbt": {"island": 10.0}})
+    assert tool.click(QgsPointXY(x + 1.0, y + 1.0)) is None and tool.p0 is not None   # centre, snapped
+    ax, ay = x + 40 * math.cos(math.radians(side)), y + 40 * math.sin(math.radians(side))
+    assert tool.click(QgsPointXY(ax, ay)) is None and len(tool._rb_arms) == 1
+    jid = tool.place_roundabout()
+    jj = next(j for j in st.junctions.junctions() if j["id"] == jid)
+    assert jj["rbt"]["n_arms"] == 3 and tool.p0 is None
+
+
 def test_climbing_lane_proposed_in_a_project(tmp_path):
     from road_furniture_designer.rfd.profile import VerticalProfile
     st, xml = _fill_road(tmp_path)

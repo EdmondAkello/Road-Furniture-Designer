@@ -434,6 +434,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         return _splays(F, spec, P, piece)
     elif piece == "access":
         return _access(F, spec, P, piece)
+    elif piece == "roundabout":
+        return _roundabout(F, spec, P, piece)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
 
@@ -599,6 +601,55 @@ def splay_findings(sight: dict) -> List[Tuple[str, str]]:
         out.append((lvl, f"{o['layer']} feature {o['fid']} is inside the {what} visibility splay "
                          f"{'up' if o['dir'] == 'up' else 'down'} the chainage ({sight.get('ref', '')})"))
     return out
+
+
+def place_roundabout(al, x: float, y: float, **kw) -> Placement:
+    """Placement of a roundabout centred on our road at the point nearest (x, y)."""
+    so = al.station_offset(x, y)
+    if not so.in_range:
+        raise ValueError("Beyond the alignment ends")
+    _, _, h = al.point_at(so.station)
+    return Placement(so.station, h + math.pi / 2, role="roundabout", **kw)
+
+
+def roundabout_arms(al, pl: Placement, P: dict) -> List[dict]:
+    """Our road's arms (recomputed from the alignment, so they follow a redesign) plus the stored ones."""
+    from . import roundabouts as RB
+    icd = float(P.get("icd") or RB.min_icd(float(P.get("island") or RB.DEFAULTS["island"])))
+    x, y, _ = al.point_at(pl.station)
+    ours = RB.auto_arms(al, x, y, icd / 2)
+    stored = [dict(a, bearing=math.radians(a["bearing_deg"])) for a in (P.get("arms") or [])]
+    return RB.merge_arms(ours + stored)
+
+
+def _roundabout(F: Frame, spec, P, piece) -> Piece:
+    from . import roundabouts as RB
+    from .autoplace import advance_distance
+    from .criteria import DEFAULT_ID, Criteria
+    from .features import visible_from
+    al, pl = F.al, F.pl
+    arms = roundabout_arms(al, pl, P)
+    O = F.p0
+    raw, q, detail, PP = RB.build(O, arms, P)
+    parts = [Part(code, pts, closed) for code, pts, closed in raw]
+    notes = RB.checks(arms, PP, q)
+    crit = Criteria.load(P.get("criteria") or DEFAULT_ID)
+    for d in detail:                                   # our approaches: the entry seen from the SSD (10.4.4)
+        if d["src"] != "ours" or d["station"] is None:
+            continue
+        inbound = 1 if d["station"] < pl.station else -1
+        v = al.speed_at(d["station"] - inbound * 50.0) or 80.0
+        need = crit.ssd(v)
+        seen = visible_from(al, d["station"], need, inbound, crit.eye_height, crit.object_height)
+        d["speed"], d["advance"] = v, advance_distance(v)
+        if seen is not None and seen < need - 1e-6:
+            notes.append(("check", f"the entry from {'behind' if inbound > 0 else 'ahead along'} the chainage is seen "
+                                   f"from about {seen:.0f} m on the profile, under the stopping sight distance of "
+                                   f"{need:.0f} m at {v:.0f} km/h; a roundabout should not sit on a sharp crest "
+                                   f"(RDM 1.3 10.4.4)"))
+    P = dict(PP, kind="roundabout", notes=notes, quantities=q, detail=detail, n_arms=len(arms),
+             arms_used=[{"bearing_deg": round(math.degrees(a["bearing"]), 2), "src": a["src"]} for a in arms])
+    return Piece(piece, spec["name"], "roundabout", "", parts, q, P)
 
 
 ACCESS_CONTROL_FULL = ("A", "B", "UA", "UC")      # RDM 1.3 Tables 2.3 and 2.4: desirable full access control
@@ -958,7 +1009,7 @@ def findings(al, pl: Placement) -> List[Tuple[str, str]]:
     """al: the main road's alignment (main_alignment)."""
     """(level, text) about the placement: skew to RDM 1.3 9.2.3, junction near the alignment ends."""
     out = []
-    if pl.role == "bay":
+    if pl.role in ("bay", "roundabout"):
         return out
     F = pl.frame(al)
     ang = F.crossing_angle

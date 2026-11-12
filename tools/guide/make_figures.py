@@ -76,6 +76,10 @@ for a, b, off in ((2700.0, 2725.0, -5.0), (2765.0, 2790.0, 5.0)):     # bus bays
 _ax, _ay, _ah = st.al.point_at(2080.0)                               # a private access on the right
 st.add_junction(J.place(st.al, _ax, _ay, _ax + 30 * math.sin(_ah), _ay - 30 * math.cos(_ah)), "ACCESS",
                 params={"road_class": "B"})
+_rx, _ry, _rh = st.al.point_at(4320.0)                               # a roundabout near the end, third arm left
+st.add_junction(J.place_roundabout(st.al, _rx, _ry), "RBT", "", False,
+                {"island": 12.0, "arms": [{"bearing_deg": math.degrees(_rh) + 90.0, "src": "click", "half": 3.5}]},
+                False, None)
 pl, B = J.place_bay(st.al, *P(2420.0, -5.0), *P(2490.0, -5.0))       # a truck parking bay on the straight
 st.add_junction(pl, "TRUCK", params={"bay": B})
 from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayer  # noqa: E402
@@ -124,6 +128,8 @@ x, y = P(3050, 0)                                                     # crossing
 render_map(QgsRectangle(x - 160, y - 105, x + 160, y + 105), (1600, 1050), "fig_map_calming.png")
 x, y = P(2742, 0)                                                     # the two bus bays in the village
 render_map(QgsRectangle(x - 50, y - 70, x + 50, y + 70), (1000, 1400), "fig_map_busbay.png")
+x, y = P(4320, -12)                                                   # the roundabout
+render_map(QgsRectangle(x - 62, y - 48, x + 62, y + 48), (1500, 1160), "fig_map_roundabout.png")
 x, y = P(2080, 11)                                                    # the private access
 render_map(QgsRectangle(x - 27, y - 18, x + 27, y + 18), (1500, 1000), "fig_map_access.png")
 x, y = P(2452, 0)                                                     # the truck parking bay

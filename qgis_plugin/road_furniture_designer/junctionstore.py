@@ -33,10 +33,10 @@ FIELDS = [
     ("side", QVariant.String), ("crossing_deg", QVariant.Double),
     ("kerb_m", QVariant.Double), ("island_m2", QVariant.Double), ("line_m", QVariant.Double),
     ("paint_m2", QVariant.Double), ("widen_m2", QVariant.Double), ("bay", QVariant.String),
-    ("sight", QVariant.String), ("access", QVariant.String),
+    ("sight", QVariant.String), ("access", QVariant.String), ("rbt", QVariant.String),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
-NO_PAINT = ("KERB", "GUIDE", "BAYEDGE", "SPLAY-A", "SPLAY-S", "ACCESS", "ACCESS-P", "PIPE")
+NO_PAINT = ("KERB", "GUIDE", "BAYEDGE", "SPLAY-A", "SPLAY-S", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON")
 STYLE = {   # code -> (colour, width mm, dashed)
     "KERB": ("40,40,40", 0.6, False), "GUIDE": ("120,120,120", 0.2, True),
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
@@ -44,6 +44,8 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
     "LM05": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
     "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True),
+    "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
+    "TM04": ("70,110,170", 0.4, True),
     "ACCESS": ("60,60,60", 0.5, False), "ACCESS-P": ("110,110,110", 0.25, False), "PIPE": ("40,90,200", 0.4, False), "SHELTER": ("120,120,120", 0.3, True),
 }
 
@@ -135,7 +137,10 @@ class JunctionStore(QObject):
                     if piece == "splays" and code == next(iter(by_code), code) else None,
                     "access": json.dumps({k: pc.params[k] for k in ("width", "radius", "length", "notes", "quantities",
                                                                       "road_class")})
-                    if piece == "access" and code == next(iter(by_code), code) else None}
+                    if piece == "access" and code == next(iter(by_code), code) else None,
+                    "rbt": json.dumps({k: pc.params[k] for k in ("notes", "quantities", "n_arms", "arms_used", "island",
+                                                                   "detail")})
+                    if piece == "roundabout" and code == next(iter(by_code), code) else None}
             for n, x in vals.items():
                 f.setAttribute(n, x)
             out.append(f)
@@ -277,11 +282,13 @@ class JunctionStore(QObject):
                 "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
                 "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None,
-                "sight": None, "access": None})
+                "sight": None, "access": None, "rbt": None})
             if f["bay"]:
                 j["bay"] = json.loads(f["bay"])
             if f["access"]:
                 j["access"] = json.loads(f["access"])
+            if f["rbt"]:
+                j["rbt"] = json.loads(f["rbt"])
             if f["sight"]:
                 j["sight"] = json.loads(f["sight"])
                 j["sight"]["obstructions"] = self.obstructions.get(f["junction_id"], [])

@@ -342,6 +342,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         self._settings = settings_getter        # {"kit", "piece", "scale", "guides"}
         self.p0 = None
         self._params = None
+        self._rb_arms = []                      # roundabout: arms clicked or found on other alignments
         self.band = QgsRubberBand(canvas, GEOM_LINE)
         self.band.setColor(QColor(200, 60, 160, 220))
         self.band.setWidth(1)
@@ -363,6 +364,63 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             return None
         x, y, _ = st.al.point_at(so.station)
         return so.station, x, y
+
+    def _rb_params(self, extra=None):
+        s = self._settings()
+        arms = list(self._rb_arms) + ([extra] if extra else [])
+        return dict(s.get("rbt") or {}, arms=arms)
+
+    def _rb_bearing(self, lp):
+        import math
+        st = self._store()
+        x, y, _ = st.al.point_at(self.p0[0])
+        return math.degrees(math.atan2(lp.y() - y, lp.x() - x)), math.hypot(lp.x() - x, lp.y() - y)
+
+    def _rb_pieces(self, lp=None):
+        from .rfd import junctions as J
+        st = self._store()
+        x, y, _ = st.al.point_at(self.p0[0])
+        pl = J.place_roundabout(st.al, x, y)
+        extra = None
+        if lp is not None:
+            b, d = self._rb_bearing(lp)
+            if d > 10.0:
+                extra = {"bearing_deg": round(b, 2), "src": "click", "half": 3.5}
+        params = self._rb_params(extra)
+        return pl, [J.build_piece(st.al, pl, "roundabout", "", params, st.junctions.templates)], params
+
+    def _rb_found(self):
+        """Arms of the other alignments of the LandXML crossing the inscribed circle."""
+        import math
+        from .rfd import roundabouts as RB
+        st, s = self._store(), self._settings()
+        r = s.get("rbt") or {}
+        icd = r.get("icd") or RB.min_icd(r.get("island") or RB.DEFAULTS["island"])
+        x, y, _ = st.al.point_at(self.p0[0])
+        arms = RB.auto_arms(st.al, x, y, icd / 2, others=st.junctions.others())
+        return [{"bearing_deg": round(math.degrees(a["bearing"]), 2), "src": a["src"], "half": round(a["half"], 2)}
+                for a in arms if a["src"] != "ours"]
+
+    def place_roundabout(self):
+        st, s = self._store(), self._settings()
+        from .rfd import junctions as J
+        from .rfd.alignment import format_station
+        if self.p0 is None:
+            return None
+        x, y, _ = st.al.point_at(self.p0[0])
+        pl = J.place_roundabout(st.al, x, y)
+        try:
+            n, finds, nsigns = st.add_junction(pl, "RBT", "", False, self._rb_params(), False, None)
+        except ValueError as ex:
+            self.failed.emit(str(ex))
+            return None
+        j = next((j for j in st.junctions.junctions() if j["id"] == pl.junction_id), None)
+        notes = [t for lvl, t in (j["rbt"]["notes"] if j and j.get("rbt") else []) if lvl != "info"]
+        self.cancel()
+        self.placed.emit(f"Roundabout at Ch {format_station(st.al.display_station(pl.station), 1)}, "
+                         f"{j['rbt']['n_arms'] if j else '?'} arms, {nsigns} sign(s) proposed"
+                         + "".join(f" - {t}" for t in notes))
+        return pl.junction_id
 
     def _placement(self, lp):
         from .rfd import junctions as J
@@ -416,9 +474,19 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 self.hover.emit("Beyond the alignment ends")
                 return
             self.mark.addPoint(self._xf(False).transform(QgsPointXY(sn[1], sn[2])), True)
-            self.hover.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - click")
+            what = "Roundabout centre" if self._settings().get("kit") == "RBT" else "Junction point"
+            self.hover.emit(f"{what} Ch {format_station(st.al.display_station(sn[0]), 1)} - click")
             return
         try:
+            if self._settings().get("kit") == "RBT":
+                pl, pcs, params = self._rb_pieces(lp)
+                xf = self._xf(False)
+                lines = [[xf.transform(QgsPointXY(x, y)) for x, y in (p.pts + ([p.pts[0]] if p.closed else []))]
+                         for pc in pcs for p in pc.parts]
+                self.band.setToGeometry(QgsGeometry.fromMultiPolylineXY(lines), None)
+                self.hover.emit(f"{pcs[0].params['n_arms']} arms with the one at the mouse - click to add it, "
+                                f"right-click or Enter to place without it")
+                return
             pl, pcs = self._pieces(lp)
         except ValueError as ex:
             self.hover.emit(str(ex))
@@ -444,9 +512,13 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Escape:
             self.cancel()
+        elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and self.p0 is not None \
+                and self._settings().get("kit") == "RBT":
+            self.place_roundabout()
 
     def cancel(self):
         self.p0 = None
+        self._rb_arms = []
         self.band.reset(GEOM_LINE)
 
     def canvasReleaseEvent(self, e):
@@ -454,7 +526,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         if st is None:
             return
         if e.button() == Qt.RightButton:
-            if self.p0 is not None:
+            if self.p0 is not None and self._settings().get("kit") == "RBT":
+                self.place_roundabout()
+            elif self.p0 is not None:
                 self.cancel()
             else:
                 self.canvas.unsetMapTool(self)
@@ -472,12 +546,27 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                 self.failed.emit("Beyond the alignment ends")
                 return None
             self.p0 = sn
+            if s.get("kit") == "RBT":
+                self._rb_arms = self._rb_found()
+                self.placed.emit(f"Roundabout centre Ch {format_station(st.al.display_station(sn[0]), 1)}: our road's arms"
+                                 + (f" and {len(self._rb_arms)} on other alignments" if self._rb_arms else "")
+                                 + " - click any other arm, then right-click or Enter to place")
+                return None
             nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK")
                    else "now click where the full-width lane ends" if s.get("kit") == "CLIMB"
                    else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
                    else "click again to place" if s.get("role") == "minor"
                    else "now click a point up the minor road")
             self.placed.emit(f"Junction point Ch {format_station(st.al.display_station(sn[0]), 1)} - {nxt}")
+            return None
+        if s.get("kit") == "RBT":                       # another arm
+            b, d = self._rb_bearing(lp)
+            if d <= 10.0:
+                self.failed.emit("Click further from the centre to give an arm's direction")
+                return None
+            self._rb_arms.append({"bearing_deg": round(b, 2), "src": "click", "half": 3.5})
+            self.placed.emit(f"Arm added ({len(self._rb_arms)} besides our road's) - another, or right-click / Enter "
+                             f"to place")
             return None
         try:
             pl, _ = self._placement(lp)
