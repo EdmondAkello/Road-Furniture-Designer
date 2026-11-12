@@ -138,7 +138,7 @@ def bars_text(d, cfg):
     if d.kind not in BAR_KINDS:
         return f"{n} bar set(s)" if n else "no bar sets"
     if cfg is not None and not cfg.bar_markings:
-        return "no bar sets (tick 'Bar markings on the approaches' on the Calming tab for them)"
+        return "no bar sets (Bar markings: None)"
     return f"{n} bar set(s) on the approaches"
 
 
@@ -379,8 +379,17 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         so = st.al.station_offset(lp.x(), lp.y())
         if not so.in_range:
             return None
-        x, y, _ = st.al.point_at(so.station)
-        return so.station, x, y
+        sta = so.station
+        s = self._settings()
+        if s.get("role") == "minor" and s.get("kit") not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"):
+            # our road joining another road usually ends there: near an end, snap to it (as place_minor does)
+            from .rfd.junctions import END_SNAP
+            if sta - st.al.sta_start < END_SNAP:
+                sta = st.al.sta_start
+            elif st.al.sta_end - sta < END_SNAP:
+                sta = st.al.sta_end
+        x, y, _ = st.al.point_at(sta)
+        return sta, x, y
 
     def _rb_params(self, extra=None):
         s = self._settings()
