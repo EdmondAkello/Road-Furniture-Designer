@@ -247,10 +247,11 @@ def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[s
     if not getattr(al, "edges", None):
         raise ValueError("The alignment has no road edges: set a typical section (Section tab) or use a corridor")
     src = getattr(al, "edge_source", "") or "corridor"
-    if src == "typical section":
-        notes.append("Levels from the typical section's crown crossfall: superelevation is not applied.")
+    no_super = src == "typical section" and not getattr(al, "super_runs", None)
+    if no_super:
+        notes.append("The LandXML has no superelevation: levels on curves are at the normal crossfall.")
     lines = edge_lines(al, step) + widening_lines(al, parts)
-    desc = f"Road edges ({src}) and widenings of {al.name}" + (" - superelevation not applied"
-                                                                if src == "typical section" else "")
+    desc = f"Road edges ({src}) and widenings of {al.name}" + (" - no superelevation in the source"
+                                                                if no_super else "")
     n = write_landxml(path, lines, source_path, desc=desc)
     return n, notes

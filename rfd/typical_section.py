@@ -39,6 +39,62 @@ STANDARD: Dict[str, dict] = {
 }
 DEFAULT = "R5"
 PAVED = ("ETW", "EPS", "Parking")     # carried at the road's crossfall; anything beyond falls at the verge rate
+REL_GRADIENT = 0.5    # %: edge-to-centre relative gradient for runoff / runout where the LandXML gives none
+
+
+def _interp(x, x0, x1, y0, y1):
+    if x1 - x0 < 1e-9:
+        return y1
+    t = min(1.0, max(0.0, (x - x0) / (x1 - x0)))
+    return y0 + (y1 - y0) * t
+
+
+def _turns_left(al, a, b) -> bool:
+    """True when the alignment turns left (anticlockwise) between two stations."""
+    import math
+    a, b = max(al.sta_start, a), min(al.sta_end, b)
+    if b - a < 1e-3:
+        b = min(al.sta_end, a + 1.0)
+    h0, h1 = al.point_at(a)[2], al.point_at(b)[2]
+    d = (h1 - h0 + math.pi) % (2 * math.pi) - math.pi
+    return d > 0
+
+
+def cross_slopes(al, sta: float, crossfall: float, lane: float = 3.5) -> Dict[str, float]:
+    """Pavement cross slope of each side in % (negative: falling outward from the centreline), with the
+    LandXML's superelevation: the outer side rotates from the normal crown through level (runout) up to
+    the full rate (runoff), the inner side stays at the crown until the section is planar, then falls at
+    the rate; rotation about the centreline. Runoff / runout stations missing from the file come from a
+    0.5 % relative gradient over one lane."""
+    normal = {"L": -crossfall, "R": -crossfall}
+    for run in getattr(al, "super_runs", None) or []:
+        e = abs(float(run.get("e") or 0.0))
+        full, off = run.get("full"), run.get("runoff")
+        if not e or full is None or off is None:
+            continue
+        l_off = e * lane / REL_GRADIENT
+        l_out = crossfall * lane / REL_GRADIENT
+        b_off = run.get("begin_runoff", full - l_off)
+        b_out = run.get("begin_runout", b_off - l_out)
+        s_out = run.get("start_runout", off + l_off)
+        e_out = run.get("end_runout", s_out + l_out)
+        if not b_out - 1e-6 <= sta <= e_out + 1e-6:
+            continue
+        if sta < b_off:
+            outer = _interp(sta, b_out, b_off, -crossfall, 0.0)
+        elif sta < full:
+            outer = _interp(sta, b_off, full, 0.0, e)
+        elif sta <= off:
+            outer = e
+        elif sta < s_out:
+            outer = _interp(sta, off, s_out, e, 0.0)
+        else:
+            outer = _interp(sta, s_out, e_out, 0.0, -crossfall)
+        inner = -max(crossfall, outer)
+        inside = "L" if _turns_left(al, full, off) else "R"
+        outside = "R" if inside == "L" else "L"
+        return {inside: inner, outside: outer}
+    return normal
 
 
 @dataclass
@@ -201,21 +257,22 @@ class TypicalSection:
         return z0 if s1 - s0 < 1e-9 else z0 + (z1 - z0) * (sta - s0) / (s1 - s0)
 
     def sections(self, al) -> Optional[Sections]:
-        """Simplified shapes: crown at the centreline, the paved width at the crossfall, the verge at its
-        fall, Hinge at the outer edge, then a batter to the existing ground level of the centreline
+        """Simplified shapes: crown at the centreline, the paved width at the crossfall (superelevated on
+        curves from the LandXML's superelevation, see cross_slopes), the verge at its fall, Hinge at the outer edge, then a batter to the existing ground level of the centreline
         (Daylight). Elevations are relative to the design level, as Civil 3D writes them."""
         prof = getattr(al, "profile", None)
         data = {}
         for s in self.stations(al):
             zd = prof.elevation(s) if prof is not None else None
             zg = self._ground(al, s)
+            slope = cross_slopes(al, s, self.crossfall)
             for side in "LR":
                 offs = sorted(self.offsets_at(al, s, side).items(), key=lambda t: t[1])
                 if not offs:
                     continue
                 pts, z, x = [], 0.0, 0.0
                 for code, o in offs:
-                    rate = self.crossfall if code in PAVED else self.verge_fall
+                    rate = -slope[side] if code in PAVED else self.verge_fall
                     z -= (o - x) * rate / 100.0
                     x = o
                     pts.append((round(o, 4), round(z, 4), code))
