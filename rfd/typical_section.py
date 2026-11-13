@@ -82,6 +82,7 @@ class TypicalSection:
     cut_batter: float = 1.5        # H : 1 V
     use_over_corridor: bool = False   # use it even where the LandXML has a corridor
     step: float = 10.0             # m: station spacing of the edges and sections
+    others: str = ""               # standard section (STANDARD key) for the LandXML's other alignments without a corridor
 
     @classmethod
     def standard(cls, key: str = DEFAULT) -> "TypicalSection":
@@ -92,7 +93,8 @@ class TypicalSection:
     def to_dict(self):
         return {"ranges": [r.to_dict() for r in self.ranges], "transition": self.transition,
                 "crossfall": self.crossfall, "verge_fall": self.verge_fall, "fill_batter": self.fill_batter,
-                "cut_batter": self.cut_batter, "use_over_corridor": self.use_over_corridor, "step": self.step}
+                "cut_batter": self.cut_batter, "use_over_corridor": self.use_over_corridor, "step": self.step,
+                "others": self.others}
 
     @classmethod
     def from_dict(cls, d) -> "TypicalSection":
@@ -101,6 +103,16 @@ class TypicalSection:
             if d.get(k) is not None:
                 setattr(ts, k, float(d[k]))
         ts.use_over_corridor = bool(d.get("use_over_corridor", False))
+        ts.others = d.get("others") if d.get("others") in STANDARD else ""
+        return ts
+
+    def for_others(self) -> Optional["TypicalSection"]:
+        """The section given to the other alignments (side roads) that have no corridor, if any."""
+        if self.others not in STANDARD:
+            return None
+        ts = TypicalSection.standard(self.others)
+        ts.crossfall, ts.verge_fall, ts.fill_batter, ts.cut_batter = (self.crossfall, self.verge_fall,
+                                                                      self.fill_batter, self.cut_batter)
         return ts
 
     # ---------------------------------------------------------------- geometry

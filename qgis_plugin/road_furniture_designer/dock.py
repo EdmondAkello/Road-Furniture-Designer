@@ -201,6 +201,8 @@ class RsdDock(QDockWidget):
             self.cmb_tstd.addItem(k, k)
             self.cmb_tstd.setItemData(self.cmb_tstd.count() - 1, v["name"], Qt.ItemDataRole.ToolTipRole
                                       if hasattr(Qt, "ItemDataRole") else Qt.ToolTipRole)
+        from .rfd.typical_section import DEFAULT as _TS_DEFAULT
+        self.cmb_tstd.setCurrentIndex(self.cmb_tstd.findData(_TS_DEFAULT))
         self.cmb_tstd.setToolTip("RDM 1.3 Tables 4.23 / 4.24, single carriageways")
         self.btn_tstd = QPushButton("Use standard")
         self.btn_tstd.setToolTip("Replace the ranges with one range of this standard section for the whole road")
@@ -241,10 +243,26 @@ class RsdDock(QDockWidget):
         tl.addLayout(tf)
         self.chk_tover = QCheckBox("Use it even where the LandXML has a corridor")
         tl.addWidget(self.chk_tover)
+        tof = QFormLayout()
+        self.cmb_tothers = QComboBox()
+        self.cmb_tothers.addItem("None (3.5 m assumed at junctions)", "")
+        for k in STANDARD:
+            self.cmb_tothers.addItem(k, k)
+        self.cmb_tothers.setToolTip("Edges for the LandXML's other alignments that have no corridor, so a "
+                                    "junction on them sits at their edge: a standard section from RDM 1.3 "
+                                    "Tables 4.23 / 4.24")
+        tof.addRow("Side roads", self.cmb_tothers)
+        tl.addLayout(tof)
         tab_ = QHBoxLayout()
         self.btn_tapply = QPushButton("Apply section"); self.btn_toff = QPushButton("Switch off")
         tab_.addWidget(self.btn_tapply); tab_.addWidget(self.btn_toff)
         tl.addLayout(tab_)
+        tfl = QHBoxLayout()
+        self.btn_tsave = QPushButton("Save to file…"); self.btn_tload = QPushButton("Load from file…")
+        self.btn_tsave.setToolTip("Keep this section for other projects (a small JSON file)")
+        self.btn_tload.setToolTip("Fill the tab from a section saved from another project; then Apply")
+        tfl.addWidget(self.btn_tsave); tfl.addWidget(self.btn_tload)
+        tl.addLayout(tfl)
         self.lbl_tinfo = QLabel("For a LandXML with only the alignment and its profiles: the edges (ETW, EPS ...) "
                                 "come from this section, so signs, markings, barriers, bays and junctions use "
                                 "them as they would a corridor's. Fill heights for barriers come from the design "
@@ -624,6 +642,8 @@ class RsdDock(QDockWidget):
                                       if self.tbl_ts.currentRow() >= 0 else None)
         self.btn_tapply.clicked.connect(self.apply_typical_section)
         self.btn_toff.clicked.connect(self.switch_off_typical_section)
+        self.btn_tsave.clicked.connect(self.save_typical_section)
+        self.btn_tload.clicked.connect(self.load_typical_section)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
@@ -725,7 +745,8 @@ class RsdDock(QDockWidget):
     def _set_enabled(self, on):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,
-                    self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel):
+                    self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel, self.btn_tsave,
+                    self.btn_tload):
             wdg.setEnabled(on)
         if not on:
             self.btn_toff.setEnabled(False)
@@ -831,6 +852,7 @@ class RsdDock(QDockWidget):
                       (self.spn_tcut, ts.cut_batter)):
             sp.setValue(v)
         self.chk_tover.setChecked(ts.use_over_corridor)
+        self.cmb_tothers.setCurrentIndex(max(0, self.cmb_tothers.findData(ts.others)))
         self.chk_tover.setEnabled(has_corridor)
         self.btn_toff.setEnabled(st.typical is not None)
 
@@ -847,8 +869,10 @@ class RsdDock(QDockWidget):
                                            f"range {r + 1}"))
             except ValueError as e:
                 raise ValueError(f"Row {r + 1}: {e}") from None
-        return TypicalSection(ranges, self.spn_ttrans.value(), self.spn_tcross.value(), self.spn_tverge.value(),
-                              self.spn_tfill.value(), self.spn_tcut.value(), self.chk_tover.isChecked())
+        ts = TypicalSection(ranges, self.spn_ttrans.value(), self.spn_tcross.value(), self.spn_tverge.value(),
+                            self.spn_tfill.value(), self.spn_tcut.value(), self.chk_tover.isChecked())
+        ts.others = self.cmb_tothers.currentData() or ""
+        return ts
 
     def apply_typical_section(self):
         if not self.store:
@@ -878,6 +902,61 @@ class RsdDock(QDockWidget):
                 msg += " Corridor against the section: " + "; ".join(diff)
         self.iface.messageBar().pushMessage("Road Furniture Designer", msg,
                                             MSG_WARNING if problems else MSG_SUCCESS, 10)
+
+    SECTION_FILTER = "RFD typical section (*.rfdsection.json *.json)"
+
+    def save_typical_section(self):
+        import json
+        try:
+            ts = self.typical_section()
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 8)
+            return
+        p, _ = QFileDialog.getSaveFileName(self, "Save typical section", "section.rfdsection.json",
+                                           self.SECTION_FILTER)
+        if not p:
+            return
+        d = ts.to_dict()
+        for r in d["ranges"]:                       # chainages as shown, so the file reads like the tab
+            for k in ("start", "end"):
+                if r[k] is not None and self.store:
+                    r[k] = round(self.store.al.display_station(r[k]), 3)
+        d["schema"] = "rfd-typical-section/1"
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(d, f, indent=1)
+        self.iface.messageBar().pushMessage("Road Furniture Designer", f"Section saved to {p}", MSG_INFO, 5)
+
+    def load_typical_section(self):
+        import json
+        from .rfd.typical_section import TypicalSection
+        p, _ = QFileDialog.getOpenFileName(self, "Load typical section", "", self.SECTION_FILTER)
+        if not p:
+            return
+        try:
+            with open(p, encoding="utf-8") as f:
+                d = json.load(f)
+            if "ranges" not in d:
+                raise ValueError("not a typical section file")
+            ts = TypicalSection.from_dict(d)
+        except (OSError, ValueError, TypeError, KeyError) as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", f"Could not read {p}: {e}",
+                                                MSG_WARNING, 8)
+            return
+        al = self.store.al if self.store else None
+        for rng in ts.ranges:                        # back to internal stations of this alignment
+            for k in ("start", "end"):
+                v = getattr(rng, k)
+                if v is not None and al is not None:
+                    setattr(rng, k, al.internal_station(float(v)))
+        self.tbl_ts.setRowCount(0)
+        for rng in ts.ranges:
+            r = self.tbl_ts.rowCount(); self.tbl_ts.insertRow(r); self._ts_set_row(r, rng)
+        for sp, v in ((self.spn_ttrans, ts.transition), (self.spn_tcross, ts.crossfall),
+                      (self.spn_tverge, ts.verge_fall), (self.spn_tfill, ts.fill_batter),
+                      (self.spn_tcut, ts.cut_batter)):
+            sp.setValue(v)
+        self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                            "Section loaded: check the chainages, then Apply section.", MSG_INFO, 6)
 
     def switch_off_typical_section(self):
         if not self.store:
@@ -917,6 +996,13 @@ class RsdDock(QDockWidget):
         self._fill_project_info()
         self._fill_typical_section()
         al = store.al
+        if store.typical is not None and store.edge_source == "corridor":
+            from .rfd.typical_section import compare
+            diff = compare(al, store.typical)
+            self.iface.messageBar().pushMessage(
+                "Road Furniture Designer", "The LandXML now has a corridor: its edges are used instead of the "
+                "typical section" + (". Differences: " + "; ".join(diff) if diff else ", and they match it."),
+                MSG_WARNING if diff else MSG_INFO, 12)
         self.spn_from.setValue(al.sta_start); self.spn_to.setValue(al.sta_end)
         self.chk_restrict.setEnabled(bool(al.edges))
         self.chk_restrict.setChecked(bool(al.edges))

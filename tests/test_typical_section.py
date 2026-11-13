@@ -60,7 +60,7 @@ def test_corridor_kept_unless_asked():
 
 def test_round_trip_through_json():
     ts = T.TypicalSection([T.SectionRange([("ETW", 3.65), ("EPS", 2.5)], [("ETW", 3.65)], 0, 500, "A")],
-                          crossfall=3.0, use_over_corridor=True)
+                          crossfall=3.0, use_over_corridor=True, others="R6")
     back = T.TypicalSection.from_dict(ts.to_dict())
     assert back == ts
 
@@ -85,3 +85,13 @@ def test_no_ground_profile_no_daylight():
     T.apply(al, T.TypicalSection.standard("R5"))
     assert al.edges and al.sections
     assert all(c != "Daylight" for *_, c in al.sections.side(500.0, "L"))
+
+
+def test_side_roads_get_the_chosen_standard_section():
+    ts = T.TypicalSection.standard("R5")
+    assert ts.for_others() is None
+    ts.others, ts.crossfall = "R7", 3.0
+    side = road()
+    T.apply(side, ts.for_others())
+    assert side.edges.offset("ETW", "R", 10.0) == pytest.approx(3.0)
+    assert side.edges.offset("EPS", "R", 10.0) == pytest.approx(4.0)

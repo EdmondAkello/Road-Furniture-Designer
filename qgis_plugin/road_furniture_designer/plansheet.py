@@ -144,9 +144,12 @@ def draw_plan(p, d, rect: QRectF, s0, s1, th, scale, page_w, font, colours, key_
         p.drawPath(poly(pts))
         q = vis[len(vis) // 2]
         p.setPen(QColor("#2e8b57")); p.drawText(P(*q) + QPointF(6, -6), o.name)
-    # corridor edges of the signed alignment
+    # corridor edges of the signed alignment (dashed when they come from a typical section: assumed)
+    assumed = getattr(d.al, "edge_source", "") == "typical section"
     for code, side, pts in d.edges:
         col, w, style = EDGE_STYLE.get(code, ("#b9c0cc", 0.7, Qt.PenStyle.SolidLine))
+        if assumed:
+            style = Qt.PenStyle.DashLine
         p.setPen(QPen(QColor(col), w, style)); p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(poly(pts))
     # linear furniture: markings, studs, barriers, calming items and crossings

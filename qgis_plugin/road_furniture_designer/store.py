@@ -966,6 +966,7 @@ class SignStore(QObject):
         self.typical = ts
         self.set_meta(typical_section=json.dumps(ts.to_dict()) if ts is not None else "")
         applied = _ts.apply(self.al, ts)
+        self.junctions._others = None          # side roads pick up their section on the next junction
         self.write_edges()
         self.changed.emit()
         return applied, problems
@@ -1197,9 +1198,13 @@ class SignStore(QObject):
     def other_alignments(self):
         """The LandXML's other alignments (side roads, link roads) for reference in drawings and sheets."""
         try:
-            return [a for a in parse_landxml(self.landxml_path) if a.name != self.al.name]
+            out = [a for a in parse_landxml(self.landxml_path) if a.name != self.al.name]
         except Exception:
             return []
+        side = self.typical.for_others() if self.typical is not None else None
+        for a in out:
+            _ts.apply(a, side)            # side roads without a corridor: the chosen standard section
+        return out
 
     def export_civil3d(self, json_path, dxf_path=None, plan_scale=2500.0):
         from .rfd.package import build_package, write_package

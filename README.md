@@ -289,7 +289,7 @@ On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:250
 - **Callouts.** Each sign is one block inserted at its post (true coordinates). The block holds a post marker, a leader and the sign face upright beside the road, clear of the carriageway and of the neighbouring signs, with the code underneath. A sign and its plate stack; back-to-back faces sit side by side.
 - **Text** (codes, legends, chainages) prints at 1.8 mm. Chainage labels read the right way up on either side.
 - **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size. Legend text uses the `RSD_LEGEND` style (Arial) so it fits its plate.
-- **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers.
+- **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers (`RSD-EDGE-TS-<code>` when they come from a typical section, ready to use as corridor targets).
 
 (Dynamo, when it is picked up again: symbol scale = the value shown after export, block source IN[4] = the exported DXF.)
 

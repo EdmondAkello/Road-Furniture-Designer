@@ -651,6 +651,15 @@ def test_section_tab_applies_and_switches_off(tmp_path):
     assert st.al.edges.offset("Walkway", "L", 700.0) == pytest.approx(8.0)
     assert d.cmb_ref.findData("EPS") >= 0 and d.chk_restrict.isEnabled()
     assert d.btn_toff.isEnabled()
+    # saved to a file and loaded back (chainages as shown)
+    f = str(tmp_path / "town.rfdsection.json")
+    with mock.patch("road_furniture_designer.dock.QFileDialog.getSaveFileName", return_value=(f, "")):
+        d.save_typical_section()
+    d.tbl_ts.setRowCount(0)
+    with mock.patch("road_furniture_designer.dock.QFileDialog.getOpenFileName", return_value=(f, "")):
+        d.load_typical_section()
+    assert d.tbl_ts.rowCount() == 2 and d.tbl_ts.item(1, 0).text() == "500"
+    assert d.typical_section() == st.typical
     d.tbl_ts.setItem(1, 2, QTableWidgetItem("ETW"))                                # a code without a width
     d.apply_typical_section()
     assert "Row 2" in str(iface.messageBar().pushMessage.call_args)

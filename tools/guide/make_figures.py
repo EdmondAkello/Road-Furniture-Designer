@@ -156,7 +156,7 @@ render_map(ext, (1000, 1300), "fig_map_overview.png")
 
 # ------------------------------------------------------------------ dock
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
-from qgis.PyQt.QtWidgets import QMainWindow, QTabWidget  # noqa: E402
+from qgis.PyQt.QtWidgets import QMainWindow, QTabWidget, QTableWidgetItem  # noqa: E402
 from road_furniture_designer.dock import RsdDock  # noqa: E402
 
 
@@ -174,7 +174,8 @@ dock = RsdDock(iface)
 dock.set_store(st)
 dock.resize(470, 860)
 tabs = dock.findChild(QTabWidget)
-names = {"Place": "place", "Inventory": "inventory", "Auto": "auto", "Signs": "signs", "Linear": "linear",
+names = {"Place": "place", "Inventory": "inventory", "Auto": "auto", "Section": "section", "Signs": "signs",
+         "Linear": "linear",
          "Calming": "calming", "Speed limits": "speed", "Junctions + bays": "junctions"}
 for i in range(tabs.count()):
     name = names.get(tabs.tabText(i))
@@ -187,6 +188,15 @@ for i in range(tabs.count()):
         # Figure script: an empty Auto list is acceptable.
         except Exception:  # nosec B110
             pass
+    if name == "section":            # the guide road has a corridor: show a section as it would be typed
+        dock._ts_use_standard()
+        dock.tbl_ts.setItem(0, 1, QTableWidgetItem("2600"))
+        dock.tbl_ts.insertRow(1)
+        for c, v in enumerate(("2600", "3350", "ETW 3.5, EPS 1.5, Walkway 3", "ETW 3.5, EPS 1.5, Walkway 3")):
+            dock.tbl_ts.setItem(1, c, QTableWidgetItem(v))
+        dock.tbl_ts.insertRow(2)
+        for c, v in enumerate(("3350", "", "ETW 3.5, EPS 2", "ETW 3.5, EPS 2")):
+            dock.tbl_ts.setItem(2, c, QTableWidgetItem(v))
     dock.show(); app.processEvents()
     save(dock.grab().toImage(), f"fig_dock_{name}.png")
 dock.hide()
