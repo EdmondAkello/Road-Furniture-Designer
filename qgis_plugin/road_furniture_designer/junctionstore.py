@@ -16,7 +16,7 @@ from qgis.PyQt.QtCore import QMetaType, QObject, pyqtSignal
 from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
                        QgsRendererCategory, QgsVectorLayer)
 
-from .compat import WKB_MULTILINESTRING, make_field
+from .compat import WKB_MULTILINESTRING, make_field, one_change
 from .rfd import junctions as J
 from .rfd.alignment import format_station
 
@@ -88,11 +88,17 @@ class JunctionStore(QObject):
         self.obstruction_layers = None  # names of the layers last checked (None: not checked)
         self.bind(self.layer)
 
+    def _layer_changed(self, *_):
+        """A delete, save or roll-back on the layer (QGIS's own edit tools included). The store's own batch
+        writes run with _busy set and signal once when they finish, not once per feature."""
+        if not getattr(self, "_busy", False):
+            self.changed.emit()
+
     def bind(self, layer):
         self.layer = layer
         layer.attributeValueChanged.connect(self._on_attribute_changed)
         for sig in (layer.featureDeleted, layer.afterCommitChanges, layer.afterRollBack):
-            sig.connect(self.changed.emit)
+            sig.connect(self._layer_changed)
 
     # ------------------------------------------------------------------ build
     def others(self):
@@ -426,6 +432,10 @@ class JunctionStore(QObject):
         self.changed.emit()
 
     def remove(self, junction_id):
+        with one_change(self):
+            return self._remove(junction_id)
+
+    def _remove(self, junction_id):
         ids = [f.id() for f in self.layer.getFeatures() if f["junction_id"] == junction_id]
         if ids:
             if self.layer.isEditable():

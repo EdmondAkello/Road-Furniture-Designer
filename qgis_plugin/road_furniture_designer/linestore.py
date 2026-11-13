@@ -11,7 +11,7 @@ from qgis.PyQt.QtCore import QMetaType, QObject, pyqtSignal
 from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
                        QgsRendererCategory, QgsVectorLayer)
 
-from .compat import PROP_CUSTOM_DASH, WKB_MULTILINESTRING, make_field
+from .compat import PROP_CUSTOM_DASH, WKB_MULTILINESTRING, make_field, one_change
 from .rfd.alignment import format_station
 from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_quantities, summarise
 
@@ -53,6 +53,12 @@ class LineStore(QObject):
         self._migrate()
         self.bind(self.layer)
 
+    def _layer_changed(self, *_):
+        """A delete, save or roll-back on the layer (QGIS's own edit tools included). The store's own batch
+        writes run with _busy set and signal once when they finish, not once per feature."""
+        if not getattr(self, "_busy", False):
+            self.changed.emit()
+
     def _create(self, crs):
         from .store import _write_layer
         w = _write_layer(self.gpkg, LAYER, _fields(), WKB_MULTILINESTRING, crs, False)
@@ -69,7 +75,7 @@ class LineStore(QObject):
         self.layer = layer
         layer.attributeValueChanged.connect(self._on_attribute_changed)
         for sig in (layer.featureDeleted, layer.afterCommitChanges, layer.afterRollBack):
-            sig.connect(self.changed.emit)
+            sig.connect(self._layer_changed)
         self._idx = {n: layer.fields().indexOf(n) for n, _ in LINE_FIELDS}
 
     # ------------------------------------------------------------------ run <-> feature
@@ -232,14 +238,26 @@ class LineStore(QObject):
         return [f.id() for f in self.layer.getFeatures() if f["status"] == "proposed"]
 
     def remove_proposals(self, rule_prefix=None):
+        with one_change(self):
+            return self._remove_proposals(rule_prefix)
+
+    def _remove_proposals(self, rule_prefix=None):
         ids = [f.id() for f in self.layer.getFeatures() if f["status"] == "proposed"
                and (rule_prefix is None or (f["rule"] or "").startswith(rule_prefix))]
         return self._set_status_or_delete(ids)
 
     def accept_proposals(self, fids=None):
+        with one_change(self):
+            return self._accept_proposals(fids)
+
+    def _accept_proposals(self, fids=None):
         return self._set_status_or_delete(fids or self.proposals(), "approved")
 
     def trim(self, a, b, centre=True, sides=True, side=None, keep_rule=None):
+        with one_change(self):
+            return self._trim(a, b, centre, sides, side, keep_rule)
+
+    def _trim(self, a, b, centre=True, sides=True, side=None, keep_rule=None):
         """Cut marking and stud runs (not transverse items) over the internal stations a..b: a run inside is
         removed, one across an end is shortened, one spanning the whole gap is split in two (the first keeps
         its identity). centre / sides: which runs (side C, or L / R); side: only that side (L / R);
@@ -278,6 +296,10 @@ class LineStore(QObject):
         return len(drop)
 
     def auto_propose_markings(self, cfg=None):
+        with one_change(self):
+            return self._auto_propose_markings(cfg)
+
+    def _auto_propose_markings(self, cfg=None):
         """Replace the proposed markings and studs with the RDM 6.1 proposals."""
         from .rfd.markings import propose_markings
         self.remove_proposals("marking")
@@ -288,6 +310,10 @@ class LineStore(QObject):
         return n, findings, skipped
 
     def auto_propose_barriers(self, cfg=None):
+        with one_change(self):
+            return self._auto_propose_barriers(cfg)
+
+    def _auto_propose_barriers(self, cfg=None):
         """Replace the proposed barriers with the RDM 1.3 proposals."""
         from .rfd.barriers import BarrierConfig, propose_barriers
         cfg = cfg or BarrierConfig()

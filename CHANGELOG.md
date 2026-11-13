@@ -8,7 +8,15 @@
 - The vendored ezdxf and fontTools Qt viewers and browsers (`ezdxf/addons/xqt.py`, `browser/`, `acisbrowser/`, `drawing/pyqt.py`, `drawing/qtviewer.py`, `hpgl2/viewer.py`, `fontTools/pens/qtPen.py`) are left out of the plugin; RFD never used them and they failed plugins.qgis.org's Qt6 check.
 - The QGIS 3.34 work-arounds are gone (`compat.prop()`, the pre-3.38 `make_field` branch). CI runs the QGIS tests on 3.44 and 4.2.
 
+### Performance
+- **Auto-placement no longer hangs the dock.** Writing a batch of proposals to the GeoPackage signalled once per feature, and each signal rebuilt the whole inventory: Propose on a 36 km road (850 signs) took 317 s in QGIS, now 2 s. Batch operations (sign, marking and barrier proposals, accept / reject, undo / redo, every journaled edit) now refresh the dock once; edits made with QGIS's own tools still refresh it.
+- **Barrier proposals** 4.6x faster (12.1 s to 2.6 s on a 17 km road with a TIN): the ground line across each section is sampled along one normal (one centreline point per station instead of one per sample), and TIN lookups try the previous triangle first.
+- **Spirals**: points are integrated from a cached point every metre instead of from the spiral start (same Simpson rule, same accuracy to 1e-11 m), which speeds up everything that locates along a spiral.
+- The Auto tab's Propose shows a busy cursor while it runs.
+
 ### Added
+- `tests_qgis/test_map_tool_events.py`: the map tools driven by real Qt mouse and key events (buttons, Esc, Enter, Shift) on Qt5 and Qt6.
+- `tests_qgis/test_batch_signals.py`: each batch operation signals the dock once; hand edits still signal.
 - `tests/test_qt6_static.py`: the plugin code has no unscoped Qt enums, `exec_()`, direct PyQt imports, `QVariant` field types or `QRegExp`; metadata targets QGIS 4; the plugin's `ext_libs` holds no module importing PyQt or PySide at top level.
 
 ## 0.11.2 — 2026-11-13

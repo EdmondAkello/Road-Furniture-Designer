@@ -23,7 +23,7 @@ from qgis.core import (
     QgsVectorLayerSimpleLabeling)
 from qgis.PyQt.QtGui import QColor
 
-from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_CREATE_LAYER, FW_NO_ERROR, LABEL_OVER_POINT, MARKER_ARROWHEAD,
+from .compat import (GEOM_CIRCLE, one_change, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_CREATE_LAYER, FW_NO_ERROR, LABEL_OVER_POINT, MARKER_ARROWHEAD,
                      PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT,
                      make_field)
 from .rfd import typical_section as _ts
@@ -89,9 +89,10 @@ def journaled(label):
                 return fn(self, *a, **kw)
             self._jdepth = 1
             try:
-                before = self._state()
-                res = fn(self, *a, **kw)
-                self._record(label if isinstance(label, str) else label(self, *a), before)
+                with one_change(self):      # one inventory refresh for the whole operation
+                    before = self._state()
+                    res = fn(self, *a, **kw)
+                    self._record(label if isinstance(label, str) else label(self, *a), before)
                 return res
             finally:
                 self._jdepth = 0
@@ -149,6 +150,12 @@ class SignStore(QObject):
         self.junctions = JunctionStore(gpkg, self.al, crs=self.signs.crs(), others=self.other_alignments)
         self.junctions.changed.connect(self.changed.emit)
 
+    def _layer_changed(self, *_):
+        """A delete, save or roll-back on the layer (QGIS's own edit tools included). The store's own batch
+        writes run with _busy set and signal once when they finish, not once per feature."""
+        if not getattr(self, "_busy", False):
+            self.changed.emit()
+
     @staticmethod
     def _migrate(layer):
         """Add fields introduced by newer plugin versions to an older project (data kept)."""
@@ -165,7 +172,7 @@ class SignStore(QObject):
         layer.attributeValueChanged.connect(self._on_attribute_changed)
         layer.featureAdded.connect(self._on_feature_added)
         for sig in (layer.featureDeleted, layer.afterCommitChanges, layer.afterRollBack):
-            sig.connect(self.changed.emit)
+            sig.connect(self._layer_changed)
         self._idx = {n: layer.fields().indexOf(n) for n, _ in SIGN_FIELDS}
 
     # ------------------------------------------------------------------ create / open
@@ -666,6 +673,10 @@ class SignStore(QObject):
         self.changed.emit()
 
     def renumber_posts(self, prefix="P"):
+        with one_change(self):
+            return self._renumber_posts(prefix)
+
+    def _renumber_posts(self, prefix="P"):
         """Renumber post refs P001.. in chainage order (left before right at equal chainage)."""
         posts = {}
         for f in self.signs.getFeatures():
@@ -724,6 +735,10 @@ class SignStore(QObject):
         return [f for f in self.signs.getFeatures() if f["status"] == "proposed"]
 
     def remove_proposals(self, rule_prefix=None, keep_prefix=None):
+        with one_change(self):
+            return self._remove_proposals(rule_prefix, keep_prefix)
+
+    def _remove_proposals(self, rule_prefix=None, keep_prefix=None):
         ids = [f.id() for f in self.proposals()
                if (rule_prefix is None or (f["rule"] or "").startswith(rule_prefix))
                and not (keep_prefix and (f["rule"] or "").startswith(tuple(keep_prefix) if isinstance(keep_prefix, (list, tuple)) else keep_prefix))]
@@ -738,6 +753,10 @@ class SignStore(QObject):
         return len(ids)
 
     def accept_proposals(self, fids=None):
+        with one_change(self):
+            return self._accept_proposals(fids)
+
+    def _accept_proposals(self, fids=None):
         fids = fids or [f.id() for f in self.proposals()]
         idx = self._idx["status"]
         if self.signs.isEditable():
@@ -751,6 +770,10 @@ class SignStore(QObject):
         return len(fids)
 
     def auto_propose(self, cfg=None, restrict=True):
+        with one_change(self):
+            return self._auto_propose(cfg, restrict)
+
+    def _auto_propose(self, cfg=None, restrict=True):
         """Run the RDM rules and add the results as proposed signs (previous proposals replaced)."""
         from .rfd.autoplace import AutoConfig, propose, space_out
         cfg = cfg or AutoConfig()
@@ -1138,18 +1161,18 @@ class SignStore(QObject):
         if not self.can_undo():
             return None
         label, delta = self._undo.pop()
-        self._apply_step(delta, reverse=True)
+        with one_change(self):
+            self._apply_step(delta, reverse=True)
         self._redo.append((label, delta))
-        self.changed.emit()
         return label
 
     def redo(self):
         if not self.can_redo():
             return None
         label, delta = self._redo.pop()
-        self._apply_step(delta, reverse=False)
+        with one_change(self):
+            self._apply_step(delta, reverse=False)
         self._undo.append((label, delta))
-        self.changed.emit()
         return label
 
     @journaled("Move a junction piece")

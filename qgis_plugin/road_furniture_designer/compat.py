@@ -45,6 +45,26 @@ def make_field(name, meta_type):
     return QgsField(name, meta_type)
 
 
+
+class one_change:
+    """Hold a store's signals for a batch of edits and emit its changed signal once at the end, so the dock
+    rebuilds the inventory once rather than once per feature (a GeoPackage commit signals every feature).
+    Nested uses emit only at the outermost exit."""
+
+    def __init__(self, store):
+        self.store = store
+
+    def __enter__(self):
+        self.was = self.store.blockSignals(True)
+        return self.store
+
+    def __exit__(self, *exc):
+        self.store.blockSignals(self.was)
+        if not self.was:
+            self.store.changed.emit()
+        return False
+
+
 try:                                    # Qt6 moved QAction from QtWidgets to QtGui
     from qgis.PyQt.QtGui import QAction  # noqa: F401
 except ImportError:
