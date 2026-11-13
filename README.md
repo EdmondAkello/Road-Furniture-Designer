@@ -4,7 +4,7 @@
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
-The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.9.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.9.0)](docs/user-guide/Road_Furniture_Designer_0.9.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.10.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.10.0)](docs/user-guide/Road_Furniture_Designer_0.10.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
 
 ```
  Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
@@ -99,7 +99,7 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 
 ## A LandXML with only the centreline (Section tab)
 
-For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** writes the edges and the widened edges of bays, lanes and junctions as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
+For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** (Outputs tab) writes the edges and the widened edges of bays, lanes and junctions as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
 
 ## Auto-placement (Auto tab)
 
@@ -235,7 +235,7 @@ The full rules and figures are in section 16 of the User Guide.
 
 ## Corridor restriction
 
-When the LandXML has corridor edges, **Keep inside the corridor** (Place tab, on by default) snaps every sign into RDM 2.4's band, 0.6–3.0 m beyond the reference edge. A sign is never placed past the corridor's outer limit (ditch or daylight). If the corridor stops at the shoulder, no outer limit applies.
+When the LandXML has corridor edges, **Keep inside the corridor** (Signs tab, on by default) snaps every sign into RDM 2.4's band, 0.6–3.0 m beyond the reference edge. A sign is never placed past the corridor's outer limit (ditch or daylight). If the corridor stops at the shoulder, no outer limit applies.
 
 The Checks list flags:
 - signs outside that band
@@ -319,7 +319,7 @@ Pasted signs keep their attributes and their RFD identity (XDATA), so a later re
 When the LandXML includes Civil 3D corridor sections (`CrossSect` / `DesignCrossSectSurf`) or a design profile (`ProfAlign`), the new project picks them up automatically.
 
 **Road edges.** Every coded corridor point becomes an edge line in the `RFD road edges` layer, with an offset that varies by station: ETW (edge of travelled way), EPS (edge of paved shoulder), Hinge, Ditch_In / Ditch_Out, Daylight. Pavement layer codes (`*_Base`, `*_Pave2`, …) and Crown are skipped. Daylight is drawn only where it exists (it isn't interpolated across gaps of more than 30 m).
-- **Offset from:** on the Place tab, choose an edge here. With **Fix offset at 1.0 m**, every sign lands 1.0 m beyond that edge at the chainage you click, even where the road widens.
+- **Offset from:** on the Signs tab, choose an edge here. With **Fix offset at 1.0 m**, every sign lands 1.0 m beyond that edge at the chainage you click, even where the road widens.
 - **Hover readout:** shows the clearance from the edge and the grade, e.g. `Ch 1+150.00  6.00 m Left  (+1.00 m from EPS)  grade +2.5%`.
 - **Stored on each sign:** its reference edge and its clearance from it, recomputed when the sign is moved. The default reference is EPS, or ETW if the file has no EPS.
 - **Checks:** a sign inside the travelled way is an **error**; a sign on the shoulder is a **warning**.
@@ -335,7 +335,7 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
    2. Choose the CRS of the LandXML coordinates if the QGIS project doesn't already have a projected one.
    3. Save the RFD GeoPackage.
    The plugin adds the sign and linear furniture layers, the alignment, chainage ticks every 100 m, the road edges and the vertical curves.
-2. **Place tab**
+2. **Signs tab** (placing)
    1. Pick a sign from the palette (searchable) and choose its size.
    2. Size: *Auto (RDM, by design speed)* where the sign has a size rule. Tick **Mirrored** for the left/right version.
    3. Set **Facing**. *Auto* follows driving on the left: left-side signs face forward (up-chainage) traffic, right-side signs face backward. Pick Forward or Backward to override, e.g. for chevrons or a median.
@@ -344,8 +344,8 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
    6. Fill in the **Legend** for directional signs and plates.
    7. Press **Place signs on map**. Hovering shows the live chainage and offset; left-click places a sign, right-click stops.
 3. **Moving signs:** use QGIS's normal editing tools (Toggle Editing → Move Feature). Chainage, offset, side and auto-facing update immediately, and every face on the same post moves with it. Changing `facing` by hand in the attribute table switches Auto off for that sign.
-4. **Signs tab:** every sign in chainage order. Double-click a row to zoom to it. **Renumber posts by chainage** turns the post refs into P001, P002… in road order.
-5. **Inventory tab:** live counts of sign faces by type and size, posts by type and foundations by type, plus validation checks. It also holds the export and import buttons:
+4. **Signs tab** (placed signs, below the palette): every sign in chainage order. Double-click a row to zoom to it. **Renumber posts by chainage** turns the post refs into P001, P002… in road order.
+5. **Outputs tab:** the inventory: live counts of sign faces by type and size, posts by type and foundations by type, plus validation checks. It also holds every export and import button, including **Feature lines for Civil 3D (LandXML)**:
    - **Export inventory:** `*_Inventory.xlsx` and a CSV. The workbook contains the named Excel Tables `RSD_Signs` (one row per face with chainage), `RSD_Posts` and `RSD_Quantities` (counts), ready to link into the QTO. It has no rates.
    - **Export to Civil 3D:** `*_placement.json` plus a placed-signs `.dxf` for a quick check.
    - **Import Civil 3D read-back:** applies sign moves and rotations made in the drawing, matched by UUID.
@@ -434,7 +434,6 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 Next releases:
 
-- **0.10 Centreline-only mode** (in progress): work from a LandXML with only the alignment and its profiles (existing and design), with the carriageway, shoulder and other edges from a typical section the designer sets, so every tool snaps to them as to a corridor.
 - **0.11 Descents**: descending lanes, brake check areas and truck escape ramps (horizontal layout for Civil 3D).
 - **0.12 Interaction**: handles on placed items, a properties panel, snapping between items and undo.
 - **0.13 Civil 3D geometry**: widenings and islands exported as Civil 3D-ready geometry.
@@ -475,4 +474,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.9.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; version 0.9.0 is https://doi.org/10.5281/zenodo.24190252. Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.10.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252). Citation metadata is in `CITATION.cff`.

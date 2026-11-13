@@ -972,26 +972,43 @@ class SignStore(QObject):
         return applied, problems
 
     def write_edges(self, project=None):
-        """Rewrite the rsd_edges layer from the alignment's current edges (creating it if needed)."""
-        if self.edges_layer.isValid():
-            pr = self.edges_layer.dataProvider()
-            pr.deleteFeatures([f.id() for f in self.edges_layer.getFeatures()])
-            pr.addFeatures(_edge_features(self.al))
-            self.edges_layer.updateExtents()
-            self.edges_layer.triggerRepaint()
-        elif self.al.edges:
-            w = _write_layer(self.gpkg, "rsd_edges", _fields(EDGE_FIELDS), WKB_LINESTRING, self.signs.crs(), False)
-            for f in _edge_features(self.al):
-                w.addFeature(f)
-            del w
-            self.edges_layer = QgsVectorLayer(f"{self.gpkg}|layername=rsd_edges", "RFD road edges", "ogr")
-            project = project or QgsProject.instance()
-            if self.edges_layer.isValid() and project.mapLayer(self.signs.id()) is not None:
-                project.addMapLayer(self.edges_layer, False)
-                grp = project.layerTreeRoot().findGroup("Road Furniture Designer")
-                (grp or project.layerTreeRoot()).addLayer(self.edges_layer)
-        if self.edges_layer.isValid():
-            self._style_edges()
+        """Rewrite the rsd_edges layer from the alignment's current edges.
+
+        The table is written afresh and the map layer replaced (same place in the layer tree), rather
+        than edited in place: QGIS desktop reads a GeoPackage through its own connections and did not
+        always show an in-place rewrite until the project was reopened."""
+        project = project or QgsProject.instance()
+        root = project.layerTreeRoot()
+        parent, index = None, -1
+        old = self.edges_layer
+        try:
+            old_id = old.id() if old is not None and old.isValid() else None
+        except RuntimeError:                    # already deleted with the project
+            old_id = None
+        if old_id and project.mapLayer(old_id) is not None:
+            node = root.findLayer(old_id)
+            if node is not None:
+                parent = node.parent()
+                index = parent.children().index(node)
+            project.removeMapLayer(old_id)      # closes its connection before the table is overwritten
+        self.edges_layer = old = None           # a layer outside the project is released here
+        w = _write_layer(self.gpkg, "rsd_edges", _fields(EDGE_FIELDS), WKB_LINESTRING, self.signs.crs(), False)
+        for f in _edge_features(self.al):
+            w.addFeature(f)
+        del w
+        self.edges_layer = QgsVectorLayer(f"{self.gpkg}|layername=rsd_edges", "RFD road edges", "ogr")
+        if not self.edges_layer.isValid():
+            return
+        self._style_edges()
+        in_project = project.mapLayer(self.signs.id()) is not None
+        if parent is not None or in_project:
+            project.addMapLayer(self.edges_layer, False)
+            if parent is None:
+                parent = root.findGroup("Road Furniture Designer") or root
+            if index >= 0:
+                parent.insertLayer(index, self.edges_layer)
+            else:
+                parent.addLayer(self.edges_layer)
 
     def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None, second_leg=False):
         """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give

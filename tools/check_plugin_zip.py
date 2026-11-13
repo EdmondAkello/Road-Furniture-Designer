@@ -1,6 +1,6 @@
 """Check a built plugin ZIP before it is published: the layout QGIS's Install from ZIP needs.
 
-    python tools/check_plugin_zip.py road_furniture_designer-0.9.0.zip
+    python tools/check_plugin_zip.py road_furniture_designer-0.10.0.zip
 
 Fails (exit 1) when:
   * the ZIP does not hold exactly one top folder, road_furniture_designer/

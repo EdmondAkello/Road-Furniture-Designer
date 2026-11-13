@@ -627,9 +627,16 @@ def test_centreline_only_road_with_a_typical_section(tmp_path):
     # stored with the project: reopening rebuilds the same edges
     st2 = SignStore.open(st.gpkg)
     assert st2.edge_source == "typical section" and st2.al.edges.offset("ETW", "R", 50.0) == pytest.approx(3.5)
-    # switched off: no edges again, layer emptied
+    # switched off: no edges again, layer emptied; applied again: back, in the same place in the tree
+    root = QgsProject.instance().layerTreeRoot()
+    pos = [n.layer().name() for n in root.findLayers()].index("RFD road edges")
     st.set_typical_section(None)
     assert not st.al.edges and st.edge_source == "" and st.edges_layer.featureCount() == 0
+    st.set_typical_section(T.TypicalSection.standard("R5"))
+    names = [n.layer().name() for n in root.findLayers()]
+    assert names.count("RFD road edges") == 1 and names.index("RFD road edges") == pos
+    lyr = QgsProject.instance().mapLayersByName("RFD road edges")[0]
+    assert lyr is st.edges_layer and lyr.featureCount() == 4
 
 
 def test_section_tab_applies_and_switches_off(tmp_path):

@@ -54,6 +54,7 @@ class RsdDock(QDockWidget):
 
         tabs = QTabWidget()
         lay.addWidget(tabs)
+        pages = {}
 
         # ---------------- Place tab
         pw = QWidget(); pl = QVBoxLayout(pw)
@@ -110,7 +111,7 @@ class RsdDock(QDockWidget):
         self.lbl_hover = QLabel("—"); self.lbl_hover.setStyleSheet("font-weight: bold;")
         self.lbl_last = QLabel(""); self.lbl_last.setWordWrap(True)
         pl.addWidget(self.lbl_hover); pl.addWidget(self.lbl_last)
-        tabs.addTab(pw, "Place")
+        pages["Place"] = pw
 
         # ---------------- Inventory tab
         iw = QWidget(); il = QVBoxLayout(iw)
@@ -134,7 +135,7 @@ class RsdDock(QDockWidget):
         self.btn_report = QPushButton("Road furniture report (PDF + PNG sheets + Excel)…")
         for b in (self.btn_report, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc):
             il.addWidget(b)
-        tabs.addTab(iw, "Inventory")
+        pages["Inventory"] = iw
 
         # ---------------- Auto tab (rule-based proposals)
         aw = QWidget(); al_ = QVBoxLayout(aw)
@@ -185,10 +186,12 @@ class RsdDock(QDockWidget):
         al_.addWidget(self.lst_findings, 1)
         ar = QHBoxLayout()
         self.btn_accept = QPushButton("Accept all proposals")
-        self.btn_reject = QPushButton("Remove proposals")
+        self.btn_reject = QPushButton("Remove all proposals")
+        self.btn_accept.setToolTip("Accept every proposal: signs, and markings, studs and barriers (Linear tab)")
+        self.btn_reject.setToolTip("Remove every open proposal: signs, and markings, studs and barriers")
         ar.addWidget(self.btn_accept); ar.addWidget(self.btn_reject)
         al_.addLayout(ar)
-        tabs.addTab(aw, "Auto")
+        pages["Auto"] = aw
 
         # ---------------- Section tab: typical section for a centreline-only LandXML
         tw = QWidget(); tl = QVBoxLayout(tw)
@@ -267,14 +270,13 @@ class RsdDock(QDockWidget):
         self.btn_tfl.setToolTip("Road edges and the widenings of bays, climbing lanes and junctions as 3D "
                                 "feature lines (levels from the design profile and the section), to import "
                                 "into Civil 3D as corridor targets")
-        tl.addWidget(self.btn_tfl)
         self.lbl_tinfo = QLabel("For a LandXML with only the alignment and its profiles: the edges (ETW, EPS ...) "
                                 "come from this section, so signs, markings, barriers, bays and junctions use "
                                 "them as they would a corridor's. Fill heights for barriers come from the design "
                                 "and existing ground profiles at the centreline and the fill batter.")
         self.lbl_tinfo.setWordWrap(True)
         tl.addWidget(self.lbl_tinfo)
-        tabs.addTab(tw, "Section")
+        pages["Section"] = tw
 
         # ---------------- Signs tab (by chainage)
         sw = QWidget(); sl_ = QVBoxLayout(sw)
@@ -293,7 +295,7 @@ class RsdDock(QDockWidget):
         self.btn_renum = QPushButton("Renumber posts by chainage")
         brow.addWidget(self.btn_legend); brow.addWidget(self.btn_renum)
         sl_.addLayout(brow)
-        tabs.addTab(sw, "Signs")
+        pages["Signs"] = sw
 
         # ---------------- Linear tab (markings, road studs, barriers)
         lw = QWidget(); ll_ = QVBoxLayout(lw)
@@ -385,7 +387,7 @@ class RsdDock(QDockWidget):
         self.btn_lreject = QPushButton("Remove proposed")
         lb.addWidget(self.btn_ldel); lb.addWidget(self.btn_laccept); lb.addWidget(self.btn_lreject)
         ll_.addLayout(lb)
-        tabs.addTab(lw, "Linear")
+        pages["Linear"] = lw
 
         # ---------------- Calming tab (humps, tables, bumps, bar markings, crossings)
         cw_ = QWidget(); cl_ = QVBoxLayout(cw_)
@@ -435,7 +437,7 @@ class RsdDock(QDockWidget):
         cl_.addWidget(self.lst_features, 1)
         self.btn_fdel = QPushButton("Remove selected feature (with its signs and markings)")
         cl_.addWidget(self.btn_fdel)
-        tabs.addTab(cw_, "Calming")
+        pages["Calming"] = cw_
 
         # ---------------- Speed limits tab (RDM 6.2 3.5): zones chosen by the designer, signed by RFD
         zw = QWidget(); zl = QVBoxLayout(zw)
@@ -469,7 +471,7 @@ class RsdDock(QDockWidget):
         zl.addWidget(self.lst_zones, 1)
         self.btn_zdel = QPushButton("Remove selected zone (with its signs)")
         zl.addWidget(self.btn_zdel)
-        tabs.addTab(zw, "Speed limits")
+        pages["Speed limits"] = zw
 
         # ---------------- Junctions tab: islands and markings from the standard drawings, placed by the user
         jw = QWidget(); jl = QVBoxLayout(jw)
@@ -563,9 +565,22 @@ class RsdDock(QDockWidget):
         self.btn_jdel = QPushButton("Remove selected junction")
         jb.addWidget(self.btn_jscale); jb.addWidget(self.btn_jdel)
         jl.addLayout(jb)
-        tabs.addTab(jw, "Junctions + bays")
+        pages["Junctions + bays"] = jw
+        # one tab per job: signs placed and listed together, every export with the inventory
+        sp = QWidget(); spl = QVBoxLayout(sp); spl.setContentsMargins(0, 0, 0, 0)
+        spl.addWidget(pages["Place"])
+        lbl_placed = QLabel("<b>Placed signs</b>")
+        spl.addWidget(lbl_placed)
+        spl.addWidget(pages["Signs"], 1)
+        il.insertWidget(il.indexOf(self.btn_rb), self.btn_tfl)
+        for name, page in (("Section", pages["Section"]), ("Signs", sp), ("Auto", pages["Auto"]),
+                           ("Linear", pages["Linear"]), ("Calming", pages["Calming"]),
+                           ("Speed limits", pages["Speed limits"]), ("Junctions + bays", pages["Junctions + bays"]),
+                           ("Outputs", pages["Inventory"])):
+            tabs.addTab(page, name)
         self.tabs = tabs
         self._scroll_tabs(tabs)
+        self.tabs.setCurrentIndex(1)
         lay.setContentsMargins(4, 4, 4, 4)
         self.setWidget(w)
 
@@ -600,8 +615,8 @@ class RsdDock(QDockWidget):
         self.btn_propose.clicked.connect(self.run_auto)
         self.btn_crit.clicked.connect(self.add_criteria_file)
         self.btn_report.clicked.connect(self.export_report)
-        self.btn_accept.clicked.connect(lambda: self.store and self.store.accept_proposals())
-        self.btn_reject.clicked.connect(lambda: self.store and self.store.remove_proposals())
+        self.btn_accept.clicked.connect(self.accept_all_proposals)
+        self.btn_reject.clicked.connect(self.remove_all_proposals)
         self.lst_findings.itemDoubleClicked.connect(self._zoom_finding)
         self.btn_legend.clicked.connect(self.edit_legend)
         self.cmb_cat.currentIndexChanged.connect(lambda _: self._filter(self.search.text()))
@@ -748,6 +763,20 @@ class RsdDock(QDockWidget):
         return None
 
     # ------------------------------------------------------------------ state
+    def accept_all_proposals(self):
+        if not self.store:
+            return
+        with _busy():
+            self.store.accept_proposals()
+            self.store.lines.accept_proposals()
+
+    def remove_all_proposals(self):
+        if not self.store:
+            return
+        with _busy():
+            self.store.remove_proposals()
+            self.store.lines.remove_proposals()
+
     def _set_enabled(self, on):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,

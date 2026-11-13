@@ -42,7 +42,7 @@ def _dock_fits(RsdDock):
     iface, win = _iface()
     d = RsdDock(iface, win)
     labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
-    assert labels == ["Place", "Inventory", "Auto", "Section", "Signs", "Linear", "Calming", "Speed limits", "Junctions + bays"]
+    assert labels == ["Section", "Signs", "Auto", "Linear", "Calming", "Speed limits", "Junctions + bays", "Outputs"]
     for i in range(d.tabs.count()):
         assert isinstance(d.tabs.widget(i), QScrollArea)
         assert d.page(labels[i]) is d.tabs.widget(i).widget()
@@ -56,7 +56,7 @@ def _dock_fits(RsdDock):
     assert d.chk_restrict.text() == "Keep inside the corridor (RDM 2.4)"
     assert "0.6–3.0 m" in d.chk_restrict.toolTip()
     # the buttons at the bottom of a long tab are still there, reachable by scrolling
-    assert d.btn_report.isVisibleTo(d.page("Inventory"))
+    assert d.btn_report.isVisibleTo(d.page("Outputs"))
 
 
 def test_hidden_by_qt_is_not_hidden_by_the_plugin():
@@ -87,7 +87,7 @@ def test_leaving_a_tab_switches_its_map_tool_off():
     d = RsdDock(iface, win)
     labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
     for btn, tab, other in ((d.btn_fplace, "Calming", "Linear"), (d.btn_ldraw, "Linear", "Calming"),
-                            (d.btn_jplace, "Junctions + bays", "Place")):
+                            (d.btn_jplace, "Junctions + bays", "Signs")):
         d.tabs.setCurrentIndex(labels.index(tab))
         btn.blockSignals(True); btn.setChecked(True); btn.blockSignals(False)   # no project: skip the tool itself
         d.tabs.setCurrentIndex(labels.index(other))
@@ -99,3 +99,20 @@ def test_leaving_a_tab_switches_its_map_tool_off():
     d._run_mode = "run"
     d._run_hover("Ch 0+100")
     assert d.lbl_lhover.text().startswith("Linear - ")
+
+
+def test_opens_as_a_tab_beside_the_processing_toolbox():
+    import road_furniture_designer as P
+    from qgis.PyQt.QtCore import Qt
+    from qgis.PyQt.QtWidgets import QDockWidget
+    iface, win = _iface()
+    tb = QDockWidget("Processing Toolbox", win); tb.setObjectName("ProcessingToolbox")
+    win.addDockWidget(Qt.RightDockWidgetArea, tb)
+    win.show(); tb.show()
+    plugin = P.classFactory(iface)
+    plugin.initGui()
+    plugin.action.trigger()
+    assert tb in win.tabifiedDockWidgets(plugin.dock)
+    assert not plugin.dock.isHidden()
+    plugin.unload()
+    win.close()

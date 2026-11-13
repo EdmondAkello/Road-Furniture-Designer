@@ -1,13 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 — 2026-11-13
 
 ### Added
 - **Centreline-only LandXML** (new **Section** tab): with only the alignment and its design and existing ground profiles in the LandXML, a typical section gives the road edges. Elements per side from the centreline outwards (ETW, EPS, NMT, Walkway, Parking or any code, with widths), by chainage range, with linear width changes between ranges; standard sections R4-R9, U5 and U6 from RDM 1.3 Tables 4.23 / 4.24. It produces the same edge table a corridor gives, so signs, clearances, markings, barriers, calming, bays and junctions use it unchanged, and the `RFD road edges` layer carries it for snapping (ETW dashed: assumed). Stored with the project.
 - Embankment barriers without a corridor: a simplified section (crossfall, verge fall, hinge at the outer edge, fill or cut batter to the existing ground level at the centreline) gives the fill heights; the report notes that edges and fills are assumed.
 - A corridor and a typical section side by side: tick **Use it even where the LandXML has a corridor** to use the section; applying it lists where the corridor's ETW / EPS differ from it by more than 0.3 m.
 - **Superelevation on the typical section**: on curves the pavement rotates about the centreline as the LandXML's superelevation gives it (runout, runoff and full-rate stations from Civil 3D; a 0.5 % relative gradient where the file gives only the full-rate stations), so the section's levels, fill heights and feature lines follow it; the inside of the curve is taken from the alignment.
-- **Feature lines for Civil 3D** (Section tab): the road edges and the widened edges of bays, climbing lanes and junctions as 3D feature lines in a LandXML (`PlanFeatures`, site `RFD`, Northing Easting Elevation), to import into Civil 3D and use as corridor targets. Levels from the design profile and the section: the corridor's (superelevation included) or the typical section's coded points; beyond the pavement edge a widening carries the last crossfall on. The source file's Units and CoordinateSystem are copied.
+- **Feature lines for Civil 3D** (Outputs tab): the road edges and the widened edges of bays, climbing lanes and junctions as 3D feature lines in a LandXML (`PlanFeatures`, site `RFD`, Northing Easting Elevation), to import into Civil 3D and use as corridor targets. Levels from the design profile and the section: the corridor's (superelevation included) or the typical section's coded points; beyond the pavement edge a widening carries the last crossfall on. The source file's Units and CoordinateSystem are copied.
 - **Side roads** (Section tab): the LandXML's other alignments without a corridor get a standard section, so a junction where our road joins one sits at its edge (3.5 m was assumed).
 - Typical sections saved to and loaded from a file, for use in other projects.
 - When a project with a typical section is reopened and the LandXML now has a corridor, the corridor is used and the differences from the section are listed.
@@ -16,6 +16,16 @@
 
 ## 0.9.0 — 2026-11-13
 
+
+### Changed
+- **Tabs by job**: **Section**, **Signs** (the palette for placing, with the placed signs listed below it; the separate Place and Signs tabs are merged), **Auto**, **Linear**, **Calming**, **Speed limits**, **Junctions + bays** and **Outputs** (the inventory with every export and import, including the feature lines, which move from the Section tab).
+- The Auto tab's **Accept all proposals** / **Remove all proposals** act on every proposal, signs and the Linear tab's markings, studs and barriers; the Linear tab's own buttons still act on the linear ones only.
+- The dock opens tabbed beside the Processing Toolbox (or another panel on the right) at full height instead of squeezed under it. QGIS remembers where you move it.
+
+### Fixed
+- Feature lines for Civil 3D were slow to import: each edge was one feature line with a PI every 5 m (7,245 on a 36 km road). They are now written as Civil 3D writes its own: PIs only where the plan needs them (true arcs where an edge runs parallel to an alignment arc, straight stretches thinned to 20 mm) and the levels between them as elevation points (`Location`, thinned to 5 mm), with lines over 5 km in pieces: about 530 PIs per edge on the same road. The export message gives the counts.
+- Feature lines with curves did not import into Civil 3D: a feature-line `Curve` was written as an alignment curve (circle centre and `rot`), but Civil 3D's feature-line `Curve` is three points on the arc (`Start`, `Center` = the middle of the arc with its level, `End`) with only a `radius`, so every curve came in wrong. Curves are now written in Civil 3D's form, on layer `C-TOPO-FEAT`. Checked against the corridor feature lines Civil 3D exported for a 2.7 km road: ETW and back of kerb within 9 mm in plan and 6–8 mm in level.
+- Applying a typical section again after **Switch off** (or after loading one from a file) did not show the edges on the map: the edges layer is now written afresh and replaced in the layer tree, in the same place, instead of being edited in place.
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
 - **Markings look as painted**: broken lines are dashed at their real mark and gap in metres (rural or urban by speed) on the map and the plan sheets, instead of a screen dash that read as dots; double lines and the combined line show both lines (kept apart on screen at any scale), the CLS's continuous side following "flip".
