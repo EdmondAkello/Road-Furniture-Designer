@@ -637,7 +637,7 @@ def test_islands_never_narrow_the_existing_lanes():
 
 
 def test_joining_a_clicked_main_road_near_our_road_end():
-    """Trial (Olkaria video): our road starts on a main road given by its clicked direction. A click a few
+    """Trial (screen recording): our road starts on a main road given by its clicked direction. A click a few
     metres into our road snaps to its end, and the stub behind the junction point is never taken as the leg,
     whatever the mouse does."""
     ours = Alignment.from_polyline("OURS", [(0, 0), (0, -500)])          # starts at 0+000, runs south
@@ -653,7 +653,7 @@ def test_joining_a_clicked_main_road_near_our_road_end():
 
 
 def test_alignment_running_on_past_the_junction():
-    """Trial (Olkaria 16+700): the alignment runs on 40 m past the junction on a slight curve; the long leg
+    """Trial (a real project, 16+700): the alignment runs on 40 m past the junction on a slight curve; the long leg
     is our road, not the tail."""
     ours = Alignment.from_polyline("OURS", [(30, 1500), (8, 600), (0, 40), (1.5, 0)])   # ends 40 m past y = 40
     major_click = (100, 45)
