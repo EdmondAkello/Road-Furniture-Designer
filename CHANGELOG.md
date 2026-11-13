@@ -17,9 +17,14 @@
 ## 0.9.0 — 2026-11-13
 
 
+### Changed
+- **Tabs by job**: **Section**, **Signs** (the palette for placing, with the placed signs listed below it; the separate Place and Signs tabs are merged), **Auto**, **Linear**, **Calming**, **Speed limits**, **Junctions + bays** and **Outputs** (the inventory with every export and import, including the feature lines, which move from the Section tab).
+- The Auto tab's **Accept all proposals** / **Remove all proposals** act on every proposal, signs and the Linear tab's markings, studs and barriers; the Linear tab's own buttons still act on the linear ones only.
+- The dock opens tabbed beside the Processing Toolbox (or another panel on the right) at full height instead of squeezed under it. QGIS remembers where you move it.
+
 ### Fixed
-- Feature lines for Civil 3D were slow to import: each edge was one feature line of a vertex every 5 m (7,245 on a 36 km road). They are now thinned (20 mm in plan, 5 mm in level) and split into pieces of at most 500 vertices; the export message gives the counts.
-- Applying a typical section again after **Switch off** did not show the edges on the map until the project was reopened: the edges layer is reloaded after it is rewritten.
+- Feature lines for Civil 3D were slow to import: each edge was one feature line with a PI every 5 m (7,245 on a 36 km road). They are now written as Civil 3D writes its own: PIs only where the plan needs them (true arcs where an edge runs parallel to an alignment arc, straight stretches thinned to 20 mm) and the levels between them as elevation points (`Location`, thinned to 5 mm), with lines over 5 km in pieces: about 530 PIs per edge on the same road. The export message gives the counts.
+- Applying a typical section again after **Switch off** (or after loading one from a file) did not show the edges on the map: the edges layer is now written afresh and replaced in the layer tree, in the same place, instead of being edited in place.
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
 - **Markings look as painted**: broken lines are dashed at their real mark and gap in metres (rural or urban by speed) on the map and the plan sheets, instead of a screen dash that read as dots; double lines and the combined line show both lines (kept apart on screen at any scale), the CLS's continuous side following "flip".

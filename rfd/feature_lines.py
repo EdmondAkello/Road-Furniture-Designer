@@ -5,6 +5,10 @@ Civil 3D imports ``PlanFeatures/PlanFeature`` as feature lines when the PlanFeat
 from its ``site`` Property; coordinates are Northing Easting Elevation. The lines can then be used as
 corridor width / offset and elevation targets.
 
+Written as Civil 3D writes its own feature lines: the plan geometry as PIs (``Line``, and ``Curve`` where
+an edge runs parallel to an alignment arc), and the levels in between as elevation points
+(``<Location desc="FeatureLine Elevation Point">``), which Civil 3D handles far more lightly than PIs.
+
 Elevations: the design profile at the station plus the section's level at the offset. The section is
 the corridor's (superelevation included) or the typical section's (crown crossfall only: superelevation
 is not applied, flagged in the file description). Beyond the outermost pavement point (a bay or a junction
@@ -26,10 +30,10 @@ from .corridor import SHOULDER, TRAVELLED_WAY
 
 PAVEMENT = tuple(TRAVELLED_WAY) + tuple(SHOULDER) + ("Parking", "Crown")
 SITE = "RFD"
-STEP = 5.0                  # m: sampling along the road for straight-line segments
-H_TOL = 0.02                # m: plan tolerance when the sampled lines are thinned (Douglas-Peucker)
-V_TOL = 0.005               # m: level tolerance (against the straight grade between kept vertices)
-MAX_VERTICES = 500          # a longer feature line is split into pieces (Civil 3D slows on very long ones)
+STEP = 5.0                  # m: sampling along the road
+H_TOL = 0.02                # m: plan tolerance for PIs off the arcs (Douglas-Peucker)
+V_TOL = 0.005               # m: level tolerance for elevation points (against the grade between kept points)
+MAX_LENGTH = 5000.0         # m: a longer feature line is written in pieces
 WIDENING_CODES = ("WIDEN", "BAYEDGE")
 
 Pt3 = Tuple[float, float, float]
@@ -112,36 +116,173 @@ def code_level(al, sta: float, side: str, code: str, offset: float) -> Optional[
 
 
 # ------------------------------------------------------------------ lines
-def edge_lines(al, step: float = STEP) -> List[Tuple[str, str, List[Pt3]]]:
-    """[(name, code, [(x, y, z)])]: each road edge sampled every ``step`` m and at every section, split
-    where the edge is missing."""
+class FLine:
+    """A feature line: PIs [(x, y, z)], the arcs among its segments {i: (cx, cy, radius, rot)} (segment i
+    runs from PI i to PI i + 1) and elevation points [(x, y, z)] between the PIs."""
+
+    def __init__(self, name, code, pis, arcs=None, elev=None):
+        self.name, self.code, self.pis = name, code, list(pis)
+        self.arcs = dict(arcs or {})
+        self.elev = list(elev or [])
+
+    def __len__(self):
+        return len(self.pis)
+
+
+def _dp(n, dev, tol, keep):
+    """Iterative Douglas-Peucker over indices 0..n-1: dev(a, b, i) is point i's deviation from the chord a-b."""
+    stack = [(0, n - 1)]
+    keep.update((0, n - 1))
+    while stack:
+        a, b = stack.pop()
+        if b - a < 2:
+            continue
+        wi, worst = max(((i, dev(a, b, i)) for i in range(a + 1, b)), key=lambda t: t[1])
+        if worst > tol:
+            keep.add(wi)
+            stack += [(a, wi), (wi, b)]
+    return keep
+
+
+def _plan_dev(xy):
+    def dev(a, b, i):
+        (xa, ya), (xb, yb), (x, y) = xy[a], xy[b], xy[i]
+        dx, dy = xb - xa, yb - ya
+        L = math.hypot(dx, dy)
+        return math.hypot(x - xa, y - ya) if L < 1e-9 else abs((x - xa) * dy - (y - ya) * dx) / L
+    return dev
+
+
+def _level_dev(d, z):
+    def dev(a, b, i):
+        t = 0.0 if d[b] - d[a] < 1e-9 else (d[i] - d[a]) / (d[b] - d[a])
+        return abs(z[i] - (z[a] + (z[b] - z[a]) * t))
+    return dev
+
+
+def simplify(pts: Sequence[Pt3], h_tol: float = H_TOL, v_tol: float = V_TOL) -> List[Pt3]:
+    """Thin a 3D line to within h_tol in plan and v_tol in level (both kept). Ends always kept."""
+    if len(pts) <= 2:
+        return list(pts)
+    xy = [(p[0], p[1]) for p in pts]
+    d = [0.0]
+    for a, b in zip(xy, xy[1:]):
+        d.append(d[-1] + math.dist(a, b))
+    keep = _dp(len(pts), _plan_dev(xy), h_tol, set())
+    keep = _dp(len(pts), _level_dev(d, [p[2] for p in pts]), v_tol, keep)
+    return [pts[i] for i in sorted(keep)]
+
+
+def build(name, code, samples, arcs_of=None, h_tol=H_TOL, v_tol=V_TOL) -> FLine:
+    """A feature line from samples [(x, y, z)] along it. arcs_of: [(i0, i1, cx, cy, rot)] sample ranges that
+    lie on a circular arc (written as one Curve each); elsewhere PIs are thinned to h_tol in plan. Levels
+    between the PIs become elevation points, thinned to v_tol against the grade."""
+    n = len(samples)
+    xy = [(p[0], p[1]) for p in samples]
+    d = [0.0]
+    for a, b in zip(xy, xy[1:]):
+        d.append(d[-1] + math.dist(a, b))
+    z = [p[2] for p in samples]
+    pis = {0, n - 1}
+    spans = sorted(arcs_of or [])
+    for i0, i1, *_ in spans:
+        pis.update((i0, i1))
+    # plan thinning on the stretches between the arcs
+    cuts = sorted(pis)
+    on_arc = {(i0, i1) for i0, i1, *_ in spans}
+    for a, b in zip(cuts, cuts[1:]):
+        if (a, b) in on_arc or b - a < 2:
+            continue
+        sub = xy[a:b + 1]
+        pis.update(a + k for k in _dp(len(sub), _plan_dev(sub), h_tol, set()))
+    order = sorted(pis)
+    arcs = {}
+    for i0, i1, cx, cy, rot in spans:
+        k = order.index(i0)
+        if k + 1 < len(order) and order[k + 1] == i1:
+            arcs[k] = (cx, cy, math.dist((cx, cy), xy[i0]), rot)
+    keep = _dp(n, _level_dev(d, z), v_tol, set(order))
+    elev = [samples[i] for i in sorted(keep - set(order))]
+    return FLine(name, code, [samples[i] for i in order], arcs, elev)
+
+
+def _stations(al, step):
+    st = set()
+    s = al.sta_start
+    while s < al.sta_end - 1e-6:
+        st.add(round(s, 3)); s += step
+    st.add(round(al.sta_end, 3))
+    if getattr(al, "sections", None):
+        st.update(round(x, 3) for x in al.sections.stations if al.sta_start <= x <= al.sta_end)
+    acc = al.sta_start
+    for e in al.elements:                       # element ends, so arcs start and end on a sample
+        st.add(round(acc, 3)); acc += e.length
+    return sorted(st)
+
+
+def _arc_at(al, sta):
+    """(Arc element, its start and end stations) at a station, or None."""
+    acc = al.sta_start
+    for e in al.elements:
+        if acc - 1e-6 <= sta <= acc + e.length + 1e-6:
+            return (e, acc, acc + e.length) if getattr(e, "kind", "") == "arc" else None
+        acc += e.length
+    return None
+
+
+def _split_by_length(rows, max_len):
+    """[(sta, ...)] runs cut every max_len m of station (pieces share their end sample)."""
+    out, cur = [], []
+    for r in rows:
+        cur.append(r)
+        if r[0] - cur[0][0] >= max_len and len(cur) >= 2:
+            out.append(cur); cur = [r]
+    if len(cur) >= 2:
+        out.append(cur)
+    return out
+
+
+def edge_lines(al, step: float = STEP, max_len: float = MAX_LENGTH) -> List[FLine]:
+    """Each road edge as feature lines: sampled every step m and at every section and element end, split
+    where the edge is missing and every max_len m; true arcs where it runs parallel to an alignment arc."""
     edges = getattr(al, "edges", None)
     out = []
     if not edges:
         return out
-    stations = set()
-    s = al.sta_start
-    while s < al.sta_end - 1e-6:
-        stations.add(round(s, 3)); s += step
-    stations.add(round(al.sta_end, 3))
-    if getattr(al, "sections", None):
-        stations.update(round(x, 3) for x in al.sections.stations if al.sta_start <= x <= al.sta_end)
-    stations = sorted(stations)
+    stations = _stations(al, step)
     for (code, side) in sorted(edges.data):
         sg = -1.0 if side == "L" else 1.0
-        run, k = [], 1
+        runs, run = [], []
         for s in stations:
             o = edges.offset(code, side, s)
             z = code_level(al, s, side, code, sg * o) if o is not None else None
             if o is None or z is None:
                 if len(run) >= 2:
-                    out.append((f"RFD {code} {side}{'' if k == 1 else f' {k}'}", code, run)); k += 1
+                    runs.append(run)
                 run = []
                 continue
             x, y, _ = al.point_at(s, sg * o)
-            run.append((x, y, z))
+            run.append((s, o, x, y, z))
         if len(run) >= 2:
-            out.append((f"RFD {code} {side}{'' if k == 1 else f' {k}'}", code, run))
+            runs.append(run)
+        pieces = [p for r in runs for p in _split_by_length(r, max_len)]
+        for k, rows in enumerate(pieces, 1):
+            spans, i = [], 0
+            while i < len(rows) - 1:                     # constant offset on an arc element: one Curve
+                hit = _arc_at(al, (rows[i][0] + rows[i + 1][0]) / 2)
+                if hit is None:
+                    i += 1
+                    continue
+                arc, a, b = hit
+                j = i
+                while (j + 1 < len(rows) and rows[j + 1][0] <= b + 1e-6
+                       and abs(rows[j + 1][1] - rows[i][1]) < 1e-3):
+                    j += 1
+                if j > i:
+                    spans.append((i, j, arc.center[0], arc.center[1], "ccw" if arc.ccw else "cw"))
+                i = max(j, i + 1)
+            name = f"RFD {code} {side}" + ("" if len(pieces) == 1 else f"-{k}")
+            out.append(build(name, code, [(x, y, z) for _, _, x, y, z in rows], spans))
     return out
 
 
@@ -154,7 +295,7 @@ def _densify(pts: Sequence[Tuple[float, float]], step: float) -> List[Tuple[floa
 
 
 def draped(al, name: str, code: str, pts: Sequence[Tuple[float, float]], step: float = STEP,
-           max_offset: float = 60.0) -> Optional[Tuple[str, str, List[Pt3]]]:
+           max_offset: float = 60.0) -> Optional[FLine]:
     """A plan polyline (a bay edge, a junction widening) with levels from the road at each vertex."""
     out = []
     for x, y in _densify(pts, step):
@@ -165,10 +306,10 @@ def draped(al, name: str, code: str, pts: Sequence[Tuple[float, float]], step: f
         if z is None:
             return None
         out.append((x, y, z))
-    return (name, code, out) if len(out) >= 2 else None
+    return build(name, code, out) if len(out) >= 2 else None
 
 
-def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[Tuple[str, str, List[Pt3]]]:
+def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[FLine]:
     """From junction parts [(code, sta, [polyline])]: the widened pavement edges, draped on the road."""
     out, n = [], {}
     for code, _sta, lines in parts:
@@ -181,53 +322,6 @@ def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[Tuple[str,
             d = draped(al, f"RFD {code} {n[code]}", code, ln)
             if d:
                 out.append(d)
-    return out
-
-
-def simplify(pts: Sequence[Pt3], h_tol: float = H_TOL, v_tol: float = V_TOL) -> List[Pt3]:
-    """Thin a sampled 3D line: drop vertices that lie within h_tol of the chord in plan and within v_tol
-    of the straight grade along it (iterative Douglas-Peucker on both). Ends always kept."""
-    n = len(pts)
-    if n <= 2:
-        return list(pts)
-    keep = [False] * n
-    keep[0] = keep[-1] = True
-    stack = [(0, n - 1)]
-    while stack:
-        a, b = stack.pop()
-        if b - a < 2:
-            continue
-        (xa, ya, za), (xb, yb, zb) = pts[a], pts[b]
-        dx, dy = xb - xa, yb - ya
-        L2 = dx * dx + dy * dy
-        worst, wi = 0.0, -1
-        for i in range(a + 1, b):
-            x, y, z = pts[i]
-            if L2 < 1e-12:
-                t, h = 0.0, math.hypot(x - xa, y - ya)
-            else:
-                t = ((x - xa) * dx + (y - ya) * dy) / L2
-                h = abs((x - xa) * dy - (y - ya) * dx) / math.sqrt(L2)
-            v = abs(z - (za + (zb - za) * min(1.0, max(0.0, t))))
-            score = max(h / h_tol, v / v_tol)
-            if score > worst:
-                worst, wi = score, i
-        if worst > 1.0:
-            keep[wi] = True
-            stack += [(a, wi), (wi, b)]
-    return [p for p, k in zip(pts, keep) if k]
-
-
-def split(name: str, code: str, pts: Sequence[Pt3], max_vertices: int = MAX_VERTICES):
-    """A line in pieces of at most max_vertices (sharing their end vertices), named 'name', 'name-2' ..."""
-    if len(pts) <= max_vertices:
-        return [(name, code, list(pts))]
-    out, i, k = [], 0, 1
-    while i < len(pts) - 1:
-        piece = list(pts[i:i + max_vertices])
-        out.append((name if k == 1 else f"{name}-{k}", code, piece))
-        i += max_vertices - 1
-        k += 1
     return out
 
 
@@ -248,8 +342,11 @@ def _header_elements(source_path) -> Tuple[str, str]:
     return (units.group(0) if units else ""), (cs.group(0) if cs else "")
 
 
-def write_landxml(path, lines: Sequence[Tuple[str, str, Sequence[Pt3]]], source_path=None, site=SITE,
-                  desc="") -> int:
+def _ne(p, z=True):
+    return f"{p[1]:.4f} {p[0]:.4f} {p[2]:.4f}" if z else f"{p[1]:.4f} {p[0]:.4f}"
+
+
+def write_landxml(path, lines: Sequence[FLine], source_path=None, site=SITE, desc="") -> int:
     """Write the lines as Civil 3D feature lines (PlanFeatures). Returns the number written."""
     now = datetime.now()
     units, cs = _header_elements(source_path)
@@ -264,25 +361,36 @@ def write_landxml(path, lines: Sequence[Tuple[str, str, Sequence[Pt3]]], source_
     if cs:
         out.append("  " + cs)
     out.append(f'  <Application name="Road Furniture Designer" desc={quoteattr(desc or "Road edges and widenings")}/>')
-    out.append(f"  <PlanFeatures name={quoteattr(site)}>")
+    out.append(f"  <PlanFeatures name={quoteattr(f'Site -{site}- FeatureLines')}>")
     n = 0
-    for name, code, pts in lines:
-        if len(pts) < 2:
+    for fl in lines:
+        if len(fl.pis) < 2:
             continue
-        out.append(f"    <PlanFeature name={quoteattr(name)} desc={quoteattr(code)}>")
+        out.append(f"    <PlanFeature name={quoteattr(fl.name)} desc={quoteattr(fl.code)}>")
         out.append("      <CoordGeom>")
-        for (x0, y0, z0), (x1, y1, z1) in zip(pts, pts[1:]):
-            if math.hypot(x1 - x0, y1 - y0) < 1e-4:
+        for i, (a, b) in enumerate(zip(fl.pis, fl.pis[1:])):
+            if math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-4:
                 continue
-            out.append(f"        <Line><Start>{y0:.4f} {x0:.4f} {z0:.4f}</Start>"
-                       f"<End>{y1:.4f} {x1:.4f} {z1:.4f}</End></Line>")
+            if i in fl.arcs:
+                cx, cy, r, rot = fl.arcs[i]
+                a0, a1 = math.atan2(a[1] - cy, a[0] - cx), math.atan2(b[1] - cy, b[0] - cx)
+                sweep = (a1 - a0) % (2 * math.pi) if rot == "ccw" else (a0 - a1) % (2 * math.pi)
+                out.append(f'        <Curve rot="{rot}" radius="{r:.4f}" length="{r * sweep:.4f}">'
+                           f"<Start>{_ne(a)}</Start><Center>{cy:.4f} {cx:.4f}</Center><End>{_ne(b)}</End></Curve>")
+            else:
+                out.append(f"        <Line><Start>{_ne(a)}</Start><End>{_ne(b)}</End></Line>")
         out.append("      </CoordGeom>")
+        for p in fl.elev:
+            out.append(f'      <Location desc="FeatureLine Elevation Point">{_ne(p)}</Location>')
         out.append('      <Feature code="FeatureLine" source="Autodesk Civil 3D">')
-        out.append(f"        <Property label=\"site\" value={quoteattr(site)}/>")
-        out.append(f"        <Property label=\"rfdCode\" value={quoteattr(code)}/>")
+        out.append(f'        <Property label="site" value={quoteattr(site)}/>')
+        out.append(f'        <Property label="rfdCode" value={quoteattr(fl.code)}/>')
         out.append("      </Feature>")
         out.append("    </PlanFeature>")
         n += 1
+    out.append('    <Feature code="FeatureLines" source="Autodesk Civil 3D">')
+    out.append(f'      <Property label="site" value={quoteattr(site)}/>')
+    out.append("    </Feature>")
     out += ["  </PlanFeatures>", "</LandXML>"]
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
@@ -300,11 +408,11 @@ def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[s
     no_super = src == "typical section" and not getattr(al, "super_runs", None)
     if no_super:
         notes.append("The LandXML has no superelevation: levels on curves are at the normal crossfall.")
-    raw = edge_lines(al, step) + widening_lines(al, parts)
-    lines = [piece for name, code, pts in raw for piece in split(name, code, simplify(pts))]
-    before, after = sum(len(p) for *_, p in raw), sum(len(p) for *_, p in lines)
-    notes.append(f"{after} vertices ({before} sampled, thinned to {H_TOL * 1000:g} mm in plan and "
-                 f"{V_TOL * 1000:g} mm in level).")
+    lines = edge_lines(al, step) + widening_lines(al, parts)
+    pis = sum(len(fl.pis) for fl in lines)
+    arcs = sum(len(fl.arcs) for fl in lines)
+    elev = sum(len(fl.elev) for fl in lines)
+    notes.append(f"{pis} PIs ({arcs} arcs) and {elev} elevation points.")
     desc = f"Road edges ({src}) and widenings of {al.name}" + (" - no superelevation in the source"
                                                                 if no_super else "")
     n = write_landxml(path, lines, source_path, desc=desc)

@@ -33,6 +33,7 @@ def test_export_writes_feature_lines_civil3d_reads(tmp_path):
     p = tmp_path / "fl.xml"
     n, notes = FL.export(str(p), al, parts=[("BAYEDGE", 120.0, [bay]), ("KERB", 0.0, [bay])])
     assert n == 5 and any("superelevation" in m for m in notes)                     # 4 edges + 1 bay edge; no super
+    assert any("PIs" in m for m in notes)
     root = ET.parse(p).getroot()  # nosec B314 - the test's own output
     pf = root.findall("x:PlanFeatures/x:PlanFeature", NS)
     assert sorted(f.get("name") for f in pf) == ["RFD BAYEDGE 1", "RFD EPS L", "RFD EPS R", "RFD ETW L", "RFD ETW R"]
@@ -61,23 +62,45 @@ def test_verge_elements_take_their_own_fall():
     ts = T.TypicalSection([T.SectionRange([("ETW", 3.5), ("EPS", 1.5), ("Walkway", 3.0)],
                                           [("ETW", 3.5), ("EPS", 1.5)])])
     T.apply(al, ts)
-    lines = {n: pts for n, _, pts in FL.edge_lines(al)}
-    z = lines["RFD Walkway L"][0][2]
+    lines = {fl.name: fl for fl in FL.edge_lines(al)}
+    z = lines["RFD Walkway L"].pis[0][2]
     assert z == pytest.approx(100.0 - 5.0 * 0.025 - 3.0 * 0.04)
 
 
-def test_thinning_keeps_tolerance_and_long_lines_are_split():
+def test_thinning_keeps_tolerance():
     import math
-    # a straight constant grade collapses to its ends; an arc keeps enough vertices for 20 mm
     straight = [(x, 0.0, 100 + 0.01 * x) for x in range(0, 1001, 5)]
     assert FL.simplify(straight) == [straight[0], straight[-1]]
-    arc = [(1000 * math.sin(a / 1000), 1000 * (1 - math.cos(a / 1000)), 100.0) for a in range(0, 301, 5)]
-    kept = FL.simplify(arc)
-    assert 2 < len(kept) < len(arc)
-    for x, y, _ in arc:                                     # every sample within 20 mm of the thinned line
-        d = min(abs(math.hypot(x - a[0], y - a[1]) + math.hypot(x - b[0], y - b[1]) - math.hypot(b[0] - a[0], b[1] - a[1]))
-                for a, b in zip(kept, kept[1:]))
-        assert d < 0.05
-    pieces = FL.split("RFD ETW L", "ETW", [(float(i), 0.0, 0.0) for i in range(1200)], max_vertices=500)
-    assert [p[0] for p in pieces] == ["RFD ETW L", "RFD ETW L-2", "RFD ETW L-3"]
-    assert pieces[0][2][-1] == pieces[1][2][0] and sum(len(p[2]) for p in pieces) == 1200 + 2
+    fl = FL.build("s", "ETW", straight)
+    assert len(fl.pis) == 2 and fl.elev == []                    # a straight grade: two PIs, nothing between
+    crest = [(x, 0.0, 100 - (x - 500) ** 2 / 50000) for x in range(0, 1001, 5)]
+    fl = FL.build("c", "ETW", crest)
+    assert len(fl.pis) == 2 and len(fl.elev) > 5                 # a vertical curve: levels as elevation points
+    for x, _, z in crest:                                        # every sample within 5 mm of the kept levels
+        pts = sorted([(p[0], p[2]) for p in fl.pis + fl.elev])
+        k = next(i for i in range(len(pts) - 1) if pts[i][0] <= x <= pts[i + 1][0])
+        (x0, z0), (x1, z1) = pts[k], pts[k + 1]
+        assert abs(z - (z0 + (z1 - z0) * (x - x0) / (x1 - x0))) <= 0.005 + 1e-9
+
+
+def test_edges_on_alignment_arcs_are_written_as_curves(tmp_path):
+    import math
+    from rfd.alignment import Arc, Line
+    l1 = Line((1000.0, 5000.0), (1300.0, 5000.0))
+    arc = Arc((1300.0, 5000.0), (1300.0, 5200.0), 200, True, 300)          # left turn, centre to the north
+    al = Alignment("A", [l1, arc], 0.0, [], [(0.0, 80.0)])
+    al.profile = VerticalProfile("p", [(0, 100, 0), (al.sta_end, 100, 0)])
+    T.apply(al, T.TypicalSection.standard("R5"))
+    lines = {fl.name: fl for fl in FL.edge_lines(al)}
+    etw_l = lines["RFD ETW L"]
+    assert len(etw_l.arcs) == 1 and len(etw_l.pis) == 3                     # tangent + one curve
+    (cx, cy, r, rot), = etw_l.arcs.values()
+    assert (cx, cy, rot) == (1300.0, 5200.0, "ccw") and r == pytest.approx(200 - 3.5)
+    p = tmp_path / "a.xml"
+    FL.write_landxml(str(p), list(lines.values()))
+    root = ET.parse(p).getroot()  # nosec B314 - the test's own output
+    pf = next(f for f in root.findall("x:PlanFeatures/x:PlanFeature", NS) if f.get("name") == "RFD ETW L")
+    curve = pf.find("x:CoordGeom/x:Curve", NS)
+    assert curve.get("rot") == "ccw" and float(curve.get("radius")) == pytest.approx(196.5, abs=1e-3)
+    assert float(curve.get("length")) == pytest.approx(196.5 * 300 / 200, abs=1e-2)
+    assert [float(v) for v in curve.find("x:Center", NS).text.split()] == [5200.0, 1300.0]   # northing easting

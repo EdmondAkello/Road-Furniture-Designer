@@ -28,8 +28,29 @@ class RoadFurnitureDesignerPlugin:
             from .dock import RsdDock
             self.dock = RsdDock(self.iface, self.iface.mainWindow())
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+            self._tab_with_toolbox()
             self.dock.visibilityChanged.connect(self.action.setChecked)
         return self.dock
+
+    def _tab_with_toolbox(self):
+        """Open as a tab beside the Processing Toolbox (or another panel docked on the right), full height,
+        rather than squeezed under it. The user can move it anywhere; QGIS remembers where."""
+        from qgis.PyQt.QtWidgets import QDockWidget
+        win = self.iface.mainWindow()
+        if not hasattr(win, "tabifyDockWidget") or not hasattr(win, "findChildren"):
+            return
+        try:
+            docks = [d for d in win.findChildren(QDockWidget)
+                     if d is not self.dock and d.isVisible() and not d.isFloating()
+                     and win.dockWidgetArea(d) == Qt.RightDockWidgetArea]
+        except (TypeError, RuntimeError):
+            return
+        if not docks:
+            return
+        toolbox = next((d for d in docks if d.objectName() == "ProcessingToolbox"), docks[0])
+        win.tabifyDockWidget(toolbox, self.dock)
+        self.dock.show()
+        self.dock.raise_()
 
     def toggle(self, on):
         if on:
