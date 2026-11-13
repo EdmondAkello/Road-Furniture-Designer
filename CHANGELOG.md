@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.12.0)
+## 0.12.0 — 2026-11-13
 
 ### Changed
 - **QGIS 4 (Qt6)**: the plugin runs on QGIS 3.44 to 4.x (`qgisMinimumVersion=3.44`, `qgisMaximumVersion=4.99`). QGIS 3.34 to 3.42 are no longer supported.
