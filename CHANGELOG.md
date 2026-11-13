@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.1 — 2026-11-13
+
+### Fixed
+- The v0.11.0 tag was placed on the 0.10 merge commit, so its source archive (and the Guide button's link, which opens the guide PDF at the version's tag) held 0.10. 0.11.1 is the 0.11 code tagged on the right commit.
+- The plugin ZIP carries the LICENSE file plugins.qgis.org requires; `check_plugin_zip.py` checks for it.
+
+### Changed
+- Listed as stable in the QGIS plugin repository (`experimental=False`); the user guide no longer calls the plugin experimental.
+
 ## 0.11.0 — 2026-11-13
 
 ### Added
