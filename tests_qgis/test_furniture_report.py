@@ -675,3 +675,155 @@ def test_section_tab_applies_and_switches_off(tmp_path):
     assert "Row 2" in str(iface.messageBar().pushMessage.call_args)
     d.switch_off_typical_section()
     assert not st.al.edges and d.cmb_ref.count() == 1 and not d.btn_toff.isEnabled()
+
+
+def test_descents_proposed_from_a_steep_profile(tmp_path):
+    """A 1.2 km road falling 12 % all the way: a descending lane (the opposite climb warrants a climbing lane
+    and is over 1000 m), and an escape ramp on the last tangent after the 130 m drop, with their signs."""
+    QgsProject.instance().clear()
+    els = build()
+    L = sum(e.length for e in els)
+    prof = ('<Profile name="DEMO"><ProfAlign name="FRL"><PVI>0 300</PVI><PVI>%.3f %.3f</PVI></ProfAlign></Profile>'
+            % (L, 300 - 0.12 * L))
+    xml = tmp_path / "steep.xml"
+    xml.write_text(to_landxml(els, extra=prof + corridor_xml(L)))
+    st = SignStore.create(str(tmp_path / "s.gpkg"), str(xml), "DEMO-RD", CRS, "Test")
+    st.add_to_project()
+    n, notes = st.propose_descents(aadt=5000, trucks=600)
+    kinds = sorted(j["kit"] for j in st.junctions.junctions())
+    assert "DESC" in kinds and "RAMP" in kinds, (kinds, notes)
+    ramp = next(j for j in st.junctions.junctions() if j["kit"] == "RAMP")
+    assert ramp["bay"]["kind"] == "escape ramp" and ramp["bay"]["side"] == "L"
+    codes = {f["code"] for f in st.junctions.layer.getFeatures()}
+    assert {"RAMP", "RAMPBED", "RAMPMOUND", "BAYEDGE"} <= codes
+    signs = {f["sign_code"] for f in st.signs.getFeatures() if f["status"] == "proposed"}
+    assert {"E1", "I33", "I32", "P14"} <= signs          # (the lane starts at the road start: no room for I12)
+    assert any("Equation 12.1" in t for t in notes)
+    # ramp edges in the feature lines, rising at the ramp grade from the road edge
+    n, _ = st.export_feature_lines(str(tmp_path / "fl.xml"))
+    txt = (tmp_path / "fl.xml").read_text()
+    assert "RFD RAMP 1 inner" in txt and "RFD RAMP 1 outer" in txt
+    # and checked in the report: the bed is long enough for the runaway speed
+    from road_furniture_designer.rfd import furniture_report as FR
+    ch = FR.descent_checks(st.al, st.junctions.junctions())
+    assert any(c.level == "info" and "arrester bed" in c.text for c in ch), [c.text for c in ch]
+
+
+def test_outputs_tab_review_lists_the_furniture_checks(tmp_path):
+    from unittest import mock
+    from qgis.gui import QgsMapCanvas
+    from qgis.PyQt.QtWidgets import QMainWindow
+    from road_furniture_designer.dock import RsdDock
+    st, xml, auto = _project(tmp_path)
+    win = QMainWindow(); iface = mock.MagicMock()
+    iface.mapCanvas.return_value = QgsMapCanvas(); iface.mainWindow.return_value = win
+    d = RsdDock(iface, win)
+    d.set_store(st)
+    d.run_review()
+    assert d.lst_review.count() > 0
+    first = d.lst_review.item(0)
+    assert first.text().split()[0] in ("ISSUE", "CHECK", "INFO", "NOTE")
+    d._zoom_finding(first)                                   # zooms without error
+
+
+def test_properties_departures_and_undo_redo(tmp_path):
+    from road_furniture_designer.rfd import junctions as J
+    from road_furniture_designer.rfd import furniture_report as FR
+    st, xml, auto = _project(tmp_path)
+    n_lines = st.lines.layer.featureCount()
+    signs0 = st.signs.featureCount()
+    x0, y0, _ = st.al.point_at(300.0, -5.0)
+    x1, y1, _ = st.al.point_at(370.0, -5.0)
+    pl, B = J.place_bay(st.al, x0, y0, x1, y1)
+    st.add_junction(pl, "TRUCK", params={"bay": B})
+    jid = pl.junction_id
+    assert any(j["id"] == jid for j in st.junctions.junctions())
+    signs1 = st.signs.featureCount()
+    assert signs1 > signs0
+    # properties: the bay's depth from its RDM drawing, changed with a reason
+    rows = st.junctions.properties(jid)
+    depth = next(r for r in rows if r["key"] == "depth")
+    assert depth["default"] == 3.5 and depth["value"] == 3.5
+    st.set_junction_properties(jid, {(depth["puuid"], "depth"): (4.0, "site has room")})
+    j = next(j for j in st.junctions.junctions() if j["id"] == jid)
+    assert j["bay"]["depth"] == 4.0
+    assert j["departures"] == [{"piece": depth["piece_name"], "key": "depth", "value": 4.0, "default": 3.5,
+                                "reason": "site has room"}]
+    checks = FR.junction_checks(st.al, st.junctions.junctions())
+    assert any(c.kind == "departure" and "site has room" in c.text for c in checks)
+    # undo the property change, then the placement; redo both
+    assert st.undo() == "Change junction properties"
+    j = next(j for j in st.junctions.junctions() if j["id"] == jid)
+    assert j["bay"]["depth"] == 3.5
+    assert st.undo() == "Place a junction, bay, lane or ramp"
+    assert not any(j["id"] == jid for j in st.junctions.junctions())
+    assert st.signs.featureCount() == signs0 and st.lines.layer.featureCount() == n_lines
+    assert st.redo() == "Place a junction, bay, lane or ramp"
+    assert any(j["id"] == jid for j in st.junctions.junctions()) and st.signs.featureCount() == signs1
+    assert st.redo() == "Change junction properties"
+    assert next(j for j in st.junctions.junctions() if j["id"] == jid)["bay"]["depth"] == 4.0
+    # drag the bay's end 20 m further: longer bay
+    pu = depth["puuid"]
+    s1, s2 = next(j for j in st.junctions.junctions() if j["id"] == jid)["bay"]["stations"][1:3]
+    st.move_bay_end(pu, "end", s2 + (20.0 if s2 > s1 else -20.0))
+    s1b, s2b = next(j for j in st.junctions.junctions() if j["id"] == jid)["bay"]["stations"][1:3]
+    assert abs(s2b - s1b) == pytest.approx(abs(s2 - s1) + 20.0, abs=0.01)
+    assert st.undo() == "Move a bay or lane end"
+
+
+def test_clicked_main_road_snaps_to_a_road_layer(tmp_path):
+    """Our road joins a road drawn as a QGIS line layer: the clicked direction follows the layer."""
+    import math
+    from unittest import mock
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayer
+    from qgis.gui import QgsMapCanvas
+    from qgis.PyQt.QtWidgets import QMainWindow
+    from road_furniture_designer.dock import RsdDock
+    from road_furniture_designer.maptool import PlaceJunctionTool
+    st, xml = _fill_road(tmp_path)
+    QgsProject.instance().setCrs(CRS)
+    x0, y0, h = st.al.point_at(600.0)
+    hr = h + math.radians(70)                              # the other road crosses ours at 70 degrees
+    road = QgsVectorLayer("LineString?crs=EPSG:21037", "County roads", "memory")
+    f = QgsFeature()
+    f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x0 - 200 * math.cos(hr), y0 - 200 * math.sin(hr)),
+                                              QgsPointXY(x0 + 200 * math.cos(hr), y0 + 200 * math.sin(hr))]))
+    road.dataProvider().addFeatures([f])
+    QgsProject.instance().addMapLayer(road)
+    win = QMainWindow()
+    iface = mock.MagicMock()
+    iface.mapCanvas.return_value = QgsMapCanvas()
+    iface.mainWindow.return_value = win
+    d = RsdDock(iface, win)
+    d.set_store(st)
+    i = d.cmb_jmajor.findData(f"layer:{road.id()}")
+    assert i >= 0 and all("RFD" not in d.cmb_jmajor.itemText(k) for k in range(d.cmb_jmajor.count()))
+    d.cmb_jrole.setCurrentIndex(d.cmb_jrole.findData("minor"))
+    d.cmb_jmajor.setCurrentIndex(i)
+    cfg = d.junction_settings()
+    assert cfg["major"] == "" and cfg["lines_layer"] == road.id()
+    cfg.update({"kit": "B", "piece": "", "guides": False, "splays": False, "both": False})
+    canvas = QgsMapCanvas()
+    canvas.setDestinationCrs(CRS)
+    tool = PlaceJunctionTool(canvas, lambda: st, lambda: cfg)
+    tool.click(QgsPointXY(x0, y0))
+    off = hr + math.radians(12)                            # a careless click 12 degrees off the road
+    jid = tool.click(QgsPointXY(x0 + 60 * math.cos(off), y0 + 60 * math.sin(off)))
+    j = next(f for f in st.junctions.layer.getFeatures() if f["junction_id"] == jid)
+    hm = float(j["main_ref"].split(",")[2])
+    assert math.cos(hm - hr) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_nothing_to_propose_leaves_the_layers_readable(tmp_path):
+    """Scenario run: an edit session with nothing in it left the GeoPackage sign layer unreadable on a road where
+    auto-placement found nothing, and the signs placed afterwards were lost."""
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    assert st.place_proposals([]) == 0
+    assert st.signs.featureCount() == 0
+    st.auto_propose(AutoConfig())
+    n = st.signs.featureCount()
+    assert n >= 0                                                   # readable after the auto run
+    x, y, _ = st.al.point_at(500.0, -6.0)
+    st.add_sign(x, y, "W30")
+    assert st.signs.featureCount() == n + 1

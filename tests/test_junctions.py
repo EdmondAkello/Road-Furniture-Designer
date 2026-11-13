@@ -21,10 +21,11 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 def test_templates_are_consistent():
     assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS",
-                                                 "RBT", "SIG"}
+                                                 "RBT", "SIG", "DESC", "BCA", "RAMP"}
     for k, items in T["kits"].items():
         assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access",
-                                     "RBT": "roundabout", "SIG": "signal_crossroads"}.get(k, "guides")
+                                     "RBT": "roundabout", "SIG": "signal_crossroads", "DESC": "descending_lane",
+                                     "BCA": "brake_check", "RAMP": "escape_ramp"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -41,7 +42,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT", "SIG")]:
+            for k in [k for k in T["kits"] if k not in J.BAY_KITS + ("ACCESS", "RBT", "SIG")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -678,3 +679,18 @@ def test_signalised_crossroads():
         assert bm and all(west.pts[0][0] < x < 200 for p in bm for x, _ in p.pts)
     out = J.junction_warnings(al, [J.JunctionAt("s", "main", 200, "L", kit="SIG")])
     assert sorted((p.code, p.facing) for p in out) == [("W46", "Backward"), ("W46", "Forward")]
+
+
+def test_clicked_main_road_snaps_to_a_road_layer():
+    ours = Alignment.from_polyline("OURS", [(200, 300), (200, 3.0)])
+    road = [[(0, -6), (150, 1), (400, 13)]]                    # a QGIS road line, skewed, near the junction
+    # a careless click well off the road's direction still gives the road's heading, towards the cursor
+    pc, mc = J.place_minor(ours, 200, 2.0, 380, 40.0, lines=road)
+    h = float(pc.main_ref.split(",")[2])
+    assert math.degrees(h) == pytest.approx(math.degrees(math.atan2(12, 250)), abs=0.01)
+    pw, _ = J.place_minor(ours, 200, 2.0, 20, 30.0, lines=road)
+    assert math.degrees(float(pw.main_ref.split(",")[2])) == pytest.approx(
+        math.degrees(math.atan2(-12, -250)), abs=0.01)
+    # a road line beyond 25 m is ignored: the click decides
+    pf, _ = J.place_minor(ours, 200, 2.0, 380, 2.0, lines=[[(0, 60), (400, 60)]])
+    assert float(pf.main_ref.split(",")[2]) == pytest.approx(math.atan2(-1, 180), abs=1e-5)

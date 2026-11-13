@@ -125,6 +125,9 @@ def test_random_report(seed):
     assert not fr.checks_of("sign_plate", "sign_orphan_end") or all(
         c.level == "info" for c in fr.checks_of("sign_plate", "sign_orphan_end")), tag
     assert sorted(g["kind"] for g in fr.features) == sorted(kinds), tag
+    names = [ln.name for ln in fr.lanes]                                 # the centre line midway between the edges
+    i = names.index("Centre line")
+    assert names[i - 1] == "Edge line, left" and names[i + 1] == "Edge line, right", tag
     for ln in fr.lanes:
         for it in ln.items:
             a = it[0]

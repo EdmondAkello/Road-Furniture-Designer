@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.11.0 — 2026-11-13
+
+### Added
+- **Descending lanes** (type DESC, RDM 1.3 6.6.4): proposed from the profile where the opposite upgrade warrants a climbing lane and the downgrade is over 1000 m; drawn as a climbing lane, I12 proposed.
+- **Brake check areas** (type BCA, RDM 1.3 12.5): proposed at the top of a descent that drops 100 m, or runs 1000 m at 5 % or more, with about 500 trucks a day (**trucks / day** on the Junctions tab); a 100 m bay ending 100 m before the top, I15, I14 500 m ahead and W30 proposed.
+- **Truck escape ramps** (type RAMP, RDM 1.3 12.7): a loaded truck is followed down each descent (40 km/h at the top, gaining speed on the grade less 1 % rolling resistance, 140 km/h at most). A ramp is proposed on the tangent before a singular point it could not take (a curve too tight for its speed at f = 0.10, a town at 50 km/h or less, the road end) once the road has dropped 130 m. Bed length from Eq 12.1 with the Table 12.7 rolling resistance of the bed material. Drawn as taper, paved entry, arrester bed and end mound, on the downhill traffic's left; E1, I33, I32 and P14 proposed. Checks: ramp on a curve, width, bed shorter than Eq 12.1 needs, a ramp site with no ramp within 500 m.
+- **Properties table** for a selected junction, bay, lane or ramp, with the RDM drawing's value beside each; changed values are rebuilt and reported as **departures** with their reason.
+- **Handles**: drag a bay, lane or ramp end with Move to change its length.
+- **Undo / Redo** (30 steps) for signs, lines, junctions, bays and lanes, and the proposals.
+- **Snapping to a road layer**: a main road clicked by direction follows a chosen QGIS line layer within 25 m of the junction.
+- **Feature lines**: the kerbs of junction islands, accesses and roundabouts, and escape-ramp edges at the ramp grade, go to the Civil 3D export with the edges and widenings, named by code and chainage.
+- **Furniture checks on the Outputs tab**: run the checks without the full report; double-click a finding to zoom to it.
+
+### Changed
+- **Export to Civil 3D (DXF)** asks for the DXF file; the placement package for the parked Dynamo route is written beside it. The **Import Civil 3D read-back** button is hidden while that route is parked.
+- Escape ramps where the road bends towards the ramp's side: the ramp leaves early enough to lie alongside the tangent and turns further from the road (up to 12°, `max_angle`) to stay 10 m clear of the shoulder (`road_clear`); where that is not enough it stops short and the bed check says so.
+
+### Fixed
+- A proposal step that found nothing to propose (auto-placement on a gentle road) opened and closed an empty edit session, which could leave the GeoPackage sign layer unreadable until the project was reopened.
+- Strip diagram: the road studs row sat between the centre line and the right edge line, so the centre line looked off the middle; studs now have their row below the road.
+
 ## 0.10.0 — 2026-11-13
 
 ### Added

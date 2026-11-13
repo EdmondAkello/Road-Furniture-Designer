@@ -47,6 +47,21 @@
    "name": "Signalised crossroads (four arms, no islands)",
    "drawing": "RDM 6.1 Figure 7.12",
    "remark": "Not one of the RDM 1.3 templates: the geometric layout of a four-arm signal-controlled junction of single carriageways (RDM 6.1 7.8, Figure 7.12) - kerb returns, crossings, stop lines, centre lines and arrows. Signals, lane allocation and phasing come from the signals design (RDM 6.3)."
+  },
+  "DESC": {
+   "name": "Descending lane",
+   "drawing": "RDM 1.3 6.6.4 (layout as RDM/1/3/3/02)",
+   "remark": "Where an upgrade warrants a climbing lane and is longer than 1000 m, the opposite side may be a candidate for a descending lane, especially with high traffic and slow trucks (RDM 1.3 6.6.4). Laid out as a climbing lane for the downhill traffic."
+  },
+  "BCA": {
+   "name": "Brake check area",
+   "drawing": "RDM 1.3 12.5",
+   "remark": "Before a steep descent on routes with about 500 trucks a day: room for several semi-trailers, acceleration and deceleration tapers, good visibility and advance signs (RDM 1.3 12.5). Dimensions are indicative: RDM gives none."
+  },
+  "RAMP": {
+   "name": "Truck escape ramp",
+   "drawing": "RDM 1.3 12.7, Figure 12.12",
+   "remark": "Tangential to the carriageway on a tangent, before a singular point, after a 130 m vertical drop; 3.6-12 m wide; arrester bed length from Equation 12.1 and Table 12.7; bed up to 1.0 m deep tapered from 75 mm over the first 30-60 m; end mound 0.6-1.5 m, 1:1.5 slopes; signs E1, I33, I32 (RDM 1.3 12.7, RDM 6.2 6.7). Horizontal layout only: finish the ramp profile in Civil 3D."
   }
  },
  "codes": {
@@ -224,6 +239,21 @@
    "name": "STOP line, continuous 400 mm (RDM 6.1 Table A.2)",
    "width": 0.4,
    "colour": "white"
+  },
+  "RAMP": {
+   "name": "Escape ramp edge",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "RAMPBED": {
+   "name": "Arrester bed (loose material)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "RAMPMOUND": {
+   "name": "End mound ('last chance' device, 0.6-1.5 m, 1:1.5)",
+   "width": 0.0,
+   "colour": "grey"
   }
  },
  "pieces": {
@@ -638,6 +668,59 @@
     "centre_line": 30.0
    },
    "remark": "Four arms: kerb returns (guides, R 12 m), a BM02 crossing where the kerb runs straight, the TM01 stop line 1.5 m behind it across the approach half, 30 m of LM24 and an AM07 arrow on each approach."
+  },
+  "descending_lane": {
+   "name": "Descending lane (RDM 1.3 6.6.4)",
+   "types": [
+    "DESC"
+   ],
+   "frame": "road",
+   "kind": "lane",
+   "params": {
+    "bay": 300.0,
+    "entry": 100.0,
+    "exit": 100.0,
+    "depth": null
+   },
+   "remark": "Laid out as a climbing lane (RDM/1/3/3/02) for the downhill traffic: 100 m tapers, the lane as wide as the reduced through lane; I12 Slow Lane at its start."
+  },
+  "brake_check": {
+   "name": "Brake check area (RDM 1.3 12.5)",
+   "types": [
+    "BCA"
+   ],
+   "frame": "road",
+   "kind": "bay",
+   "params": {
+    "bay": 100.0,
+    "entry": 60.0,
+    "exit": 60.0,
+    "depth": 3.5,
+    "taper": "straight"
+   },
+   "remark": "Indicative: 100 m holds four to five semi-trailers, 60 m straight deceleration and acceleration tapers, 3.5 m deep; I14 500 m ahead, I15 at the entry taper, W30 where the descent starts."
+  },
+  "escape_ramp": {
+   "name": "Truck escape ramp (RDM 1.3 12.7)",
+   "types": [
+    "RAMP"
+   ],
+   "frame": "road",
+   "kind": "ramp",
+   "params": {
+    "bay": 420.0,
+    "entry": 30.0,
+    "taper": 50.0,
+    "width": 8.0,
+    "angle": 4.0,
+    "max_angle": 12.0,
+    "road_clear": 10.0,
+    "grade": 10.0,
+    "material": "Gravel, loose",
+    "mound": 1.0,
+    "bed_depth": 1.0
+   },
+   "remark": "Departs tangentially on the downhill traffic's left at a small angle (4 deg here); the road edge widens to the ramp over a 50 m taper; where the road bends towards it the ramp turns further away (up to 12 deg) and otherwise stops short, 10 m clear of the shoulder; 30 m of paved entry, then the arrester bed and a 'last chance' mound at the end. Bed length from Equation 12.1 for the runaway speed."
   }
  },
  "kits": {
@@ -952,6 +1035,21 @@
   "SIG": [
    {
     "piece": "signal_crossroads"
+   }
+  ],
+  "DESC": [
+   {
+    "piece": "descending_lane"
+   }
+  ],
+  "BCA": [
+   {
+    "piece": "brake_check"
+   }
+  ],
+  "RAMP": [
+   {
+    "piece": "escape_ramp"
    }
   ]
  }

@@ -39,6 +39,8 @@ H_TOL = 0.02                # m: plan tolerance for PIs off the arcs (Douglas-Pe
 V_TOL = 0.005               # m: level tolerance for elevation points (against the grade between kept points)
 MAX_LENGTH = 5000.0         # m: a longer feature line is written in pieces
 WIDENING_CODES = ("WIDEN", "BAYEDGE")
+# kerb lines and other plan edges a corridor or grading targets: islands and bay kerbs, accesses, roundabouts
+KERB_CODES = ("KERB", "ACCESS", "RBEDGE", "APRON")
 
 Pt3 = Tuple[float, float, float]
 
@@ -313,19 +315,51 @@ def draped(al, name: str, code: str, pts: Sequence[Tuple[float, float]], step: f
     return build(name, code, out) if len(out) >= 2 else None
 
 
-def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[FLine]:
-    """From junction parts [(code, sta, [polyline])]: the widened pavement edges, draped on the road."""
+def widening_lines(al, parts: Iterable, codes=WIDENING_CODES + KERB_CODES) -> List[FLine]:
+    """From junction parts [(code, sta, [polyline])]: the widened pavement edges, island and bay kerbs,
+    accesses and roundabout edges, draped on the road (the level of the road surface at the line: kerb
+    bottom). Named by code and chainage."""
     out, n = [], {}
-    for code, _sta, lines in parts:
+    for code, sta, lines in parts:
         if code not in codes:
             continue
         for ln in lines:
             if len(ln) < 2:
                 continue
             n[code] = n.get(code, 0) + 1
-            d = draped(al, f"RFD {code} {n[code]}", code, ln)
+            ch = ""
+            try:
+                from .alignment import format_station
+                ch = f" Ch {format_station(al.display_station(float(sta)), 0)}" if sta is not None else ""
+            except (TypeError, ValueError):
+                pass
+            d = draped(al, f"RFD {code}{ch} #{n[code]}", code, ln)
             if d:
                 out.append(d)
+    return out
+
+
+def ramp_lines(al, bays: Iterable[dict], step: float = STEP) -> List[FLine]:
+    """Escape ramps: both edges as feature lines, rising (or falling) at the ramp's grade from the level of
+    the road edge at the departure point (the profile along the ramp's base line, Figure 12.12)."""
+    out = []
+    for k, b in enumerate([b for b in bays if b and b.get("kind") == "escape ramp"], 1):
+        if not b.get("origin") or b.get("heading") is None:
+            continue
+        x0, y0 = b["origin"]
+        hr = float(b["heading"])
+        ht = hr - math.radians(float(b.get("angle", 4.0)))
+        W, L, g = float(b.get("width", 8.0)), float(b.get("bay", 0.0)), float(b.get("grade", 0.0)) / 100.0
+        so = al.station_offset(x0, y0)
+        z0 = level_at(al, so.station, so.offset)
+        if z0 is None or L <= 0:
+            continue
+        nl = (math.cos(ht + math.pi / 2), math.sin(ht + math.pi / 2))
+        n = max(2, int(math.ceil(L / step)) + 1)
+        for tag, (ox, oy) in (("inner", (x0, y0)), ("outer", (x0 + W * nl[0], y0 + W * nl[1]))):
+            pts = [(ox + L * i / (n - 1) * math.cos(hr), oy + L * i / (n - 1) * math.sin(hr),
+                    z0 + g * L * i / (n - 1)) for i in range(n)]
+            out.append(build(f"RFD RAMP {k} {tag}", "RAMP", pts))
     return out
 
 
@@ -412,7 +446,7 @@ def write_landxml(path, lines: Sequence[FLine], source_path=None, site=SITE, des
     return n
 
 
-def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[str]]:
+def export(path, al, parts=(), source_path=None, step=STEP, bays=()) -> Tuple[int, List[str]]:
     """Road edges and widenings of an alignment to a feature-line LandXML. Returns (count, notes)."""
     notes = []
     if getattr(al, "profile", None) is None:
@@ -423,7 +457,7 @@ def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[s
     no_super = src == "typical section" and not getattr(al, "super_runs", None)
     if no_super:
         notes.append("The LandXML has no superelevation: levels on curves are at the normal crossfall.")
-    lines = edge_lines(al, step) + widening_lines(al, parts)
+    lines = edge_lines(al, step) + widening_lines(al, parts) + ramp_lines(al, bays)
     pis = sum(len(fl.pis) for fl in lines)
     arcs = sum(len(fl.arcs) for fl in lines)
     elev = sum(len(fl.elev) for fl in lines)

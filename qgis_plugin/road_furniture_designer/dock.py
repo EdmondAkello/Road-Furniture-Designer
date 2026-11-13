@@ -14,6 +14,7 @@ from qgis.core import QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceJunctionTool, PlaceSignTool
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 from .rfd.alignment import alignment_names, format_station
 from .rfd.legend import SCHEMES, summary as legend_summary
 from .store import SignStore
@@ -47,6 +48,16 @@ class RsdDock(QDockWidget):
         self.btn_new = QPushButton("New project…")
         self.btn_open = QPushButton("Open…")
         row.addWidget(self.btn_new); row.addWidget(self.btn_open)
+        self.btn_undo = QPushButton("Undo"); self.btn_redo = QPushButton("Redo")
+        for b in (self.btn_undo, self.btn_redo):
+            b.setEnabled(False); b.setMaximumWidth(60)
+        row.addWidget(self.btn_undo); row.addWidget(self.btn_redo)
+        self.btn_guide = QPushButton("Guide")
+        self.btn_guide.setMaximumWidth(60)
+        self.btn_guide.setToolTip("Open the User Guide and Technical Manual (PDF) for this version")
+        from .links import open_guide
+        self.btn_guide.clicked.connect(open_guide)
+        row.addWidget(self.btn_guide)
         lay.addLayout(row)
         self.lbl_project = QLabel("No project open")
         self.lbl_project.setWordWrap(True)
@@ -128,9 +139,22 @@ class RsdDock(QDockWidget):
         il.addWidget(QLabel("Checks"))
         self.lst_issues = QListWidget()
         il.addWidget(self.lst_issues, 1)
+        rv = QHBoxLayout()
+        rv.addWidget(QLabel("Furniture checks"))
+        self.btn_review = QPushButton("Run checks")
+        self.btn_review.setToolTip("The report's furniture checks (markings, barriers, signs, calming, junctions, bays, "
+                                   "ramps, the corridor round trip) run now; double-click one to zoom to it")
+        rv.addStretch(1); rv.addWidget(self.btn_review)
+        il.addLayout(rv)
+        self.lst_review = QListWidget()
+        self.lst_review.setWordWrap(True)
+        il.addWidget(self.lst_review, 1)
         self.btn_inv = QPushButton("Export inventory (Excel + CSV)…")
-        self.btn_c3d = QPushButton("Export to Civil 3D (package + DXF)…")
+        self.btn_c3d = QPushButton("Export to Civil 3D (DXF)…")
+        self.btn_c3d.setToolTip("Georeferenced DXF of the signs, markings, barriers and junctions to paste into "
+                                "a Civil 3D drawing at the true coordinates (COPYBASE / PASTEORIG)")
         self.btn_rb = QPushButton("Import Civil 3D read-back…")
+        self.btn_rb.setVisible(False)          # parked with the Dynamo link
         self.btn_recalc = QPushButton("Recompute all chainages")
         self.btn_report = QPushButton("Road furniture report (PDF + PNG sheets + Excel)…")
         for b in (self.btn_report, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc):
@@ -544,8 +568,12 @@ class RsdDock(QDockWidget):
         self.spn_jaadt = QDoubleSpinBox(); self.spn_jaadt.setRange(0, 200000); self.spn_jaadt.setDecimals(0)
         self.spn_jaadt.setSingleStep(500); self.spn_jaadt.setSpecialValueText("AADT not given")
         self.spn_jaadt.setSuffix(" pcu (year 10)")
+        self.spn_jtrucks = QDoubleSpinBox(); self.spn_jtrucks.setRange(0, 100000); self.spn_jtrucks.setDecimals(0)
+        self.spn_jtrucks.setSingleStep(100); self.spn_jtrucks.setSpecialValueText("Trucks per day not given")
+        self.spn_jtrucks.setSuffix(" trucks / day")
+        self.spn_jtrucks.setToolTip("Brake check areas are recommended at about 500 trucks a day (RDM 1.3 12.5)")
         self.btn_jclimb = QPushButton("Propose climbing lanes from the profile")
-        jl.addWidget(self.spn_jaadt); jl.addWidget(self.btn_jclimb)
+        jl.addWidget(self.spn_jaadt); jl.addWidget(self.spn_jtrucks); jl.addWidget(self.btn_jclimb)
         self.lbl_jhover = QLabel("Click the junction point on the main road, then a point up the minor road.")
         self.lbl_jhover.setWordWrap(True)
         jl.addWidget(self.lbl_jhover)
@@ -560,6 +588,21 @@ class RsdDock(QDockWidget):
                                   "here and in the report's furniture checks")
         jo = QHBoxLayout(); jo.addWidget(self.cmb_jobst, 1); jo.addWidget(self.btn_jobst)
         jl.addLayout(jo)
+        self.grp_jprops = QGroupBox("Properties of the selected item")
+        gp = QVBoxLayout(self.grp_jprops)
+        self.tbl_jprops = QTableWidget(0, 4)
+        self.tbl_jprops.setHorizontalHeaderLabels(["Parameter", "Value", "Default", "Reason"])
+        self.tbl_jprops.setToolTip("Change a value and press Apply: the item is rebuilt from its template. A value "
+                                   "away from its default (the RDM drawing or clause) is listed in the furniture "
+                                   "checks as a departure, with the reason you give")
+        self.tbl_jprops.verticalHeader().setVisible(False)
+        self.tbl_jprops.horizontalHeader().setStretchLastSection(True)
+        for col, cw in ((0, 120), (1, 60), (2, 60)):
+            self.tbl_jprops.setColumnWidth(col, cw)
+        gp.addWidget(self.tbl_jprops)
+        self.btn_jprops = QPushButton("Apply properties")
+        gp.addWidget(self.btn_jprops)
+        jl.addWidget(self.grp_jprops)
         jb = QHBoxLayout()
         self.btn_jscale = QPushButton("Apply scale to selected")
         self.btn_jdel = QPushButton("Remove selected junction")
@@ -653,6 +696,10 @@ class RsdDock(QDockWidget):
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
         self.btn_jdel.clicked.connect(self.remove_junction)
         self.btn_jscale.clicked.connect(self.rescale_junction)
+        self.btn_jprops.clicked.connect(self.apply_junction_properties)
+        self.lst_junctions.currentItemChanged.connect(lambda *_: self._fill_junction_properties())
+        self.btn_undo.clicked.connect(self.undo)
+        self.btn_redo.clicked.connect(self.redo)
         self.lst_junctions.itemDoubleClicked.connect(self._zoom_junction)
         self._fill_junction_types()
         self.btn_zadd.clicked.connect(self.add_speed_zone)
@@ -665,6 +712,8 @@ class RsdDock(QDockWidget):
         self.btn_tsave.clicked.connect(self.save_typical_section)
         self.btn_tload.clicked.connect(self.load_typical_section)
         self.btn_tfl.clicked.connect(self.export_feature_lines)
+        self.btn_review.clicked.connect(self.run_review)
+        self.lst_review.itemDoubleClicked.connect(self._zoom_finding)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
@@ -707,7 +756,7 @@ class RsdDock(QDockWidget):
         "Fixed offset (else taken from the click)": "Fixed offset",
         "Guide lines (edges, kerb returns, Rc arcs)": "Guide lines",
         "Road furniture report (PDF + PNG sheets + Excel)…": "Road furniture report…",
-        "Export to Civil 3D (package + DXF)…": "Export to Civil 3D…",
+        "Export to Civil 3D (DXF)…": "Export to Civil 3D (DXF)…",
         "Remove selected feature (with its signs and markings)": "Remove selected feature",
         "Remove selected zone (with its signs)": "Remove selected zone",
         "Draw on map (start, end; one click for crossings and humps)": "Draw on map",
@@ -781,7 +830,7 @@ class RsdDock(QDockWidget):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,
                     self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel, self.btn_tsave,
-                    self.btn_tload, self.btn_tfl):
+                    self.btn_tload, self.btn_tfl, self.btn_review):
             wdg.setEnabled(on)
         if not on:
             self.btn_toff.setEnabled(False)
@@ -1118,6 +1167,7 @@ class RsdDock(QDockWidget):
     def refresh(self):
         if self.store is None:
             return
+        self._update_undo()
         rows, sl = self.store.summary()
         self.tbl.setRowCount(len(rows))
         for r, (grp, item, desc, size, n) in enumerate(rows):
@@ -1352,7 +1402,7 @@ class RsdDock(QDockWidget):
         self.cmb_jpiece.clear()
         if not k:
             return
-        bus = k in ("BUS", "TRUCK", "CLIMB")
+        bus = k in J_BAY_KITS
         acc = k == "ACCESS"
         rbt = k == "RBT"
         for lab, w in self._rbt_rows:
@@ -1380,7 +1430,32 @@ class RsdDock(QDockWidget):
             return
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
         self.chk_jboth.setEnabled(self.cmb_jmajor.isEnabled())
-        self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
+        prof = k in ("CLIMB", "DESC", "BCA", "RAMP")
+        self.btn_jclimb.setVisible(prof); self.spn_jaadt.setVisible(k in ("CLIMB", "DESC"))
+        self.spn_jtrucks.setVisible(k == "BCA")
+        self.btn_jclimb.setText({"CLIMB": "Propose climbing lanes from the profile",
+                                 "DESC": "Propose descending lanes from the profile",
+                                 "BCA": "Propose brake check areas from the profile",
+                                 "RAMP": "Propose escape ramps from the profile"}.get(k, "Propose from the profile"))
+        if k == "DESC":
+            self.cmb_jpiece.addItem("Descending lane with its tapers, lines and sign", "")
+            self.lbl_jhover.setText("Propose from the profile (RDM 1.3 6.6.4: where the opposite upgrade warrants a "
+                                    "climbing lane and is over 1000 m), or click where the full-width lane starts on "
+                                    "the downhill traffic's side, then where it ends. 100 m tapers; I12 is proposed.")
+            return
+        if k == "BCA":
+            self.cmb_jpiece.addItem("Brake check area with its tapers, line and signs", "")
+            self.lbl_jhover.setText("Propose from the profile (top of long, steep descents; RDM 1.3 12.5), or click "
+                                    "where the bay starts on the downhill traffic's side, then where it ends. 60 m "
+                                    "tapers (indicative); I14, I15 and W30 are proposed.")
+            return
+        if k == "RAMP":
+            self.cmb_jpiece.addItem("Truck escape ramp (horizontal layout) with its signs", "")
+            self.lbl_jhover.setText("Propose from the profile (RDM 1.3 12.7: on a tangent, after a 130 m drop, before "
+                                    "a curve a runaway truck cannot take, a town or the road's end; bed length from "
+                                    "Equation 12.1), or click the departure point on the downhill traffic's side, "
+                                    "then a point as far along as the ramp runs. E1, I33, I32 and P14 are proposed.")
+            return
         if k == "CLIMB":
             self.cmb_jpiece.addItem("Climbing lane with its tapers, lines and signs", "")
             self.lbl_jhover.setText("Propose from the profile (RDM 1.3 Table 6.6), or click where the full-width "
@@ -1415,7 +1490,11 @@ class RsdDock(QDockWidget):
     def junction_settings(self):
         return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
-                "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
+                "role": self.cmb_jrole.currentData() or "main",
+                "major": "" if str(self.cmb_jmajor.currentData() or "").startswith("layer:")
+                else self.cmb_jmajor.currentData() or "",
+                "lines_layer": str(self.cmb_jmajor.currentData() or "")[6:]
+                if str(self.cmb_jmajor.currentData() or "").startswith("layer:") else "",
                 "both": self.chk_jboth.isEnabled() and self.chk_jboth.isChecked(),
                 "splays": self.chk_jsplays.isChecked(),
                 "rbt": {"island": self.spn_rbisland.value(), "icd": self.spn_rbicd.value() or None,
@@ -1430,13 +1509,30 @@ class RsdDock(QDockWidget):
         self.cmb_jmajor.addItem("Click its direction", "")
         for a in (self.store.junctions.others() if self.store else []):
             self.cmb_jmajor.addItem(f"Alignment {a.name}", a.name)
+        for lyr in self._road_line_layers():
+            self.cmb_jmajor.addItem(f"Road layer {lyr.name()} (click its direction)", f"layer:{lyr.id()}")
         self._junction_role_changed()
+
+    def _road_line_layers(self):
+        """Line layers of the project other than the plugin's own, to snap the clicked main road to."""
+        from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
+        import os
+        gpkg = os.path.normcase(os.path.abspath(self.store.gpkg)) if self.store else None
+
+        def own(lyr):
+            src = lyr.source().split("|")[0]
+            return bool(gpkg) and os.path.normcase(os.path.abspath(src)) == gpkg if src else False
+        out = []
+        for lyr in QgsProject.instance().mapLayers().values():
+            if isinstance(lyr, QgsVectorLayer) and lyr.geometryType() == QgsWkbTypes.LineGeometry \
+                    and not own(lyr):
+                out.append(lyr)
+        return sorted(out, key=lambda l: l.name().lower())
 
     def _junction_role_changed(self, *_):
         minor = self.cmb_jrole.currentData() == "minor"
         self.cmb_jmajor.setEnabled(minor)
-        self.chk_jboth.setEnabled(minor and self.cmb_jtype.currentData() not in ("BUS", "TRUCK", "CLIMB", "ACCESS",
-                                                                                 "RBT"))
+        self.chk_jboth.setEnabled(minor and self.cmb_jtype.currentData() not in J_BAY_KITS + ("ACCESS", "RBT"))
         self.lbl_jhover.setText(
             "Click our road where it meets the main road, then a point along the main road. When the main road "
             "is an alignment, move the mouse to the side of the leg you want (the preview follows) and click; "
@@ -1549,6 +1645,17 @@ class RsdDock(QDockWidget):
     def propose_climbing_lanes(self):
         if self.store is None:
             return
+        k = self.cmb_jtype.currentData()
+        if k in ("DESC", "BCA", "RAMP"):
+            with _busy():
+                n, notes = self.store.propose_descents(aadt=self.spn_jaadt.value() or None,
+                                                       trucks=self.spn_jtrucks.value() or None,
+                                                       lanes=k == "DESC", checks=k == "BCA", ramps=k == "RAMP")
+            what = {"DESC": "descending lane(s)", "BCA": "brake check area(s)", "RAMP": "escape ramp(s)"}[k]
+            self.lbl_jhover.setText(f"{n} {what} proposed" + (": " + "; ".join(notes) if notes else
+                                    " - no descent on the profile calls for one"))
+            self.refresh()
+            return
         n, notes = self.store.propose_climbing_lanes(self.spn_jaadt.value() or None)
         self.lbl_jhover.setText(f"{n} climbing lane(s) proposed" + (": " + "; ".join(notes) if notes else
                                 " - no up-grade is longer than its RDM 1.3 Table 6.6 limit (or no profile)"))
@@ -1563,7 +1670,88 @@ class RsdDock(QDockWidget):
     def rescale_junction(self):
         it = self.lst_junctions.currentItem()
         if self.store and it:
-            self.store.junctions.set_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.store.set_junction_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.refresh()
+
+    # ------------------------------------------------------------------ properties panel, undo / redo
+    def _fill_junction_properties(self):
+        self.tbl_jprops.setRowCount(0)
+        it = self.lst_junctions.currentItem()
+        if not (self.store and it and it.data(Qt.UserRole)):
+            self.grp_jprops.setTitle("Properties of the selected item")
+            return
+        rows = self.store.junctions.properties(it.data(Qt.UserRole))
+        self._jprops = rows
+        self.grp_jprops.setTitle(f"Properties: {it.text().split('  ')[0]}")
+        pieces = {r["puuid"] for r in rows}
+        for r in rows:
+            i = self.tbl_jprops.rowCount()
+            self.tbl_jprops.insertRow(i)
+            name = r["key"] if len(pieces) == 1 else f"{r['piece_name'].split(' (')[0]}: {r['key']}"
+            cells = [QTableWidgetItem(name), QTableWidgetItem(f"{r['value']:g}" if isinstance(r["value"], (int, float))
+                                                              else str(r["value"])),
+                     QTableWidgetItem(f"{r['default']:g}" if isinstance(r["default"], (int, float))
+                                      else str(r["default"])), QTableWidgetItem(r["reason"] or "")]
+            cells[0].setToolTip(r["piece_name"])
+            for c in (0, 2):
+                cells[c].setFlags(cells[c].flags() & ~Qt.ItemIsEditable)
+            if cells[1].text() != cells[2].text():
+                from qgis.PyQt.QtGui import QColor
+                cells[1].setForeground(QColor("#b9770e"))
+            for c, cell in enumerate(cells):
+                self.tbl_jprops.setItem(i, c, cell)
+
+    def apply_junction_properties(self):
+        it = self.lst_junctions.currentItem()
+        if not (self.store and it and getattr(self, "_jprops", None)):
+            return
+        changes = {}
+        for i, r in enumerate(self._jprops):
+            txt = (self.tbl_jprops.item(i, 1).text() if self.tbl_jprops.item(i, 1) else "").strip()
+            why = (self.tbl_jprops.item(i, 3).text() if self.tbl_jprops.item(i, 3) else "").strip()
+            if isinstance(r["default"], (int, float)):
+                try:
+                    val = float(txt)
+                except ValueError:
+                    self.iface.messageBar().pushMessage("Road Furniture Designer", f"{r['key']}: '{txt}' is not a "
+                                                        f"number", MSG_WARNING, 6)
+                    return
+            else:
+                val = txt
+            if val != r["value"] or why != (r["reason"] or ""):
+                changes[(r["puuid"], r["key"])] = (val, why)
+        if not changes:
+            return
+        try:
+            with _busy():
+                n = self.store.set_junction_properties(it.data(Qt.UserRole), changes)
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 8)
+            return
+        self.iface.messageBar().pushMessage("Road Furniture Designer", f"{n} piece(s) rebuilt with the new "
+                                            f"properties", MSG_INFO, 5)
+        self.refresh()
+
+    def _update_undo(self):
+        st = self.store
+        for b, can, which in ((self.btn_undo, st and st.can_undo(), "_undo"), (self.btn_redo, st and st.can_redo(), "_redo")):
+            b.setEnabled(bool(can))
+            b.setToolTip((f"{b.text()}: " + getattr(st, which)[-1][0]) if can else b.text())
+
+    def undo(self):
+        if self.store:
+            with _busy():
+                label = self.store.undo()
+            if label:
+                self.iface.messageBar().pushMessage("Road Furniture Designer", f"Undone: {label}", MSG_INFO, 4)
+            self.refresh()
+
+    def redo(self):
+        if self.store:
+            with _busy():
+                label = self.store.redo()
+            if label:
+                self.iface.messageBar().pushMessage("Road Furniture Designer", f"Redone: {label}", MSG_INFO, 4)
             self.refresh()
 
     def _zoom_junction(self, item):
@@ -1774,8 +1962,37 @@ class RsdDock(QDockWidget):
         self.lbl_auto.setText(f"<b>{n}</b> signs proposed from <b>{len(findings)}</b> findings. "
                               "Sag/crest sight-distance findings are for the designer (no sign proposed).")
 
+    def run_review(self):
+        """The report's furniture checks, listed by level (issues first) and chainage."""
+        if not self.store:
+            return
+        from .report import ReportData
+        with _busy():
+            d = ReportData(self.store, self.auto_config(), barrier_cfg=self.barrier_config(),
+                           feature_cfg=self.feature_config())
+        fr = getattr(d, "fr", None)
+        self.lst_review.clear()
+        if fr is None:
+            return
+        colours = {"issue": "#c0392b", "check": "#b9770e", "info": "#5d6d7e"}
+        for c in fr.checks:
+            it = QListWidgetItem(f"{c.level.upper():6s} {format_station(self.store.al.display_station(c.start), 0)}  "
+                                 f"{c.text}")
+            it.setData(Qt.UserRole, c.start)
+            from qgis.PyQt.QtGui import QColor
+            it.setForeground(QColor(colours.get(c.level, "#000000")))
+            self.lst_review.addItem(it)
+        for note in fr.notes:
+            self.lst_review.addItem(QListWidgetItem(f"NOTE   {note}"))
+        n = {lv: sum(1 for c in fr.checks if c.level == lv) for lv in ("issue", "check", "info")}
+        self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                            f"Furniture checks: {n['issue']} issue(s), {n['check']} to check, "
+                                            f"{n['info']} for information", MSG_INFO, 6)
+
     def _zoom_finding(self, item):
         sta = item.data(Qt.UserRole)
+        if sta is None:
+            return
         x, y, _ = self.store.al.point_at(sta)
         from qgis.core import QgsCoordinateTransform, QgsPointXY, QgsRectangle
         xf = QgsCoordinateTransform(self.store.signs.crs(), self.iface.mapCanvas().mapSettings().destinationCrs(),
@@ -1922,10 +2139,12 @@ class RsdDock(QDockWidget):
 
     def export_civil3d(self):
         base = os.path.splitext(self.store.gpkg)[0]
-        p, _ = QFileDialog.getSaveFileName(self, "Civil 3D placement package", base + "_placement.json",
-                                           "JSON (*.json)")
-        if not p:
+        dxf, _ = QFileDialog.getSaveFileName(self, "DXF for Civil 3D", base + "_placement.dxf", "DXF (*.dxf)")
+        if not dxf:
             return
+        if not dxf.lower().endswith(".dxf"):
+            dxf += ".dxf"
+        p = os.path.splitext(dxf)[0] + ".json"         # the placement package beside it (for the parked Dynamo route)
         scales = ["1:500", "1:1000", "1:1250", "1:2000", "1:2500", "1:5000"]
         sc, ok = QInputDialog.getItem(self, "Plan scale", "Drawing scale for sign symbols and text "
                                       "(symbols print ~10 mm, 25 m at 1:2500):", scales, 4, False)
@@ -1934,15 +2153,15 @@ class RsdDock(QDockWidget):
         plan_scale = float(sc.split(":")[1])
         try:
             with _busy():
-                sl = self.store.export_civil3d(p, os.path.splitext(p)[0] + ".dxf", plan_scale=plan_scale)
+                sl = self.store.export_civil3d(p, dxf, plan_scale=plan_scale)
         except ImportError as ex:
             return self._need_libs(ex)
         except ValueError as ex:
             QMessageBox.warning(self, "Road Furniture Designer", str(ex))
             return
         self.iface.messageBar().pushMessage(
-            "Road Furniture Designer", f"{len(sl.faces)} signs at {sc} → {p}. In Dynamo use symbol scale "
-            f"{10 * plan_scale / 1000:g} and the exported DXF as the block source.", MSG_SUCCESS, 10)
+            "Road Furniture Designer", f"{len(sl.faces)} signs at {sc} → {dxf}. In Civil 3D open it, COPYBASE "
+            f"at 0,0 and PASTEORIG into the project drawing.", MSG_SUCCESS, 10)
 
     def import_readback(self):
         p, _ = QFileDialog.getOpenFileName(self, "Civil 3D read-back", "", "JSON (*.json)")

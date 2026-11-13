@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Road Furniture Designer 0.10.0 — User Guide and Technical Manual</title>
+<title>Road Furniture Designer 0.11.0 — User Guide and Technical Manual</title>
 <link rel="stylesheet" href="guide.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
   <div class="hero" style="background-image: url(figures/fig_report_plan.png); background-position: 55% 30%; background-size: 160%;"></div>
   <div class="text">
     <div class="badges"><span class="badge exp">Experimental</span></div>
-    <div class="kicker">QGIS plugin · Version 0.10.0</div>
+    <div class="kicker">QGIS plugin · Version 0.11.0</div>
     <h1>Road Furniture Designer</h1>
     <div class="sub">User Guide and Technical Manual</div>
     <div class="meta">
@@ -77,10 +77,10 @@
 
 <h2 id="edition"><span class="sec">1</span>About this edition</h2>
 <div class="edition"><b>Experimental</b>
-This guide describes version 0.10.0. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
+This guide describes version 0.11.0. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
 <p>What has been checked:</p>
 <ul>
-  <li>314 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks, the junction templates and the packaged plugin ZIP; and 52 headless QGIS tests (QGIS 3.34 and 3.44, offscreen).</li>
+  <li>353 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks, the junction templates and the packaged plugin ZIP; and 66 headless QGIS tests (QGIS 3.34 and 3.44, offscreen).</li>
   <li>Nine alignments from private Civil 3D project exports (Arc 1960 / UTM 36S and 37S, up to 59 MB with TIN surfaces and corridor sections; project names withheld) run through the whole workflow: auto-placement, markings, barriers, features, speed zones, report, inventory and DXF.</li>
   <li>DXF georeferencing: every exported sign maps back to its chainage and offset with no measurable difference, and signs pasted with COPYBASE and PASTEORIG landed on the alignment in a Civil 3D project drawing (section 21).</li>
 </ul>
@@ -116,8 +116,8 @@ The dock's summary lists what was found after opening a project, and shows in re
 <h2 id="install"><span class="sec">3</span>Installing the plugin</h2>
 <ol class="steps">
   <li>Download the plugin ZIP, <code>road_furniture_designer-&lt;version&gt;.zip</code>, from the <b>Assets</b> of a release on the repository's Releases page (or, for the latest main, from <b>Actions → plugin zip → Artifacts</b>, unzipping the outer layer GitHub adds). Do not use the repository's green <b>Code → Download ZIP</b>, or the <b>Source code</b> links GitHub adds under every release's Assets: they are the source, which QGIS cannot install.</li>
-  <li>In QGIS, open <b>Plugins → Manage and Install Plugins → Install from ZIP</b> and choose the plugin ZIP.</li>
-  <li>Enable <b>Road Furniture Designer</b>. A dock opens, tabbed beside the Processing Toolbox at full height, with the <b>Section</b>, <b>Signs</b>, <b>Auto</b>, <b>Linear</b>, <b>Calming</b>, <b>Speed limits</b>, <b>Junctions + bays</b> and <b>Outputs</b> tabs. Each tab scrolls, so the dock fits a laptop screen beside other panels. The toolbar button shows the dock again, and brings it to the front if it is tabbed behind another panel.</li>
+  <li>In QGIS, open <b>Plugins → Manage and Install Plugins</b> and search for <b>Road Furniture Designer</b> in the official repository, or use <b>Install from ZIP</b> and choose the plugin ZIP.</li>
+  <li>Enable <b>Road Furniture Designer</b>. A dock opens, tabbed beside the Processing Toolbox at full height, with the <b>Section</b>, <b>Signs</b>, <b>Auto</b>, <b>Linear</b>, <b>Calming</b>, <b>Speed limits</b>, <b>Junctions + bays</b> and <b>Outputs</b> tabs. Each tab scrolls, so the dock fits a laptop screen beside other panels. The toolbar button shows the dock again, and brings it to the front if it is tabbed behind another panel. The <b>Guide</b> button on the dock (or <b>Plugins → Road Furniture Designer → User Guide and Technical Manual</b>) opens this guide's PDF edition for the installed version.</li>
   <li>Nothing else needs installing. The libraries used for exports (openpyxl, ezdxf and their dependencies) are pure Python and ship inside the plugin's <code>ext_libs</code> folder, so the plugin works where <code>pip</code> is blocked.</li>
 </ol>
 <div class="note"><b>Updating</b>Install the new ZIP over the old one and restart QGIS. Existing projects open in newer versions; missing fields and layers are added automatically.</div>
@@ -131,7 +131,7 @@ The dock's summary lists what was found after opening a project, and shows in re
   <li><b>Junctions</b> tab: place the islands and markings of a junction type at each junction and fit them to the kerb lines.</li>
   <li><b>Signs tab</b>: add anything else (junction and direction signs, place names) by picking a sign and clicking on the map.</li>
   <li><b>Outputs tab → Road furniture report</b>: choose the plan scale and fill in Prepared / Checked / Approved by. Read the furniture checks.</li>
-  <li><b>Outputs tab → Export to Civil 3D</b>, then paste into the project drawing (section 21).</li>
+  <li><b>Outputs tab → Export to Civil 3D (DXF)</b>, then paste into the project drawing (section 21).</li>
 </ol>
 <p>To try it without project data, run <code>python tools/guide/make_guide_road.py guide_road.xml</code> and open the file it writes.</p>
 
@@ -418,6 +418,27 @@ The dock's summary lists what was found after opening a project, and shows in re
 </ul>
 <p>With an AADT under 2,000 pcu none are proposed (§6.6.2); from 2,000 to 6,000 pcu the lane is listed as one to consider where passing is limited, and above 6,000 pcu as normally required. The steep descent of the demonstration road is 6.75 % over 600 m, just inside its 625 m limit, so nothing is proposed there. You can also place a lane by hand: click where the full-width lane starts on the climbing traffic's side, then where it ends, and the tapers are added. Consecutive steep grades with only a short, flatter break between them count together, and lanes less than 400 m apart are joined into one. The recovery rate is indicative: review the extent against a truck speed profile where it matters.</p>
 
+<h3>Descending lanes, brake check areas and escape ramps</h3>
+<p>Long, steep descents are where loaded trucks lose their brakes. RDM 1.3 gives three measures: a <b>descending lane</b> for slow trucks (§6.6.4), a <b>brake check area</b> at the top where drivers stop, check their brakes and select a low gear (§12.5), and a <b>truck escape ramp</b> where a runaway truck can leave the road and be stopped in an arrester bed (§12.7). Choose the type <b>Descending lane</b>, <b>Brake check area</b> or <b>Escape ramp</b> and press <b>Propose … from the profile</b>, or place one by hand as a bay (two clicks on the side of the downhill traffic).</p>
+<p>RFD reads every descent from the design profile, in each direction of travel: downgrades over 3 %, with easier stretches up to 150 m bridged so a short flattening does not split one descent in two. Down each descent it follows a <b>runaway truck</b>: 40 km/h at the top, gaining speed with the grade less 1 % rolling resistance (v² grows by 2 g (G − 0.01) per metre), to 140 km/h at most.</p>
+<ul>
+  <li><b>Descending lane</b>: where the upgrade in the other direction warrants a climbing lane (the same Table 6.6 lengths and AADT thresholds as above) and the descent is over 1000 m. Drawn like a climbing lane on the downhill traffic's left, with I12 proposed.</li>
+  <li><b>Brake check area</b>: at the top of a descent that drops 100 m or more, or runs 1000 m or more at 5 % or steeper, when the number of <b>trucks / day</b> given on the tab is about 500 or more. A 100 m bay, 3.5 m deep with 60 m tapers, ending 100 m before the top; I15 at the bay with I14 500 m ahead, and W30 (steep descent) beyond it.</li>
+  <li><b>Escape ramp</b>: once the road has dropped 130 m, before a <b>singular point</b> the runaway truck cannot take: a curve whose radius is too tight for its speed with a side friction of 0.10, a town at 50 km/h or less, or the end of the road. The ramp goes on the last tangent before it, on the downhill traffic's left (Kenya drives on the left).</li>
+</ul>
+<p>The arrester bed is as long as Eq 12.1 asks for the truck's speed at the ramp: L = V² / (254 (R + G) / 100), with V in km/h, G the ramp grade in % (+ up) and R the rolling resistance of the bed material from Table 12.7 in % (loose crushed aggregate 5, loose gravel 10, sand 15, pea gravel 25). At 140 km/h on a 10 % ramp of loose gravel that is 386 m. The ramp is drawn in plan, for Civil 3D: the road edge widens over a 50 m taper to the 8 m ramp, which departs at 4° to the road; 30 m of paved entry, then the arrester bed (1.0 m deep) to the end mound. Where the road beyond the tangent bends towards the ramp's side, a straight ramp leaving near the curve would run back across the road. RFD then has the ramp leave early enough to lie alongside the tangent, and turns it further from the road, a degree at a time up to 12° (<code>max_angle</code>), so its road-side edge stays 10 m clear of the shoulder (<code>road_clear</code>). Where even that is not enough the ramp stops short and the bed check reports it: on a hillside a steeper ascending ramp (its <b>grade</b> in the Properties table) shortens the bed Equation 12.1 asks for. E1 (escape ramp ahead) at 1000 m and 500 m, I33 at 200 m, I32 at the ramp and a P14 no-parking at its mouth are proposed. The ramp's edges go to the feature-line export at the ramp grade from the road-edge level.</p>
+<p>The furniture checks flag a ramp on a curve, a ramp narrower than 3.6 m or wider than 12 m, a bed shorter than Eq 12.1 needs for the speed at that point and material, and a ramp site with no ramp placed within 500 m. The demonstration road's descent drops only 39 m, so nothing is proposed there; Figure 19 shows a 160 m ramp placed by hand.</p>
+<figure><img src="figures/fig_map_ramp.png"><figcaption><b>Figure 19.</b> A truck escape ramp placed by hand at CH 3+620 on the demonstration road's descent, traffic running down the figure on a straight: the 50 m taper widening the road edge, the ramp's edges at 4° to the road, the arrester bed (dashed) after 30 m of paved entry, and the end mound.</figcaption></figure>
+<p>Where the speeds and grades of a real descent call for it, review the proposal against a truck speed profile and the site: the runaway model is deliberately simple, and the ramp's vertical design is done in Civil 3D.</p>
+
+<h3>Properties, handles, undo and snapping</h3>
+<ul>
+  <li><b>Properties.</b> Select a junction, bay, lane or ramp in the list: the <b>Properties</b> table shows its dimensions (tapers, depth, width, bed length, grade, material, radii, island sizes …) with the RDM drawing's value beside each. Change a value, give the reason and press <b>Apply properties</b>: the item is rebuilt, and the change is listed as a <b>departure</b> in the furniture checks with its reason (Info), or as a Check when no reason is given.</li>
+  <li><b>Handles.</b> With <b>Move</b>, click within 8 m of a bay, lane or ramp's start or end and drag it along the road to change its length; a click anywhere else on a piece moves the whole item.</li>
+  <li><b>Undo / Redo</b> (beside the project buttons, 30 steps) take back or repeat placing, moving, removing and editing signs, lines, junctions, bays and lanes, the property changes and the proposals from the profile.</li>
+  <li><b>Snapping to a road layer.</b> Where our road joins a road that is not in the LandXML but is drawn in a QGIS line layer (a road network, a county road layer), pick that layer as the <b>Main road</b>. The direction you click then follows the layer's nearest segment within 25 m of the junction, so the main-road pieces line up with it without careful aiming.</li>
+</ul>
+
 <h3>Widening table for Civil 3D</h3>
 <p>Bus bays, truck parking bays and climbing lanes widen the road, which belongs in the Civil 3D corridor. The report's Excel workbook has a sheet <b>Widenings</b> (table <code>RFD_Widenings</code>), one row per bay or lane, with what the Civil 3D widening needs: side, the chainages where the widening starts, reaches full width, leaves full width and ends, the entry and exit taper lengths, the width, the widened area and the kerb length.</p>
 <h3>Round trip with Civil 3D</h3>
@@ -455,7 +476,7 @@ The dock's summary lists what was found after opening a project, and shows in re
 <p><b>Road furniture report (PDF + PNG sheets + Excel)</b> asks for the plan scale (Auto, 1:500 to 1:5000, or no plan sheets) and Prepared / Checked / Approved by, kept with the project. It writes an A3 landscape PDF, a PNG per plan, long-section and strip sheet, and an Excel workbook. Every page sits in the same frame with a title block; to add a logo at the top right, point the QGIS setting <code>RoadFurnitureDesigner/report_logo</code> at an image file. The demonstration road's report is 21 pages.</p>
 
 <h3>Plan layout sheets</h3>
-<figure><img src="figures/fig_report_plan.png"><figcaption><b>Figure 19.</b> Plan sheet 1 at 1:2500: corridor edges, chainages, markings, studs and barriers in their line styles, signs upright beside the road with leaders to their posts, match lines, north arrow, scale bar, the sheet's sign list and a key plan.</figcaption></figure>
+<figure><img src="figures/fig_report_plan.png"><figcaption><b>Figure 20.</b> Plan sheet 1 at 1:2500: corridor edges, chainages, markings, studs and barriers in their line styles, signs upright beside the road with leaders to their posts, match lines, north arrow, scale bar, the sheet's sign list and a key plan.</figcaption></figure>
 <ul>
   <li>Each sheet is turned so the road runs left to right. Sheet lengths adapt: on straights a sheet covers about 950 m at 1:2500; on tight curves it is shortened so the road and the signs still fit.</li>
   <li>Signs are drawn upright at 10 mm beside the road with a leader to the post; a sign and its plate stack, back-to-back faces sit side by side, and symbols are moved until they clear one another.</li>
@@ -463,27 +484,27 @@ The dock's summary lists what was found after opening a project, and shows in re
 </ul>
 
 <h3>Long-section sheets</h3>
-<figure><img src="figures/fig_report_section.png"><figcaption><b>Figure 20.</b> Long section CH 1+000 to 2+000: signs for each direction above and below the profile, the no-overtaking bars over the crest, the short crest's stopping-sight-distance band, the curvature band with the R 180 m bends and their safe speed, and grades.</figcaption></figure>
+<figure><img src="figures/fig_report_section.png"><figcaption><b>Figure 21.</b> Long section CH 1+000 to 2+000: signs for each direction above and below the profile, the no-overtaking bars over the crest, the short crest's stopping-sight-distance band, the curvature band with the R 180 m bends and their safe speed, and grades.</figcaption></figure>
 
 <h3>Strip diagram</h3>
-<figure><img src="figures/fig_report_strip.png"><figcaption><b>Figure 21.</b> Strip diagram CH 3+000 to 4+430: signs for each direction, barriers, edge and centre lines, studs, the hump and crossing, the 50 km/h zone and the no-overtaking zones from the passing sight distance.</figcaption></figure>
+<figure><img src="figures/fig_report_strip.png"><figcaption><b>Figure 22.</b> Strip diagram CH 3+000 to 4+430: signs for each direction, barriers, edge and centre lines, studs, the hump and crossing, the 50 km/h zone and the no-overtaking zones from the passing sight distance.</figcaption></figure>
 <p>A straight-line diagram, 1 km per strip and three strips per page, of everything along the road against one chainage scale, so signs and markings can be checked by eye against the no-overtaking zones they follow. The combined line shows which side binds; proposed items have a light orange band.</p>
 
 <h3>Schedules and workbook</h3>
 <div class="cols">
-  <figure><img src="figures/fig_report_schedule.png"><figcaption><b>Figure 22.</b> Sign schedule.</figcaption></figure>
-  <figure><img src="figures/fig_report_markings.png"><figcaption><b>Figure 23.</b> Markings and road studs schedule.</figcaption></figure>
+  <figure><img src="figures/fig_report_schedule.png"><figcaption><b>Figure 23.</b> Sign schedule.</figcaption></figure>
+  <figure><img src="figures/fig_report_markings.png"><figcaption><b>Figure 24.</b> Markings and road studs schedule.</figcaption></figure>
 </div>
 <div class="cols">
-  <figure><img src="figures/fig_report_findings.png"><figcaption><b>Figure 24.</b> Geometry findings.</figcaption></figure>
-  <figure><img src="figures/fig_report_features.png"><figcaption><b>Figure 25.</b> Traffic calming and crossings.</figcaption></figure>
+  <figure><img src="figures/fig_report_findings.png"><figcaption><b>Figure 25.</b> Geometry findings.</figcaption></figure>
+  <figure><img src="figures/fig_report_features.png"><figcaption><b>Figure 26.</b> Traffic calming and crossings.</figcaption></figure>
 </div>
 <p>After the sign schedule and the geometry findings come the markings and studs schedule, the barrier schedule (with the basis of each run), traffic calming and crossings, the junction islands and markings (each junction with its kerb length, island area and painted length and area by marking code), the linear quantities and the furniture checks. The Excel workbook has the sheets Signs, Findings, Horizontal curves, Vertical curves, Markings, Barriers, Features, Junctions (one row per junction and item, ready for the bill of quantities), Widenings (bus bays, truck parking bays and climbing lanes, section 16), Furniture quantities, Furniture checks and Basis.</p>
-<figure><img src="figures/fig_report_junctions.png"><figcaption><b>Figure 26.</b> Junction islands and markings schedule.</figcaption></figure>
+<figure><img src="figures/fig_report_junctions.png"><figcaption><b>Figure 27.</b> Junction islands and markings schedule.</figcaption></figure>
 
 <h2 id="fchecks"><span class="sec">19</span>Furniture checks</h2>
 <p>When the report is made, RFD works the following out again from the geometry with the project's settings and compares it with what is in the project. Each check is an Issue, a Check or Info, for the designer to resolve or accept.</p>
-<figure><img src="figures/fig_report_checks.png"><figcaption><b>Figure 27.</b> Furniture checks for the demonstration road: two alignment combinations for the designer to look at, and the source of the fill heights.</figcaption></figure>
+<figure><img src="figures/fig_report_checks.png"><figcaption><b>Figure 28.</b> Furniture checks for the demonstration road: two alignment combinations for the designer to look at, and the source of the fill heights.</figcaption></figure>
 <table>
   <thead><tr><th>Check</th><th>What is compared</th></tr></thead>
   <tbody>
@@ -496,13 +517,15 @@ The dock's summary lists what was found after opening a project, and shows in re
     <tr><td>Junctions</td><td>Each placed junction's crossing angle against RDM 1.3 §9.2.3: a check under 75° (preferably 75–120°, a smaller skew to be justified), an issue under the absolute minimum of 60°. Visibility splays: the profile and the obstruction layers (section 16).</td></tr>
     <tr><td>Control at the road's end</td><td>Where our road starts or ends on another alignment of the LandXML, a junction (our road as the minor road, or a roundabout) or an R1 / R2 facing the traffic towards that end within 60 m; otherwise a check.</td></tr>
     <tr><td>Roundabouts, accesses, bays and lanes</td><td>The roundabout sizes and arms (RDM 1.3 Chapter 10), private accesses (§9.11.16, Tables 2.3–2.4), bus and truck bay spacing and length, the entry of each bay seen from the stopping sight distance (§13.2), and the widenings against the re-imported corridor (section 16).</td></tr>
+    <tr><td>Descents</td><td>An escape ramp on a curve, narrower than 3.6 m or wider than 12 m, or with a bed shorter than Eq 12.1 needs (RDM 1.3 §12.7); a ramp site with no ramp within 500 m.</td></tr>
+    <tr><td>Departures</td><td>Every junction, bay, lane or ramp dimension changed from the RDM drawing in the Properties table, with its reason (Info); a Check where no reason was given.</td></tr>
     <tr><td>Signs outside RDM 6.2</td><td>Info listing the supplementary WSCM signs used, for the road authority to accept.</td></tr>
   </tbody>
 </table>
 
 <h2 id="dxf"><span class="sec">20</span>DXF for Civil 3D drawings</h2>
-<p><b>Export to Civil 3D (package + DXF)</b> asks for the plan scale (default 1:2500) and writes the placement package (<code>*_placement.json</code>) and a DXF.</p>
-<figure><img src="figures/fig_dxf.png"><figcaption><b>Figure 28.</b> The exported DXF at the sharp curve, 1:2500: each sign a block at its post with a leader to the upright face; markings at their painted width; chainages; corridor edges and the alignment on non-plotting reference layers.</figcaption></figure>
+<p><b>Export to Civil 3D (DXF)</b> asks for the DXF file and the plan scale (default 1:2500). The placement package (<code>*_placement.json</code>) for the parked Dynamo route is written beside it.</p>
+<figure><img src="figures/fig_dxf.png"><figcaption><b>Figure 29.</b> The exported DXF at the sharp curve, 1:2500: each sign a block at its post with a leader to the upright face; markings at their painted width; chainages; corridor edges and the alignment on non-plotting reference layers.</figcaption></figure>
 <ul>
   <li><b>Size.</b> Symbols print at 10 mm: 25 m in model space at 1:2500, 10 m at 1:1000. Codes, legends and chainages print at 1.8 mm.</li>
   <li><b>One block per sign, at the post.</b> Each sign is a block <code>RSDC_&lt;code&gt;_&lt;id&gt;</code> inserted at the post's true coordinates, holding a post marker, a leader, the face upright and the code. Directional signs and plates get their own block with the real legend.</li>
@@ -510,7 +533,7 @@ The dock's summary lists what was found after opening a project, and shows in re
   <li><b>Linear furniture</b> on <code>RSD-MARK-*</code>, <code>RSD-STUD-*</code> and <code>RSD-BARRIER-*</code> layers in world coordinates; broken lines use metre linetypes and markings are drawn at their painted width.</li>
   <li><b>Reference geometry</b> (non-plotting): the alignment with chainages, every other alignment in the LandXML, the corridor edges by code, and a coordinate check point.</li>
 </ul>
-<figure><img src="figures/fig_dxf_legend.png"><figcaption><b>Figure 29.</b> A directional sign and a place-name sign in the DXF, with their legends as real text.</figcaption></figure>
+<figure><img src="figures/fig_dxf_legend.png"><figcaption><b>Figure 30.</b> A directional sign and a place-name sign in the DXF, with their legends as real text.</figcaption></figure>
 
 <h2 id="georef"><span class="sec">21</span>Copy and paste at the true coordinates</h2>
 <p>The DXF is in the LandXML's own world coordinates: easting and northing in metres, with no local origin, shift, scale or rotation. The header records metres as the unit and custom variables <code>RSD_CRS</code>, <code>RSD_MAP_ZONE</code>, <code>RSD_SOURCE_LANDXML</code>, <code>RSD_ALIGNMENT</code> and <code>RSD_COORDINATES</code>.</p>
@@ -586,7 +609,7 @@ The dock's summary lists what was found after opening a project, and shows in re
 <div class="note"><b>Criteria files</b>The values above live in criteria files (<code>rfd/data/criteria</code>): <code>kenya_rdm_2025</code> (default) and <code>aashto_2011</code>. Other manuals or project values can be added as files with an <code>extends</code> parent, through <code>RFD_CRITERIA_PATH</code> or the Auto tab's <b>Add…</b>; see <code>docs/criteria/README.md</code>. The report's Basis sheet cites the tables used.</div>
 
 <h2 id="catalogue"><span class="sec">26</span>The sign catalogue</h2>
-<figure><img src="figures/fig_catalogue.png"><figcaption><b>Figure 30.</b> A selection of the 251 RDM 6.2 signs in the catalogue, drawn from the manual's own figures.</figcaption></figure>
+<figure><img src="figures/fig_catalogue.png"><figcaption><b>Figure 31.</b> A selection of the 251 RDM 6.2 signs in the catalogue, drawn from the manual's own figures.</figcaption></figure>
 <ul>
   <li><b>Source.</b> <code>tools/extract_rdm_signs.py</code> reads RDM 6.2 (2025), matches each figure caption to its framed artwork, keeps the sign and drops dimension lines, and writes an SVG icon and a CAD block per sign (<code>RSD_&lt;code&gt;</code>). <code>tools/build_catalogue.py</code> adds sizes, legend types and size rules.</li>
   <li><b>Coverage.</b> R, M, P, W, I, E, PD, IM and RW signs. Signs used both ways round have a mirrored version (<code>_M</code>); W24 chevrons are split into W24-a to W24-d.</li>
@@ -597,7 +620,7 @@ The dock's summary lists what was found after opening a project, and shows in re
 </ul>
 <h3>Supplementary signs from the standard drawings</h3>
 <p>Nineteen signs on the standard drawings WSCM/84/2/01 (Jan 2024) have no RDM 6.2 equivalent. They are in the catalogue group <b>Supplementary (WSCM)</b>, always with a <code>WSCM-</code> prefix so they can never be read as an RDM code: WSCM W22 is River Bed Crossing, while RDM W22 is a series of bends. <code>tools/extract_wscm_signs.py</code> extracts their artwork from the two sheets. The River Bed Crossing sign is given the red border of the other warning signs (the sheet hatches its border black, a drafting slip). <code>rfd/data/wscm_crossref.json</code> maps all 75 WSCM codes to RDM 6.2 (same, similar or none). Every schedule shows the WSCM code, and the furniture checks list the WSCM signs used.</p>
-<figure><img src="figures/fig_wscm.png"><figcaption><b>Figure 31.</b> The 19 supplementary signs from WSCM/84/2/01.</figcaption></figure>
+<figure><img src="figures/fig_wscm.png"><figcaption><b>Figure 32.</b> The 19 supplementary signs from WSCM/84/2/01.</figcaption></figure>
 
 <h2 id="layout"><span class="sec">27</span>Plan layout of symbols and sheets</h2>
 <p>At drawing scale a sign symbol is far bigger than its post (25 m at 1:2500), so drawings show it beside the road with a leader. The same method places symbols in the DXF and on the plan sheets:</p>
@@ -628,7 +651,8 @@ The dock's summary lists what was found after opening a project, and shows in re
   <li><b>Roundabouts</b>: drawn from the island, ICD, radii and arms you give; the entry path radius is checked on a simplified fastest path (three-point construction smoothed through the island), not the full set of paths; multi-lane entries, mini and signalised roundabouts are not designed.</li>
   <li><b>Not yet</b>: dual carriageways; advance direction and direction signs (RDM Table A1-1).</li>
   <li><b>Junctions</b>: islands and markings are templates to place and fit; junction geometry and kerb lines are not designed. Signing covers the Junction Ahead warnings on our road and the R2 Give Way on our approach where our road is the minor road. Visibility splays are checked in plan against the layers you tick and on the main road's profile, not in 3D (a bank or hedge must be in a layer). Turn arrows go where the template puts them; move them to the lanes of the junction design.</li>
-  <li><b>Bus bays, truck parking bays and climbing lanes</b> are placed where the designer clicks (climbing lanes can be proposed from the profile); the widening itself is built in the Civil 3D corridor from the Widenings table and checked against it after the LandXML comes back. Rest areas are not drawn.</li>
+  <li><b>Descents</b>: the runaway-truck speeds are a simple energy model (40 km/h at the top, 1 % rolling resistance, no braking); escape ramps are laid out in plan, their vertical design and the arrester bed's grading are done in Civil 3D.</li>
+  <li><b>Bus bays, truck parking bays, climbing and descending lanes, brake check areas and escape ramps</b> are placed where the designer clicks (lanes, brake check areas and ramps can be proposed from the profile); the widening itself is built in the Civil 3D corridor from the Widenings table and checked against it after the LandXML comes back. Rest areas are not drawn.</li>
   <li><b>Civil 3D</b>: the DXF paste works; the Dynamo link is parked. Block names, layers and annotation style can be matched to an office standard later.</li>
   <li><b>Quantities</b>: post and foundation types are generic and project-defined.</li>
 </ul>

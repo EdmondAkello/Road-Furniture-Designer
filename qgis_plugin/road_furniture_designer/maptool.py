@@ -7,6 +7,7 @@ from qgis.core import (QgsCoordinateTransform, QgsGeometry, QgsPointXY, QgsProje
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 
 from .compat import GEOM_LINE, GEOM_POINT
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 
 
 class PlaceSignTool(QgsMapToolEmitPoint):
@@ -381,7 +382,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             return None
         sta = so.station
         s = self._settings()
-        if s.get("role") == "minor" and s.get("kit") not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"):
+        if s.get("role") == "minor" and s.get("kit") not in J_BAY_KITS + ("ACCESS", "RBT"):
             # our road joining another road usually ends there: near an end, snap to it (as place_minor does)
             from .rfd.junctions import END_SNAP
             if sta - st.al.sta_start < END_SNAP:
@@ -448,10 +449,32 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                          + "".join(f" - {t}" for t in notes))
         return pl.junction_id
 
+    def _road_lines(self, layer_id, x, y, reach=40.0):
+        """Polylines (project CRS) of a road layer near (x, y), for the clicked main road to snap to."""
+        if not layer_id:
+            return []
+        from qgis.core import (QgsCoordinateTransform, QgsFeatureRequest, QgsProject, QgsRectangle)
+        lyr = QgsProject.instance().mapLayer(layer_id)
+        if lyr is None:
+            return []
+        prj = QgsProject.instance()
+        to_l = QgsCoordinateTransform(prj.crs(), lyr.crs(), prj)
+        to_p = QgsCoordinateTransform(lyr.crs(), prj.crs(), prj)
+        box = to_l.transformBoundingBox(QgsRectangle(x - reach, y - reach, x + reach, y + reach))
+        out = []
+        for f in lyr.getFeatures(QgsFeatureRequest().setFilterRect(box)):
+            g = f.geometry()
+            if g is None or g.isEmpty():
+                continue
+            g.transform(to_p)
+            parts = g.asMultiPolyline() if g.isMultipart() else [g.asPolyline()]
+            out += [[(p.x(), p.y()) for p in part] for part in parts if len(part) > 1]
+        return out
+
     def _placement(self, lp):
         from .rfd import junctions as J
         st, s = self._store(), self._settings()
-        if s.get("kit") in ("BUS", "TRUCK", "CLIMB"):
+        if s.get("kit") in J_BAY_KITS:
             pl, B = J.place_bay(st.al, self.p0[1], self.p0[2], lp.x(), lp.y())
             self._params = {"bay": B}
             return pl, st.al
@@ -459,8 +482,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         self._legs = []
         if s.get("role") == "minor" and s.get("kit") != "ACCESS":
             both = bool(s.get("both")) and not s.get("piece")
+            lines = self._road_lines(s.get("lines_layer") or "", self.p0[1], self.p0[2])
             pl = st.junctions.placement_minor(self.p0[1], self.p0[2], lp.x(), lp.y(), major=s.get("major") or "",
-                                              scale=s.get("scale", 1.0), both=both)
+                                              scale=s.get("scale", 1.0), both=both, lines=lines)
             if both:
                 pl, self._legs = pl[0], pl[1:]
         else:
@@ -604,8 +628,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                                  + (f" and {len(self._rb_arms)} on other alignments" if self._rb_arms else "")
                                  + " - click any other arm, then right-click or Enter to place")
                 return None
-            nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK")
-                   else "now click where the full-width lane ends" if s.get("kit") == "CLIMB"
+            nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK", "BCA")
+                   else "now click where the full-width lane ends" if s.get("kit") in ("CLIMB", "DESC")
+                   else "now click a point further along: the ramp runs that far" if s.get("kit") == "RAMP"
                    else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
                    else ("click again to place both legs" if s.get("both") else
                          "move the mouse to the side of our road's leg, then click to place")
@@ -711,6 +736,8 @@ class MovePieceTool(QgsMapToolEmitPoint):
     def cancel(self):
         self.sel = None
         self.band.reset(GEOM_LINE)
+        self.hover.emit("Click a junction piece to move it (Shift: the whole junction); click a bay's or lane's "
+                        "start or end to drag that end")
 
     def canvasReleaseEvent(self, e):
         st = self._store()
@@ -738,21 +765,50 @@ class MovePieceTool(QgsMapToolEmitPoint):
             from .rfd import junctions as J
             pl = J.Placement(float(f["sta"]), 0.0, role=role, main_ref=f["main_ref"] or "")
             al = st.junctions.main_of(pl)
-            self.sel = (pu, jid, role, al.station_offset(lp.x(), lp.y()).station, al, whole)
-            self.placed.emit("Piece picked - click where it should go")
+            here = al.station_offset(lp.x(), lp.y()).station
+            end = self._bay_end(f, here) if not whole else None
+            self.sel = (pu, jid, role, here, al, whole, end)
+            self.placed.emit(f"The bay's {end} picked - click where it should be (the other end stays)" if end
+                             else "Piece picked - click where it should go")
             return None
         d = self._delta(lp)
-        pu, whole = self.sel[0], whole or self.sel[5]
+        pu, whole, end = self.sel[0], whole or self.sel[5], self.sel[6] if len(self.sel) > 6 else None
+        new_sta = self.sel[4].station_offset(lp.x(), lp.y()).station
         self.cancel()
         try:
-            n = st.junctions.move(pu, d, whole=whole)
-            if hasattr(st, "refresh_junction_warnings"):
-                st.refresh_junction_warnings()          # W1 / W2 / W5 follow the junction
+            if end:
+                mover = getattr(st, "move_bay_end", None) or st.junctions.move_bay_end
+                mover(pu, end, new_sta)
+                self.placed.emit(f"Bay {end} moved {d:+.1f} m")
+                return 1
+            if hasattr(st, "move_piece"):
+                n = st.move_piece(pu, d, whole=whole)     # undoable; W1 / W2 / W5 follow the junction
+            else:
+                n = st.junctions.move(pu, d, whole=whole)
         except ValueError as ex:
             self.failed.emit(str(ex))
             return None
         self.placed.emit(f"{n} piece(s) moved {d:+.1f} m along the road")
         return n
+
+    HANDLE = 8.0            # m: a click this close (along the road) to a bay's start or end drags that end
+
+    @staticmethod
+    def _bay_end(f, station):
+        """'start' or 'end' when the click is on a bay's or lane's full-width start or end, else None."""
+        import json
+        try:
+            b = json.loads(f["bay"]) if f["bay"] else None
+        except (ValueError, TypeError):
+            return None
+        if not b or b.get("kind") == "escape ramp":
+            return None
+        s1, s2 = b["stations"][1], b["stations"][2]
+        if abs(station - s1) <= MovePieceTool.HANDLE:
+            return "start"
+        if abs(station - s2) <= MovePieceTool.HANDLE:
+            return "end"
+        return None
 
     def deactivate(self):
         self.cancel()

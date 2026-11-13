@@ -7,6 +7,8 @@ LandXML alignment, and recomputed whenever a sign is moved.
 """
 from __future__ import annotations
 
+import functools
+import hashlib
 import json
 import math
 import os
@@ -25,6 +27,7 @@ from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_
                      PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT,
                      make_field)
 from .rfd import typical_section as _ts
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 from .rfd.alignment import format_station, landxml_crs, parse_landxml
 from .rfd.corridor import edge_polylines
 from .rfd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
@@ -71,6 +74,29 @@ def _write_layer(path, name, fields, wkb, crs, first):
     if w.hasError() != FW_NO_ERROR:
         raise RuntimeError(f"Cannot create {name} in {path}: {w.errorMessage()}")
     return w
+
+
+UNDO_DEPTH = 30
+
+
+def journaled(label):
+    """Record what a store operation changes (features added and removed in the signs, linear furniture and
+    junction layers) so it can be undone and redone. Nested operations record once, as the outer one."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(self, *a, **kw):
+            if getattr(self, "_jdepth", 0):
+                return fn(self, *a, **kw)
+            self._jdepth = 1
+            try:
+                before = self._state()
+                res = fn(self, *a, **kw)
+                self._record(label if isinstance(label, str) else label(self, *a), before)
+                return res
+            finally:
+                self._jdepth = 0
+        return wrapper
+    return deco
 
 
 EDGE_FIELDS = [("code", QVariant.String), ("side", QVariant.String)]
@@ -528,7 +554,10 @@ class SignStore(QObject):
 
     def _end_batch(self):
         b, self._batch = getattr(self, "_batch", None), None
-        if b and b["started"]:
+        if b and b["started"] and not self.signs.isModified():
+            # nothing changed: committing an empty edit session can leave a GeoPackage layer unreadable
+            self.signs.rollBack()
+        elif b and b["started"]:
             self._busy = True
             try:
                 if not self.signs.commitChanges():
@@ -742,6 +771,9 @@ class SignStore(QObject):
         ref = cfg.edge_ref or self.default_edge_ref()
         hosts = {}
         added = 0
+        if not props:
+            # no edit session for nothing: an empty one can leave the GeoPackage layer unreadable
+            return 0
         nested = getattr(self, "_batch", None) is not None
         if not nested:
             self._begin_batch()
@@ -776,6 +808,7 @@ class SignStore(QObject):
         return added
 
     # ------------------------------------------------------------------ traffic calming features
+    @journaled("Add a calming feature or crossing")
     def add_feature(self, kind, station, cfg=None, auto=None):
         """Design a hump / table / bump / bar markings / crossing at a station and add its runs and signs."""
         from .rfd.features import design_feature, flag_overlaps, omit_bars
@@ -799,7 +832,7 @@ class SignStore(QObject):
         which sit beside the carriageway)."""
         names = {"RBT": "the roundabout", "ACCESS": "the private access"}
         return [(lo, hi, f"{names.get(kit, 'the type ' + str(kit) + ' junction')} at {self._ch(lo)}")
-                for lo, hi, _j, kit in self.junctions.footprints() if kit not in ("BUS", "TRUCK", "CLIMB")]
+                for lo, hi, _j, kit in self.junctions.footprints() if kit not in J_BAY_KITS]
 
     def furniture_blocks(self, skip_rule=None):
         """Chainage ranges that a feature's approach bar sets must keep off: junction kits, bays and
@@ -853,6 +886,7 @@ class SignStore(QObject):
         from .rfd.speedzones import zones_from_signs
         return zones_from_signs(self._sign_dicts(), self.al)
 
+    @journaled("Add a speed limit zone")
     def add_speed_zone(self, limit, start, end, auto=None, repeat=None):
         """Sign a speed limit zone: limit signs at the start (both directions), repeaters, P9 at the end.
 
@@ -870,6 +904,7 @@ class SignStore(QObject):
         self.changed.emit()
         return d
 
+    @journaled("Remove a speed limit zone")
     def remove_speed_zone(self, zid):
         n = self._delete_signs([s["fid"] for s in self._sign_dicts() if s["rule"] == f"speed:{zid}"])
         self.changed.emit()
@@ -886,6 +921,7 @@ class SignStore(QObject):
         self.signs.triggerRepaint()
         return len(fids)
 
+    @journaled("Remove a calming feature")
     def remove_feature(self, group):
         rule = f"feature:{group}"
         lid = [f.id() for f in self.lines.layer.getFeatures() if f["rule"] == rule]
@@ -1010,6 +1046,136 @@ class SignStore(QObject):
             else:
                 parent.addLayer(self.edges_layer)
 
+    # ------------------------------------------------------------------ undo / redo
+    def _journal_layers(self):
+        return [self.signs, self.lines.layer, self.junctions.layer]
+
+    @staticmethod
+    def _sig(f, skip):
+        attrs = tuple(str(v) for i, v in enumerate(f.attributes()) if i != skip)
+        g = f.geometry()
+        wkb = bytes(g.asWkb()) if g is not None and not g.isEmpty() else b""
+        return hashlib.sha1(repr(attrs).encode("utf-8") + wkb).hexdigest()  # nosec B324 - identity, not security
+
+    def _state(self):
+        """{layer index: {signature: [features]}} of the journaled layers."""
+        out = []
+        for lyr in self._journal_layers():
+            skip = lyr.fields().indexOf("fid")
+            m = {}
+            for f in lyr.getFeatures():
+                m.setdefault(self._sig(f, skip), []).append(QgsFeature(f))
+            out.append(m)
+        return out
+
+    @staticmethod
+    def _diff(before, after):
+        """Per layer: (removed features, added signatures with their counts)."""
+        out = []
+        for b, a in zip(before, after):
+            removed = [f for k, fs in b.items() for f in fs[len(a.get(k, ())):]]
+            added = {k: len(fs) - len(b.get(k, ())) for k, fs in a.items() if len(fs) > len(b.get(k, ()))}
+            out.append((removed, added))
+        return out
+
+    def _record(self, label, before):
+        delta = self._diff(before, self._state())
+        if not any(r or a for r, a in delta):
+            return
+        if not hasattr(self, "_undo"):
+            self._undo, self._redo = [], []
+        self._undo.append((label, delta))
+        del self._undo[:-UNDO_DEPTH]
+        self._redo.clear()
+
+    def _apply_step(self, delta, reverse):
+        """Undo (reverse=True: take the added features out, put the removed ones back) or redo a step."""
+        for lyr, (removed, added) in zip(self._journal_layers(), delta):
+            skip = lyr.fields().indexOf("fid")
+            pr = lyr.dataProvider()
+            take = added if reverse else {self._sig(f, skip): 1 for f in removed}
+            put = removed if reverse else None
+            if not reverse:                         # redo: the added ones come back from the stored copies
+                put = getattr(self, "_redo_put", {}).get(id(delta), {}).get(lyr.id(), [])
+            want = dict(take)
+            ids, kept = [], []
+            for f in lyr.getFeatures():
+                k = self._sig(f, skip)
+                if want.get(k, 0) > 0:
+                    want[k] -= 1
+                    ids.append(f.id())
+                    kept.append(QgsFeature(f))
+            if reverse:                             # keep what undo takes out, for redo
+                self._redo_put = getattr(self, "_redo_put", {})
+                self._redo_put.setdefault(id(delta), {})[lyr.id()] = kept
+            busy = [o for o in (self, self.lines, self.junctions) if hasattr(o, "_busy")]
+            for o in busy:
+                o._busy = True
+            try:
+                if ids:
+                    pr.deleteFeatures(ids)
+                if put:
+                    copies = []
+                    for f in put:
+                        c = QgsFeature(f)
+                        if skip >= 0:
+                            c.setAttribute(skip, None)
+                        copies.append(c)
+                    pr.addFeatures(copies)
+            finally:
+                for o in busy:
+                    o._busy = False
+            lyr.reload()
+            lyr.triggerRepaint()
+
+    def can_undo(self):
+        return bool(getattr(self, "_undo", None))
+
+    def can_redo(self):
+        return bool(getattr(self, "_redo", None))
+
+    def undo(self):
+        """Undo the last placement or edit. Returns its label, or None."""
+        if not self.can_undo():
+            return None
+        label, delta = self._undo.pop()
+        self._apply_step(delta, reverse=True)
+        self._redo.append((label, delta))
+        self.changed.emit()
+        return label
+
+    def redo(self):
+        if not self.can_redo():
+            return None
+        label, delta = self._redo.pop()
+        self._apply_step(delta, reverse=False)
+        self._undo.append((label, delta))
+        self.changed.emit()
+        return label
+
+    @journaled("Move a junction piece")
+    def move_piece(self, piece_uuid, delta, whole=False):
+        n = self.junctions.move(piece_uuid, delta, whole=whole)
+        self.refresh_junction_warnings()
+        return n
+
+    @journaled("Move a bay or lane end")
+    def move_bay_end(self, piece_uuid, which, station):
+        ok = self.junctions.move_bay_end(piece_uuid, which, station)
+        self.trim_for_widenings()
+        return ok
+
+    @journaled("Change junction properties")
+    def set_junction_properties(self, junction_id, changes):
+        n = self.junctions.set_properties(junction_id, changes)
+        self.trim_for_widenings()
+        return n
+
+    @journaled("Rescale a junction")
+    def set_junction_scale(self, junction_id, scale):
+        self.junctions.set_scale(junction_id, scale)
+
+    @journaled("Place a junction, bay, lane or ramp")
     def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None, second_leg=False):
         """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give
         Way; a bus bay proposes its bus stop sign, a truck parking bay I15 and I14, a climbing lane I1 / I2.
@@ -1024,9 +1190,27 @@ class SignStore(QObject):
                 s0, s1, s2, _s3 = b["stations"]
                 kind = b.get("kind")
                 lane = kind == "climbing lane"
+                dirn = 1 if s1 >= s0 else -1
+                ahead = lambda d: s0 - dirn * d
                 if lane:
                     todo = [("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)", 0.0),
                             ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)", b["depth"])]
+                elif kind == "descending lane":
+                    todo = [("I12", s0, "Slow lane: trucks keep to the descending lane (RDM 1.3 6.6.4; RDM 6.2 I12)", 0.0)]
+                elif kind == "brake check area":
+                    s3 = b["stations"][3]
+                    todo = [("I15", s0, "Brake check area at the start of the entry taper (RDM 1.3 12.5; lay-by sign "
+                                        "RDM 6.2 6.4.1.1)", 0.0),
+                            ("I14", ahead(500.0), "Brake check area ahead, 500 m; advise drivers in advance "
+                                                  "(RDM 1.3 12.5)", 0.0),
+                            ("W30", s3, "Steep descent ahead, after the brake check area (RDM 6.2 4.6.4)", 0.0)]
+                elif kind == "escape ramp":
+                    todo = [("E1", ahead(1000.0), "Escape ramp 1 km ahead (RDM 6.2 6.7, Figure 6.5; distance "
+                                                  "indicative)", 0.0),
+                            ("E1", ahead(500.0), "Escape ramp 500 m ahead (RDM 6.2 6.7; distance indicative)", 0.0),
+                            ("I33", ahead(200.0), "Direction of ramp (RDM 6.2 Figure 6.33)", 0.0),
+                            ("I32", s1, "Escape ramp at the ramp (RDM 6.2 Figure 6.32)", 0.0),
+                            ("P14", s1, "No stopping at the ramp entrance (RDM 1.3 12.7.3 item 8)", 0.0)]
                 elif kind == "truck parking bay":
                     back = s0 - (s1 - s0) / abs(s1 - s0) * self.TRUCK_I14_AHEAD
                     todo = [("I15", s0, "Lay-by at the start of the entry taper, facing oncoming traffic "
@@ -1038,6 +1222,8 @@ class SignStore(QObject):
                     todo = [("WSCM-I3", s1, "Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)",
                              b["depth"])]
                 for code, at, why, wide in todo:
+                    if not self.al.sta_start <= at <= self.al.sta_end:
+                        continue
                     off = (self.al.edges.offset("ETW", b["side"], at) if self.al.edges else None) or 3.5
                     off += wide + 1.5
                     x, y, _ = self.al.point_at(at, off if b["side"] == "R" else -off)
@@ -1185,6 +1371,7 @@ class SignStore(QObject):
 
     TRUCK_I14_AHEAD = 300.0                 # m before the entry taper (RDM 6.2 6.4.1.1: up to 500 m)
 
+    @journaled("Propose climbing lanes")
     def propose_climbing_lanes(self, aadt=None):
         """Climbing lanes the profile asks for (RDM 1.3 6.6), placed as proposals. Returns (lanes, notes)."""
         from .rfd import junctions as J
@@ -1197,6 +1384,54 @@ class SignStore(QObject):
                          f"{'left' if c['side'] == 'L' else 'right'}: {c['note']}")
         return n, notes
 
+    @journaled("Propose descents")
+    def propose_descents(self, aadt=None, trucks=None, ramps=True, lanes=True, checks=True):
+        """Descending lanes (RDM 1.3 6.6.4), brake check areas (12.5) and escape ramps (12.7) the profile asks
+        for, placed as proposals. Returns (count, notes)."""
+        from .rfd import descents as D
+        from .rfd import junctions as J
+        n, notes = 0, []
+        tag = lambda side: "left" if side == "L" else "right"
+        if lanes:
+            for c in D.descending_lanes(self.al, aadt):
+                pl, L = J.place_lane(self.al, c["start"], c["end"], c["side"])
+                self.add_junction(pl, "DESC", params={"bay": L})
+                n += 1
+                notes.append(f"Descending lane, {tag(c['side'])}: {c['note']}")
+        if checks:
+            for b in D.brake_check_sites(self.al, trucks):
+                P = J.load_templates()["pieces"]["brake_check"]["params"]
+                d = 1 if b["side"] == "L" else -1
+                start = b["end"] - d * P["bay"]                     # the bay's full width starts here
+                if not self.al.sta_start <= start <= self.al.sta_end:
+                    continue
+                pl, _ = J.place_lane(self.al, start, b["end"], b["side"])
+                self.add_junction(pl, "BCA", params={"bay": P["bay"]})
+                n += 1
+                notes.append(f"Brake check area, {tag(b['side'])}, before a {b['drop']:.0f} m descent at "
+                             f"{b['grade']:.1f} %: {b['note']}")
+        if ramps:
+            for r in D.escape_ramp_sites(self.al):
+                if r["station"] is None:
+                    notes.append(f"Escape ramp, {tag(r['side'])}: {r['note']}")
+                    continue
+                L = r["lengths"]["Ascending grade"] or 300.0
+                P = J.load_templates()["pieces"]["escape_ramp"]["params"]
+                pl, _ = J.place_lane(self.al, r["station"], r["station"], r["side"])
+                self.add_junction(pl, "RAMP", params={"bay": round(L + P["entry"]), "speed": r["speed"],
+                                                      "reason": r["reason"]})
+                n += 1
+                j = next((j for j in self.junctions.junctions() if j["id"] == pl.junction_id), None)
+                cut = (j or {}).get("bay", {}).get("clipped")
+                bed = (float(j["bay"]["bay"]) - P["entry"]) if cut else L
+                notes.append(f"Escape ramp, {tag(r['side'])}, Ch {format_station(self.al.display_station(r['station']), 0)}: "
+                             f"{r['note']}; arrester bed {L:.0f} m on a {P['grade']:.0f} % ascending ramp of loose "
+                             f"gravel (Equation 12.1)"
+                             + (f"; the road bends back towards it, so it stops short at {bed:.0f} m: steepen the "
+                                f"ramp in its properties where the ground rises, or move it" if cut else ""))
+        return n, notes
+
+    @journaled("Remove a junction")
     def remove_junction(self, junction_id):
         """Remove a junction's pieces and the signs proposed with it."""
         rule = f"junction:{junction_id}"
@@ -1241,7 +1476,8 @@ class SignStore(QObject):
         """Road edges and widenings (bays, climbing lanes, junction widenings) as 3D feature lines in a
         LandXML for Civil 3D, levels from the design profile and the section. Returns (count, notes)."""
         from .rfd.feature_lines import export
-        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path)
+        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path,
+                      bays=[j["bay"] for j in self.junctions.junctions() if j.get("bay")])
 
     def import_readback(self, json_path):
         """Apply sign moves / rotations made in Civil 3D (matched by face UUID)."""

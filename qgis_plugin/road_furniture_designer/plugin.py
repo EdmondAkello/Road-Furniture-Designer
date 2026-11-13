@@ -21,6 +21,10 @@ class RoadFurnitureDesignerPlugin:
         self.action.triggered.connect(self.toggle)
         self.iface.addToolBarIcon(self.action)
         self.iface.addPluginToMenu("Road Furniture Designer", self.action)
+        from .links import open_guide
+        self.guide_action = QAction("User Guide and Technical Manual (PDF)", self.iface.mainWindow())
+        self.guide_action.triggered.connect(open_guide)
+        self.iface.addPluginToMenu("Road Furniture Designer", self.guide_action)
         QgsProject.instance().readProject.connect(self._project_loaded)
 
     def _ensure_dock(self):
@@ -83,4 +87,6 @@ class RoadFurnitureDesignerPlugin:
             self.dock.deleteLater()
             self.dock = None
         self.iface.removePluginMenu("Road Furniture Designer", self.action)
+        if getattr(self, "guide_action", None) is not None:
+            self.iface.removePluginMenu("Road Furniture Designer", self.guide_action)
         self.iface.removeToolBarIcon(self.action)
