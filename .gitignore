@@ -2,6 +2,7 @@
 qgis_plugin/road_furniture_designer/rfd/
 qgis_plugin/road_furniture_designer/ext_libs/
 qgis_plugin/road_furniture_designer/LICENSE
+qgis_plugin/road_furniture_designer/doc/
 *.zip
 __pycache__/
 *.pyc

@@ -24,6 +24,23 @@ def sync_license():
     shutil.copyfile(os.path.join(ROOT, "LICENSE"), os.path.join(PLUG, "LICENSE"))
 
 
+def sync_guide():
+    """The user guide PDF for this version, so the dock's Guide button opens it without a connection."""
+    import configparser
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.read(os.path.join(PLUG, "metadata.txt"), encoding="utf-8")
+    v = cp.get("general", "version")
+    name = f"Road_Furniture_Designer_{v}_User_Guide.pdf"
+    dst = os.path.join(PLUG, "doc")
+    shutil.rmtree(dst, ignore_errors=True)
+    src = os.path.join(ROOT, "docs", "user-guide", name)
+    if os.path.exists(src):
+        os.makedirs(dst)
+        shutil.copyfile(src, os.path.join(dst, name))
+    else:
+        print(f"warning: {name} not found; the Guide button will open GitHub")
+
+
 def make_zip(out):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for d, _, files in os.walk(PLUG):
@@ -40,6 +57,7 @@ if __name__ == "__main__":
     sync_core()
     sync_vendor()
     sync_license()
+    sync_guide()
     if len(sys.argv) > 1:
         make_zip(sys.argv[1])
         print("wrote", sys.argv[1])
