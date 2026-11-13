@@ -134,6 +134,10 @@ def place_bay(al, x0: float, y0: float, x1: float, y1: float, **kw) -> Placement
     return pl, abs(b.station - a.station)
 
 
+MIN_LEG = 30.0                      # m: shorter than this, our road behind the junction point is a stub, not a leg
+END_SNAP = 30.0                     # m: a junction this close to our road's end is placed at the end
+
+
 def minor_legs(al, s0: float, main) -> List[float]:
     """Bearings of our road's legs leaving the main road at our station s0, the one moving away from the
     main road's centreline fastest first. One leg where our road starts or ends at the main road, two where it
@@ -144,13 +148,17 @@ def minor_legs(al, s0: float, main) -> List[float]:
     jx, jy, _ = main.point_at(mo.station)
     cand = []
     for sgn in (1, -1):
+        rest = (al.sta_end - s0) if sgn > 0 else (s0 - al.sta_start)    # how much of our road that way
         s = min(max(s0 + sgn * step, al.sta_start), al.sta_end)
         if abs(s - s0) > 0.5:
             x, y, _ = al.point_at(s)
-            cand.append((abs(main.station_offset(x, y).offset), abs(s - s0), math.atan2(y - jy, x - jx)))
-    cand.sort(reverse=True)
-    keep = [c for c in cand if c[0] >= 0.2 * c[1]]
-    return [c[2] for c in (keep or cand[:1])]
+            rate = abs(main.station_offset(x, y).offset) / abs(s - s0)  # how fast it leaves the main road
+            cand.append((rate, rest, math.atan2(y - jy, x - jx)))
+    # a stub of our road shorter than MIN_LEG behind the junction point is not a leg
+    real = [c for c in cand if c[1] >= MIN_LEG] or sorted(cand, key=lambda c: -c[1])[:1]
+    real.sort(key=lambda c: -c[1])                      # the longer leg first: where our road lies
+    keep = [c for c in real if c[0] >= 0.2]
+    return [c[2] for c in (keep or real[:1])]
 
 
 def _angle_between(a: float, b: float) -> float:
@@ -166,6 +174,11 @@ def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Option
     Returns (placement, main road alignment); with both=True, (list of placements, one per leg, main)."""
     so = al.station_offset(x0, y0)
     s0 = min(max(so.station, al.sta_start), al.sta_end)
+    # our road joining another road usually ends there: a click near an end goes to the end
+    if s0 - al.sta_start < END_SNAP:
+        s0 = al.sta_start
+    elif al.sta_end - s0 < END_SNAP:
+        s0 = al.sta_end
     px, py, _ = al.point_at(s0)
     cursor = major is not None and x1 is not None and y1 is not None
     if major is not None:
@@ -238,7 +251,7 @@ class Frame:
     def _edge(self) -> float:
         edges = getattr(self.al, "edges", None)
         if edges:
-            for code in ("ETW", "EOP", "EP"):
+            for code in EDGE_CODES:
                 o = edges.offset(code, self.side, self.pl.station)
                 if o is not None:
                     return abs(o)
@@ -379,6 +392,60 @@ def densify(pts: Sequence[Pt], step: float, closed=False) -> List[Pt]:
     return out
 
 
+# --------------------------------------------------------------------------- arrow markings
+def arrow_length(speed: float) -> float:
+    """Lane indication arrow length for the approach speed (RDM 6.1 Table 6.1)."""
+    return 3.5 if speed <= 50 else 5.0 if speed <= 100 else 9.0
+
+
+def _offset_line(pts, d):
+    """A polyline offset by d to its left, mitred at the bends."""
+    out = []
+    for i, p in enumerate(pts):
+        normals = []
+        for a, b in ((pts[i - 1], p) if i > 0 else (None, None), (p, pts[i + 1]) if i < len(pts) - 1 else (None, None)):
+            if a is None:
+                continue
+            L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            normals.append((-(b[1] - a[1]) / L, (b[0] - a[0]) / L))
+        nx, ny = (normals[0][0] + normals[-1][0]) / 2, (normals[0][1] + normals[-1][1]) / 2
+        k = nx * normals[0][0] + ny * normals[0][1] or 1.0
+        out.append((p[0] + d * nx / k, p[1] + d * ny / k))
+    return out
+
+
+def _arrow_outline(axis, half_stem, head_len, half_head) -> List[Pt]:
+    """Closed outline of an arrow along the polyline axis (tail first), with a triangular head at the end."""
+    ax = list(axis)
+    (x1, y1), (x0, y0) = ax[-1], ax[-2]
+    L = math.hypot(x1 - x0, y1 - y0)
+    u = ((x1 - x0) / L, (y1 - y0) / L)
+    n = (-u[1], u[0])
+    base = (x1 - head_len * u[0], y1 - head_len * u[1])
+    shaft = ax[:-1] + [base]
+    left, right = _offset_line(shaft, half_stem), _offset_line(shaft, -half_stem)
+    head = [(base[0] + half_head * n[0], base[1] + half_head * n[1]), (x1, y1),
+            (base[0] - half_head * n[0], base[1] - half_head * n[1])]
+    return left + head + right[::-1]
+
+
+def arrow_shapes(kind: str, L: float) -> List[List[Pt]]:
+    """Arrow markings (RDM 6.1 Table A.5, Figure 6.3) as closed outlines in a local frame: the axis along +x
+    from the tail at x = 0 to the tip at x = L; a turning branch leaves at 45 deg towards +y ('turn'), -y,
+    or both. kind: straight (AM01), turn (AM03 / AM02 by side), both_turns (AM06), all (AM07)."""
+    k = L / 3.5
+    hs, hl = 0.075 * k, 1.0 * k                         # 150 mm stem, 1.0 m head at 3.5 m
+    bend = 0.55 * L
+    c, sn = math.cos(math.radians(45)), math.sin(math.radians(45))
+    branch = lambda sg: [(0.0, 0.0), (bend, 0.0), (bend + 0.45 * L * c, sg * 0.45 * L * sn)]
+    turn = lambda sg, from_bend: _arrow_outline(branch(sg)[1 if from_bend else 0:], hs, hl * 0.85, 0.35 * k)
+    straight = lambda w: _arrow_outline([(0.0, 0.0), (L, 0.0)], hs, hl, w * k)
+    return {"straight": lambda: [straight(0.25)],
+            "turn": lambda: [turn(1, False)],
+            "both_turns": lambda: [turn(1, False), turn(-1, True)],
+            "all": lambda: [straight(0.3), turn(1, True), turn(-1, True)]}[kind]()
+
+
 # --------------------------------------------------------------------------- pieces
 @dataclass
 class Part:
@@ -407,6 +474,11 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
     spec = T["pieces"][piece]
     P = dict(spec.get("params", {}), **(params or {}))
     F = pl.frame(al)
+    if P.get("edge_add"):
+        # the main road is widened on the minor road's side (a ghost island kit): pieces off the main road
+        # stand off the widened edge
+        F.e += float(P["edge_add"])
+        F.u_edge = F.e / F.sin
     loc: List[Tuple[str, List[Pt], bool, str]] = []          # (code, local pts, closed, frame)
     q: Dict[str, float] = {}
     fr = spec["frame"]
@@ -474,6 +546,45 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         vc = -P.get("inner", 0.0) - lane / 2
         tri = [(apex, vc), (apex + L, vc - b / 2), (apex + L, vc + b / 2)]
         loc.append(("BM07", tri, True, fr))
+    elif piece == "main_widening":
+        # the main road widened on both sides by half the ghost island's width, so the through lanes keep
+        # their width: full width from X0 to X1 (junction frame), tapering out over t0 / t1 beyond
+        w, X0, X1, t0, t1 = P["width"], P["from"], P["to"], P["taper_from"], P["taper_to"]
+        stations = [X0 - t0, X0, X1, X1 + t1]
+        for ys in (1, -1):
+            pts = []
+            for i in range(0, int((stations[-1] - stations[0]) / 2.0) + 1):
+                X = stations[0] + 2.0 * i
+                f = 1.0 if X0 <= X <= X1 else max(0.0, 1 - (X0 - X) / t0) if X < X0 else max(0.0, 1 - (X - X1) / t1)
+                pts.append((X, ys * (F.e / F.s + w / 2 * f)))
+            loc.append(("WIDEN", pts, False, fr))
+        area_side = w / 2 * ((X1 - X0) + (t0 + t1) / 2) * F.s
+        q["widen_m2"] = round(2 * area_side, 2)
+        sta = lambda X: pl.station - F.sigma * X * F.s
+        rows = []
+        for ys, side in ((1, F.side), (-1, "R" if F.side == "L" else "L")):
+            st4 = sorted(sta(X) for X in stations)
+            rows.append({"road": "main", "side": side, "stations": [round(v, 3) for v in st4],
+                         "entry": round(t0 * F.s, 1), "exit": round(t1 * F.s, 1), "depth": round(w / 2, 2),
+                         "kind": "main road widening for the ghost island", "taper": "straight"})
+        P = dict(P, rows=rows)
+    elif piece == "turn_arrow":
+        # right-turn arrows in the right-turn lane: the right-turners come from -X towards the junction and
+        # turn towards +Y (the minor road); RDM 6.1 6.4.2-6.4.3
+        L = P.get("length") or arrow_length(al.speed_at(pl.station) or 80.0)
+        for i in range(int(P.get("count", 2))):
+            tip = P["at"] - i * P["spacing"]
+            for poly in arrow_shapes("turn", L):
+                loc.append(("AM03", [(tip - L + x, P["y"] + y) for x, y in poly], True, fr))
+    elif piece == "approach_arrows":
+        # on the minor road's approach lane, pointing at the main road (RDM 6.1 6.4.3: "on a side road
+        # approach to a main road, arrows are marked on the side road"): AM06 at a T, AM07 at a crossroads
+        L = P.get("length") or 5.0
+        kind, code = ("all", "AM07") if P.get("crossroads") else ("both_turns", "AM06")
+        vc = -P.get("inner", 0.0) - P["lane"] / 2
+        for poly in arrow_shapes(kind, L):
+            # local x (tail -> tip) runs down the minor road towards the main road (-u)
+            loc.append((code, [(P["at"] + L - x, vc - y) for x, y in poly], True, fr))
     elif piece == "minor_centre_line":
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
@@ -486,6 +597,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         return _access(F, spec, P, piece)
     elif piece == "roundabout":
         return _roundabout(F, spec, P, piece)
+    elif piece == "signal_crossroads":
+        return _signal_crossroads(F, spec, P, piece, T)
     else:
         raise ValueError(f"Unknown junction piece {piece!r}")
 
@@ -502,7 +615,10 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
             world = [F.minor(u, v) for u, v in pts]
             closed_w = closed
         parts.append(Part(code, world, closed_w))
-        if code not in ("KERB", "GUIDE"):
+        if codes[code].get("fill"):                      # arrows: the painted area of the outline
+            q[f"{code}_no"] = q.get(f"{code}_no", 0) + 1
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + area(world), 3)
+        elif code not in ("KERB", "GUIDE", "WIDEN"):
             ln = length(world, closed_w)
             q[f"{code}_m"] = round(q.get(f"{code}_m", 0.0) + ln, 3)
             q["paint_m2"] = round(q.get("paint_m2", 0.0) + ln * codes[code]["width"], 3)
@@ -522,6 +638,73 @@ def _arc(c, r, a0, a1, n=24) -> List[Pt]:
             for i in range(n + 1)]
 
 
+THREE_CENTRED = ((2.0, 0.2), (1.0, 0.6), (3.0, 0.2))     # (radius / R2, share of the turn): RDM 1.3 Fig 9.25
+
+
+def _return_behind_island(F, corner, p0, d, sgn, r2, slip, W, step=0.25, most=20.0):
+    """The three-centred return on a corner with an island, pushed out (both edges widened by the same
+    amount) until the island lies inside it with `slip` m of turning roadway between. Returns (curve in the
+    guide frame, widening)."""
+    T = load_templates()
+    pc = T["pieces"]["corner_island"]["params"]
+    isl = [F.corner(corner, a, b) for a, b in concave_triangle(pc["pts"], pc.get("sag", 0.0))]
+    ox, oy = W(0.0, 0.0)
+    ex = (W(1.0, 0.0)[0] - ox, W(1.0, 0.0)[1] - oy)
+    ey = (W(0.0, 1.0)[0] - ox, W(0.0, 1.0)[1] - oy)
+    loc = [((x - ox) * ex[0] + (y - oy) * ex[1], (x - ox) * ey[0] + (y - oy) * ey[1]) for x, y in isl]
+    n = (p0[0] / max(math.hypot(*p0), 1e-9), p0[1] / max(math.hypot(*p0), 1e-9))     # outward from the minor axis
+    th = math.atan2(0.0, -sgn)
+    st = 1.0 if math.remainder(math.atan2(d[1], d[0]) - th, 2 * math.pi) > 0 else -1.0
+    curve = None
+    k = 0.0
+    while k <= most:
+        q = (p0[0] + n[0] * k, p0[1] + n[1] * k - k)          # minor edge widened by k, main edge raised by k
+        c = [(x, y + k) for x, y in three_centred_return(q, d, sgn, r2)]
+        ok = True
+        for v in loc:
+            best, side = math.inf, 0.0
+            for a, b in zip(c, c[1:]):
+                L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2 or 1e-9
+                t = max(0.0, min(1.0, ((v[0] - a[0]) * (b[0] - a[0]) + (v[1] - a[1]) * (b[1] - a[1])) / L2))
+                dist = math.hypot(v[0] - a[0] - t * (b[0] - a[0]), v[1] - a[1] - t * (b[1] - a[1]))
+                if dist < best:
+                    best = dist
+                    side = (b[0] - a[0]) * (v[1] - a[1]) - (b[1] - a[1]) * (v[0] - a[0])
+            if side * st >= 0 or best < slip:                 # beyond the return (verge side), or too close
+                ok = False
+                break
+        curve = c
+        if ok:
+            return c, k
+        k += step
+    return curve, most
+
+
+def three_centred_return(p0: Pt, d: Pt, sgn: int, r2: float, step: float = 0.5) -> List[Pt]:
+    """A kerb return in the guide frame (main edge along y = 0, minor road towards +y): a compound curve of
+    radii 2 R2, R2 and 3 R2 (RDM 1.3 Figure 9.25) turning from the main edge into the minor edge through p0
+    (direction d, away from the main road). sgn: the corner on the +x side (1) or the -x side (-1). The curve
+    starts tangent to the main edge and ends tangent to the minor edge."""
+    th = math.atan2(0.0, -sgn)                          # along the main edge, towards the corner
+    turn = math.remainder(math.atan2(d[1], d[0]) - th, 2 * math.pi)
+    st = 1.0 if turn > 0 else -1.0
+    pts, pos = [(0.0, 0.0)], (0.0, 0.0)
+    nl = lambda a: (-math.sin(a), math.cos(a))
+    for k, share in THREE_CENTRED:
+        R, dl = k * r2, abs(turn) * share
+        c = (pos[0] + st * R * nl(th)[0], pos[1] + st * R * nl(th)[1])
+        n = max(2, int(R * dl / step))
+        for i in range(1, n + 1):
+            ph = th + st * dl * i / n
+            pts.append((c[0] - st * R * nl(ph)[0], c[1] - st * R * nl(ph)[1]))
+        th += st * dl
+        pos = pts[-1]
+    # slide along the main edge so the end lies on the minor edge
+    E = pts[-1]
+    xs = (d[0] * (E[1] - p0[1]) - d[1] * (E[0] - p0[0])) / d[1]
+    return [(x + xs, y) for x, y in pts]
+
+
 def _guides(F: Frame, spec, P, piece) -> Piece:
     """Construction lines in a frame with the main edge as the x-axis (x along the chainage, y to the minor road)."""
     s = F.s
@@ -537,25 +720,70 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
     parts = []
     # minor centreline and edges
     parts.append(Part("GUIDE", [W(-F.e * dx / dy, -F.e), W(reach * dx * 2, reach * dy * 2)]))
+    # the minor road flared around its splitter island, so its lanes keep their width
+    fl = P.get("minor_flare") or {}
+    fh, f_to, f_taper = float(fl.get("half", 0.0)) * s, float(fl.get("to", 0.0)) * s, float(fl.get("taper", 15.0)) * s
+    rows = []
+    if fh > 0:
+        for side in ("L", "R"):                       # along the minor road from the main edge (u)
+            rows.append({"road": "minor", "side": side, "u": [0.0, 0.0, f_to, f_to + f_taper], "entry": 0.0,
+                         "exit": round(f_taper, 1), "depth": round(fh, 2), "kind": "minor road flare at the splitter",
+                         "taper": "straight"})
     for sgn in (1, -1):
         n = (sgn * dy, -sgn * dx)                     # unit normal of the minor axis, +x side for sgn = 1
-        p0 = (n[0] * w2, n[1] * w2)                   # a point on that minor edge, at the main edge
+        p_n = (n[0] * w2, n[1] * w2)                  # the normal minor edge at the main edge
+        p0 = (n[0] * (w2 + fh), n[1] * (w2 + fh))     # the (flared) minor edge at the main edge
         # fillet centre: distance R from the main edge (y = R) and R outside the minor edge
         if abs(n[0]) < 1e-9:
             continue
-        cx = p0[0] + (R - (R - p0[1]) * n[1]) / n[0]
-        c = (cx, R)
-        t1 = (cx, 0.0)                                 # tangent on the main edge
-        t2 = (cx - R * n[0], R - R * n[1])             # tangent on the minor edge
-        a0, a1 = math.atan2(t1[1] - R, t1[0] - cx), math.atan2(t2[1] - R, t2[0] - cx)
-        while a1 - a0 > math.pi:
-            a1 -= 2 * math.pi
-        while a0 - a1 > math.pi:
-            a1 += 2 * math.pi
-        parts.append(Part("GUIDE", [W(*p) for p in _arc(c, R, a0, a1)]))
-        # minor edge from the tangent point outwards
+        corner = "left_turn" if sgn == -F.sigma else "other"
+        slip = (P.get("slip") or {}).get(corner)
+        if P.get("three_centred", True) and slip:
+            # a corner island: the turning roadway (slip) runs behind it, so the bellmouth is widened and the
+            # return starts from the widened edges, clear of the island by the slip width (RDM/1/3/2/01)
+            r2 = P.get("r2") or min(max(P["return_radius"] / 2.0, 8.0), 12.0)
+            curve, wid = _return_behind_island(F, corner, p0, (dx, dy), sgn, r2 * s, slip * s, W)
+            parts.append(Part("GUIDE", [W(*p) for p in curve]))
+            # the widened edges and their tapers back to the road edges
+            taper = float(P.get("slip_taper", 30.0)) * s
+            x0 = curve[0][0]
+            st_ = lambda x: F.al.station_offset(*W(x, 0.0)).station
+            ss = sorted((st_(x0 + sgn * taper), st_(x0), st_(0.0)))
+            rows.append({"road": "main", "side": F.side, "stations": [ss[0], ss[1], ss[2], ss[2]] if sgn < 0 else
+                         [ss[0], ss[0], ss[1], ss[2]], "entry": round(taper, 1), "exit": 0.0, "depth": round(wid, 2),
+                         "kind": "bellmouth behind a corner island", "taper": "straight"})
+            parts.append(Part("GUIDE", [W(x0, wid), W(x0 + sgn * taper, 0.0)]))
+            q_end = curve[-1]
+            back = (q_end[0] + taper * dx - n[0] * wid, q_end[1] + taper * dy - n[1] * wid)
+            parts.append(Part("GUIDE", [W(*q_end), W(*back)]))
+            t2 = back
+        elif P.get("three_centred", True):
+            # RDM 1.3 Figure 9.25: three-centred return R1 : R2 : R3 = 2 : 1 : 3, R2 8-12 m
+            r2 = P.get("r2") or min(max(P["return_radius"] / 2.0, 8.0), 12.0)
+            curve = three_centred_return(p0, (dx, dy), sgn, r2 * s)
+            parts.append(Part("GUIDE", [W(*p) for p in curve]))
+            t2 = curve[-1]
+        else:
+            cx = p0[0] + (R - (R - p0[1]) * n[1]) / n[0]
+            c = (cx, R)
+            t1 = (cx, 0.0)                                 # tangent on the main edge
+            t2 = (cx - R * n[0], R - R * n[1])             # tangent on the minor edge
+            a0, a1 = math.atan2(t1[1] - R, t1[0] - cx), math.atan2(t2[1] - R, t2[0] - cx)
+            while a1 - a0 > math.pi:
+                a1 -= 2 * math.pi
+            while a0 - a1 > math.pi:
+                a1 += 2 * math.pi
+            parts.append(Part("GUIDE", [W(*p) for p in _arc(c, R, a0, a1)]))
+        # minor edge from the tangent point outwards (flared, then tapering back to its normal line)
         k = (t2[0] - p0[0]) * dx + (t2[1] - p0[1]) * dy
-        parts.append(Part("GUIDE", [W(t2[0], t2[1]), W(p0[0] + (k + reach) * dx, p0[1] + (k + reach) * dy)]))
+        if fh > 0 and f_to > k:
+            a_ = (p0[0] + f_to * dx, p0[1] + f_to * dy)
+            b_ = (p_n[0] + (f_to + f_taper) * dx, p_n[1] + (f_to + f_taper) * dy)
+            far = max(reach, f_to + f_taper + 5.0)
+            parts.append(Part("GUIDE", [W(t2[0], t2[1]), W(*a_), W(*b_),
+                                        W(p_n[0] + far * dx, p_n[1] + far * dy)]))
+        else:
+            parts.append(Part("GUIDE", [W(t2[0], t2[1]), W(p0[0] + (k + reach) * dx, p0[1] + (k + reach) * dy)]))
         # Rc arc: tangent to the main-road centreline (y = -e), through the splitter nose N
         N = (nose * s * dx, nose * s * dy)
         h = rc - (N[1] + F.e)
@@ -572,7 +800,83 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
             parts.append(Part("GUIDE", [W(*p) for p in _arc(cc, rc, a0, a1)]))
     # main edge on the minor side, following the alignment
     parts.append(Part("GUIDE", [_main_edge(F, k / 2.0) for k in range(int(-reach * 2 / s), int(reach * 2 / s) + 1)]))
-    return Piece(piece, spec["name"], "guide", "", parts, {}, P)
+    return Piece(piece, spec["name"], "guide", "", parts, {}, dict(P, rows=rows))
+
+
+def _signal_crossroads(F: Frame, spec, P, piece, T) -> Piece:
+    """A four-arm signal-controlled crossroads without islands (RDM 6.1 7.8, Figure 7.12), single
+    carriageways: kerb returns on the four corners (guides), and on every arm a pedestrian crossing in BM02
+    blocks where the kerb runs straight, the TM01 stop line across the approach half behind it, an LM24 centre
+    line leading in and an AM07 arrow in the approach lane. Not scaled; the signals are designed separately."""
+    O, t, d = F.p0, F.t, F.d
+    e = F.e                                   # main road half-width (edge offset)
+    w = float(P.get("minor_half", 3.5))       # minor road half-width
+    R = float(P.get("return_radius", 12.0))
+    cw = float(P.get("crossing", 3.0))        # BM02: 3 m blocks along the road
+    gap = float(P.get("stop_gap", 1.5))       # stop line this far behind the crossing
+    L_cl = float(P.get("centre_line", 30.0))
+    nl = lambda u: (-u[1], u[0])
+    add = lambda a, b, k=1.0: (a[0] + k * b[0], a[1] + k * b[1])
+    cross2 = lambda a, b: a[0] * b[1] - a[1] * b[0]
+    nm, nd = nl(t), nl(d)
+    parts: List[Part] = []
+    reach = {}                               # arm -> distance of the furthest kerb tangent from O along it
+    for sm in (1, -1):
+        for sd in (1, -1):
+            # fillet centre: R outside both edges of the corner (main edge sm, minor edge sd)
+            A = add(O, nm, sm * (e + R))
+            B = add(O, nd, sd * (w + R))
+            den = cross2(t, d)
+            lam = cross2((B[0] - A[0], B[1] - A[1]), d) / den
+            C = add(A, t, lam)
+            T1 = add(C, nm, -sm * R)          # on the main edge
+            T2 = add(C, nd, -sd * R)          # on the minor edge
+            a0 = math.atan2(T1[1] - C[1], T1[0] - C[0])
+            a1 = math.atan2(T2[1] - C[1], T2[0] - C[0])
+            da = math.remainder(a1 - a0, 2 * math.pi)
+            parts.append(Part("GUIDE", [(C[0] + R * math.cos(a0 + da * k / 24), C[1] + R * math.sin(a0 + da * k / 24))
+                                        for k in range(25)]))
+            # this corner's road edges, on from its tangent points
+            parts.append(Part("GUIDE", [T1, add(T1, t, (1 if (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1] > 0 else -1) * 40.0)]))
+            parts.append(Part("GUIDE", [T2, add(T2, d, (1 if (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1] > 0 else -1) * 40.0)]))
+            km = (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1]
+            kd = (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1]
+            for arm, k in ((("m", 1 if km > 0 else -1), abs(km)), (("d", 1 if kd > 0 else -1), abs(kd))):
+                reach[arm] = max(reach.get(arm, 0.0), k)
+    L_arrow = arrow_length(F.al.speed_at(F.pl.station) or 50.0)
+    for (ax, sg), k in reach.items():
+        u, n_, half = (t, nm, e) if ax == "m" else (d, nd, w)
+        x0 = k + 0.5                                                     # crossing's near edge
+        # BM02 blocks across the full width, 0.5 m wide, 0.5 m apart
+        o = -half + 0.25
+        while o + 0.5 <= half - 0.25 + 1e-6:
+            q = [add(add(O, u, sg * x0), n_, o), add(add(O, u, sg * (x0 + cw)), n_, o),
+                 add(add(O, u, sg * (x0 + cw)), n_, o + 0.5), add(add(O, u, sg * x0), n_, o + 0.5)]
+            parts.append(Part("BM02", q, True))
+            o += 1.0
+        # traffic arriving on this arm heads -sg*u and keeps left: its lane is on the -sg side of n_
+        xs = x0 + cw + gap
+        side = -sg
+        parts.append(Part("TM01", [add(add(O, u, sg * xs), n_, 0.0), add(add(O, u, sg * xs), n_, side * half)]))
+        parts.append(Part("LM24", [add(O, u, sg * xs), add(O, u, sg * (xs + L_cl))]))
+        lane_c = side * half / 2
+        for poly in arrow_shapes("all", L_arrow):
+            # arrow x runs tail -> tip towards the junction
+            parts.append(Part("AM07", [add(add(O, u, sg * (xs + 2.0 + L_arrow - x)), n_, lane_c - sg * y)
+                                       for x, y in poly], True))
+    q: Dict[str, float] = {}
+    codes = T["codes"]
+    for pt in parts:
+        if pt.code == "GUIDE":
+            continue
+        if codes[pt.code].get("fill"):
+            q[f"{pt.code}_no"] = q.get(f"{pt.code}_no", 0) + 1
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + area(pt.pts), 3)
+        else:
+            ln = length(pt.pts)
+            q[f"{pt.code}_m"] = round(q.get(f"{pt.code}_m", 0.0) + ln, 3)
+            q["paint_m2"] = round(q.get("paint_m2", 0.0) + ln * codes[pt.code]["width"], 3)
+    return Piece(piece, spec["name"], "marking", "", parts, q, dict(P, arms=len(reach)))
 
 
 SPLAY_KINDS = (("approach", "SPLAY-A"), ("stop", "SPLAY-S"))
@@ -622,6 +926,70 @@ def _splays(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "splay", "", parts, {}, P)
 
 
+def approach_splay(our, pl: Placement, main, speed: Optional[float] = None, criteria: Optional[str] = None,
+                   lane: float = 1.75, edge_add: float = 0.0) -> Piece:
+    """The minor road approach visibility splay of RDM 1.3 Figure 9.13, where our road is the minor road: the
+    area between our approach lane and the sight lines from drivers up to one stopping sight distance (at
+    our road's design speed) back from the give way line to the line and its sign. On a bend it lies across
+    the inside of the curve and must be kept clear; params['clear_m'] is how far it reaches beyond the lane
+    centre, measured square to the road."""
+    from .criteria import DEFAULT_ID, Criteria
+    if pl.role != "minor" or pl.our_station is None:
+        raise ValueError("The approach splay is for a junction where our road is the minor road")
+    T = load_templates()
+    spec = T["pieces"]["approach_splay"]
+    crit = Criteria.load(criteria or DEFAULT_ID)
+    F = pl.frame(main)
+    if edge_add:
+        F.e += edge_add
+        F.u_edge = F.e / F.sin
+    s0 = pl.our_station
+    _, _, h = our.point_at(s0)
+    dirn = 1 if math.cos(pl.bearing - h) > 0 else -1          # our leg runs this way in chainage
+    sg = min(max(s0 + dirn * (F.u_edge + 0.5), our.sta_start), our.sta_end)       # the give way line
+    v = speed or our.speed_at(sg) or 50.0
+    ssd = crit.ssd(v)
+    off = lane * dirn                                           # the approaching traffic keeps left
+    far = min(max(sg + dirn * ssd, our.sta_start), our.sta_end)
+    n = max(2, int(abs(far - sg) / 2.0) + 1)
+    path = [our.point_at(sg + (far - sg) * k / (n - 1), off)[:2] for k in range(n)]
+    target = path[0]
+    # how far the sight lines reach from the lane, square to the road
+    clear = 0.0
+    for e in path[1:]:
+        ex, ey = e[0] - target[0], e[1] - target[1]
+        L = math.hypot(ex, ey) or 1.0
+        for q in path[1:]:
+            st_q = our.station_offset(*q).station
+            if (st_q - sg) * dirn > (our.station_offset(*e).station - sg) * dirn:
+                break
+            d = abs((q[0] - target[0]) * ey - (q[1] - target[1]) * ex) / L
+            clear = max(clear, d)
+    ring = [target] + path[1:]
+    parts = [Part("SPLAY-M", ring, True)]
+    P = {"speed": round(v, 1), "ssd": round(ssd, 1), "clear_m": round(clear, 2), "give_way": round(sg, 3),
+         "far": round(far, 3), "short": abs(far - sg) < ssd - 1e-6, "ref": "RDM 1.3 9.5.4, Figure 9.13"}
+    return Piece("approach_splay", spec["name"], "splay", "", parts, {"splay_m2": round(area(ring), 1)}, P)
+
+
+def approach_splay_findings(ms: dict) -> List[Tuple[str, str]]:
+    """(level, text) from a minor-approach splay record (approach_splay params + obstructions)."""
+    out = []
+    if not ms:
+        return out
+    if ms.get("clear_m", 0) > 1.5:
+        out.append(("info", f"our approach curves: keep the inside of the bend clear for {ms['clear_m']:.1f} m from "
+                            f"the lane centre over the {ms['ssd']:.0f} m stopping sight distance at "
+                            f"{ms['speed']:.0f} km/h, and the Give Way sign inside the splay ({ms['ref']})"))
+    if ms.get("short"):
+        out.append(("info", f"our road ends within the {ms['ssd']:.0f} m stopping sight distance of the give way "
+                            f"line: check the approach beyond it ({ms['ref']})"))
+    for o in ms.get("obstructions", []):
+        out.append(("check", f"{o['layer']} feature {o['fid']} is inside the minor road approach visibility splay "
+                             f"({ms['ref']})"))
+    return out
+
+
 def splay_findings(sight: dict) -> List[Tuple[str, str]]:
     """(level, text) from a junction's splay record (Piece.params of 'splays', plus 'obstructions' if checked)."""
     out = []
@@ -646,6 +1014,8 @@ def splay_findings(sight: dict) -> List[Tuple[str, str]]:
         out.append(("info", "visibility splays not checked against obstruction layers (buildings, trees, fences); "
                             "tick them on the Junctions + bays tab and press Check splays"))
     for o in sight.get("obstructions", []):
+        if o["kind"] == "minor":
+            continue                                   # reported with the approach splay
         what = "approach (give way)" if o["kind"] == "approach" else "stop"
         lvl = "issue" if o["kind"] == "stop" else "check"
         out.append((lvl, f"{o['layer']} feature {o['fid']} is inside the {what} visibility splay "
@@ -683,6 +1053,11 @@ def _roundabout(F: Frame, spec, P, piece) -> Piece:
     raw, q, detail, PP = RB.build(O, arms, P)
     parts = [Part(code, pts, closed) for code, pts, closed in raw]
     notes = RB.checks(arms, PP, q)
+    paths = RB.entry_paths(O, arms, PP, q)
+    v_here = al.speed_at(pl.station) or 80.0
+    compact = RB.COMPACT_ICD[0] <= q["icd"] <= RB.COMPACT_ICD[1] and v_here <= 70.0
+    notes += RB.entry_path_checks(paths, q, compact)
+    q["entry_path_r"] = [round(p["radius"], 1) if p["radius"] != math.inf else None for p in paths]
     crit = Criteria.load(P.get("criteria") or DEFAULT_ID)
     for d in detail:                                   # our approaches: the entry seen from the SSD (10.4.4)
         if d["src"] != "ours" or d["station"] is None:
@@ -825,6 +1200,21 @@ def widen_at(t: float, A: float, B: float, C: float, depth: float, straight: boo
     return depth * (1 - u / C) if straight else depth * (1 + math.cos(math.pi * u / C)) / 2
 
 
+EDGE_CODES = ("ETW", "EOP", "EP", "EOTW", "EdgeOfPavement", "Edge")     # carriageway edge, in order of preference
+
+
+def edge_code(al, side: str, prefer: Optional[str] = None) -> Optional[str]:
+    """The corridor's carriageway edge code on a side: `prefer` if the corridor has it, else the first of
+    EDGE_CODES it has (Civil 3D subassemblies name the edge differently); None without edges."""
+    e = getattr(al, "edges", None)
+    if not e:
+        return None
+    for code in ((prefer,) if prefer else ()) + EDGE_CODES:
+        if e.data.get((code, side)):
+            return code
+    return None
+
+
 def base_edge(al, side: str, lo: float, hi: float, code: str = "ETW", threshold: float = WIDEN_TOL):
     """The corridor edge before a widening between stations lo and hi: (f(station) -> offset or None, widened).
     Where the corridor's sections inside lo..hi stand out from the line between the nearest sections outside
@@ -861,15 +1251,17 @@ def widening_check(al, bay: dict) -> List[Tuple[str, str]]:
     bay: the stored record (stations, side, depth, entry, exit, taper, kind)."""
     e = getattr(al, "edges", None)
     kind = bay.get("kind", "bus bay")
-    pts = (e.data.get(("ETW", bay["side"])) if e else None) or []
+    code = edge_code(al, bay["side"], bay.get("edge_code"))
+    pts = (e.data.get((code, bay["side"])) if e and code else None) or []
     if not pts:
-        return [("info", f"{kind}: the corridor has no ETW edge on that side, so the widening cannot be compared")]
+        return [("info", f"{kind}: the corridor has no carriageway edge ({', '.join(EDGE_CODES)}) on that side, so "
+                         f"the widening cannot be compared")]
     s0, s1, s2, s3 = bay["stations"]
     dirn = 1 if s3 >= s0 else -1
     A, C, depth = float(bay["entry"]), float(bay["exit"]), float(bay["depth"])
     B = abs(s2 - s1)
     lo, hi = sorted((s0, s3))
-    base, widened = base_edge(al, bay["side"], lo, hi)
+    base, widened = base_edge(al, bay["side"], lo, hi, code)
     inside = [(st, o) for st, o in pts if lo - 1e-6 <= st <= hi + 1e-6]
     if not inside:
         return [("info", f"{kind}: no corridor section inside it, so the widening cannot be compared")]
@@ -893,6 +1285,32 @@ def widening_check(al, bay: dict) -> List[Tuple[str, str]]:
     return [("info", f"{kind}: matches the corridor within {WIDEN_TOL:g} m at {len(devs)} section(s)")]
 
 
+# a plain stroke font for the word markings (unit box: x across 0-1, y along the road 0-1, elongated letters)
+GLYPHS = {
+    "B": [[(0, 0), (0, 1), (0.7, 1), (1, 0.85), (1, 0.62), (0.7, 0.5), (0, 0.5)],
+          [(0.7, 0.5), (1, 0.38), (1, 0.15), (0.7, 0), (0, 0)]],
+    "U": [[(0, 1), (0, 0.2), (0.25, 0), (0.75, 0), (1, 0.2), (1, 1)]],
+    "S": [[(1, 0.85), (0.75, 1), (0.25, 1), (0, 0.85), (0, 0.62), (0.25, 0.5), (0.75, 0.5), (1, 0.38), (1, 0.15),
+           (0.75, 0), (0.25, 0), (0, 0.15)]],
+    "T": [[(0, 1), (1, 1)], [(0.5, 1), (0.5, 0)]],
+    "O": [[(0.25, 0), (0.75, 0), (1, 0.2), (1, 0.8), (0.75, 1), (0.25, 1), (0, 0.8), (0, 0.2), (0.25, 0)]],
+    "P": [[(0, 0), (0, 1), (0.75, 1), (1, 0.85), (1, 0.62), (0.75, 0.5), (0, 0.5)]],
+}
+WORD_STROKE = 0.2                   # m: painted stroke of a 2.5 m letter (indicative, for the painted area)
+
+
+def word_strokes(word: str, h: float) -> List[List[Pt]]:
+    """A word marking as stroke polylines, centred on x = 0 (across the lane), y from 0 to h (along the road)."""
+    w, gap = 0.15 + 0.16 * h, 0.15 * h / 2.5 + 0.05
+    total = len(word) * w + (len(word) - 1) * gap
+    out = []
+    for i, ch in enumerate(word):
+        x0 = -total / 2 + i * (w + gap)
+        for stroke in GLYPHS[ch]:
+            out.append([(x0 + x * w, y * h) for x, y in stroke])
+    return out
+
+
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
@@ -900,7 +1318,8 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     straight = P.get("taper") == "straight"
     # the edge before the widening: the corridor's ETW, or the line under it where the re-imported corridor
     # already carries the widening (so the bay does not widen twice)
-    base, _ = base_edge(al, "L" if sg < 0 else "R", *sorted((s0, s3)),
+    ecode = edge_code(al, "L" if sg < 0 else "R", P.get("edge_code")) or "ETW"
+    base, _ = base_edge(al, "L" if sg < 0 else "R", *sorted((s0, s3)), ecode,
                         threshold=max(WIDEN_TOL, 0.5 * float(P.get("depth") or 3.0)))
     if lane and not P.get("depth"):                            # as wide as the reduced through lane (6.6.3)
         e0 = base(s1)
@@ -936,7 +1355,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
              "LM03_m": round(lm["LM03"], 2),
              "paint_m2": round((lm["LM26"] + lm["LM03"]) * 0.1, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind="climbing lane")
+                 kind="climbing lane", edge_code=ecode)
         return Piece(piece, spec["name"], "lane", "", parts, q, P)
     widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
     sep = []                                   # separation line along the carriageway edge, 1 m marks, 1 m gaps
@@ -951,7 +1370,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         q = {"edge_m": round(length(kerb), 2), "widen_m2": round(widen_area, 2), "LM05_m": round(lm05, 2),
              "paint_m2": round(lm05 * 0.2, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind=BAY_KINDS[piece], taper=P.get("taper"))
+                 kind=BAY_KINDS[piece], taper=P.get("taper"), edge_code=ecode)
         return Piece(piece, spec["name"], "bay", "", parts, q, P)
     parts = [Part("KERB", kerb)]
     # loading platform behind the kerb along the bay, hatched
@@ -963,16 +1382,34 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         s = b0 + k * 1.0
         parts.append(Part("BUSPLAT", [pt(s - 0.5, edge(s) + depth), pt(s + 0.5, edge(s) + depth + plat)]))
     parts += sep
+    # BUS STOP word marking in each 15 m box of the bay (RDM 6.1 10.3, letters per Table 6.2), read in the
+    # direction of travel: BUS nearer the approaching driver, STOP beyond it
+    if P.get("word", True) and abs(b1 - b0) >= 10.0:
+        v = al.speed_at((b0 + b1) / 2) or 50.0
+        h = 1.25 if v <= 50 else 2.5
+        boxes = max(1, int(abs(b1 - b0) // 15.0))
+        box = abs(b1 - b0) / boxes
+        o_mid = lambda st: edge(st) + depth / 2
+        first = b0 if dirn > 0 else b1
+        for k in range(boxes):
+            centre = first + dirn * box * (k + 0.5)
+            for word, back in (("BUS", -(h + 0.5)), ("STOP", 0.5)):
+                for stroke in word_strokes(word, h):
+                    # glyph x to the reader's right (dirn sign on the right-positive offset), y up = travel
+                    parts.append(Part("WM-BUSSTOP", [al.point_at(centre + dirn * (back + y), sg * o_mid(centre)
+                                                                 + dirn * x)[:2] for x, y in stroke]))
     # indicative shelter position behind the platform, mid-bay
     if P.get("shelter"):
         m, L = (b0 + b1) / 2, P["shelter"] / 2
         o0, o1 = edge(m) + depth + plat + 0.5, edge(m) + depth + plat + 2.5
         parts.append(Part("SHELTER", [pt(m - L, o0), pt(m + L, o0), pt(m + L, o1), pt(m - L, o1)], True))
+    wm = sum(length(p.pts) for p in parts if p.code == "WM-BUSSTOP")
     q = {"kerb_m": round(length(kerb), 2), "raised_kerb_m": round(abs(s2 - s1) + 2 * ramp, 2),
+         "WM-BUSSTOP_m": round(wm, 2), "WM-BUSSTOP_no": max(1, int(abs(s2 - s1) // 15.0)) if wm else 0,
          "island_m2": round(area(plat_ring), 2), "widen_m2": round(widen_area, 2),
-         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.2, 3)}
+         "LM05_m": round(lm05, 2), "paint_m2": round(lm05 * 0.2 + wm * WORD_STROKE, 3)}
     P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-             kind="bus bay")
+             kind="bus bay", edge_code=ecode)
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
 
 
@@ -992,32 +1429,72 @@ def grade_limit(g: float) -> Optional[float]:
     return 500.0 * 8.0 / g
 
 
-def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0) -> List[dict]:
-    """Climbing lanes the profile asks for (RDM 1.3 6.6): an up-grade longer than its Table 6.6 limit gets a
-    lane from where that limit is reached to `merge` m past the end of the grade, on the uphill traffic's
-    left (Kenya drives on the left). AADT under 2000 pcu: none (6.6.2)."""
+RECOVERY = 300.0                    # m: a truck regains its speed over about this much level road (indicative)
+
+
+def climbing_lanes(al, aadt: Optional[float] = None, merge: float = 200.0, step: float = 5.0,
+                   join: float = 150.0) -> List[dict]:
+    """Climbing lanes the profile asks for (RDM 1.3 6.6), on the uphill traffic's left (Kenya drives on the
+    left). AADT under 2000 pcu: none (6.6.2).
+
+    The truck's speed loss is followed along the design profile, vertical curves included, rather than
+    grade by grade: every metre on an up-grade over 3 % uses 1 / (its Table 6.6 length) of the allowance,
+    and ground of 3 % or less (no limit in Table 6.6) gives it back over RECOVERY m.
+    A lane starts where the allowance runs out and ends `merge` m past the end of that climb (the allowance
+    cannot run below the truck's crawl speed); consecutive steep grades therefore count together, and lanes
+    less than `join` m apart are joined into one."""
     pr = getattr(al, "profile", None)
-    if pr is None or (aadt is not None and aadt < 2000):
+    if pr is None or not pr.pvis or (aadt is not None and aadt < 2000):
         return []
-    pv = [(s, z) for s, z, _ in pr.pvis]
+    lo, hi = max(al.sta_start, pr.start), min(al.sta_end, pr.end)
+    if hi - lo < step:
+        return []
+    n = int((hi - lo) / step)
+    ss = [lo + (hi - lo) * k / n for k in range(n + 1)]
+    note = ("consider: AADT 2000-6000 pcu with limited passing" if aadt is not None and aadt <= 6000
+            else "normally required above 6000 pcu AADT" if aadt is not None else "AADT not given")
     out = []
-    for (sa, za), (sb, zb) in zip(pv, pv[1:]):
-        L = sb - sa
-        if L <= 0:
-            continue
-        g = (zb - za) / L * 100.0
-        lim = grade_limit(g)
-        if lim is None or L <= lim:
-            continue
-        if g > 0:          # uphill with the chainage: traffic on the left of it
-            start, end, side = sa + lim, min(sb + merge, al.sta_end), "L"
-        else:              # uphill against the chainage: traffic on the right
-            start, end, side = sb - lim, max(sa - merge, al.sta_start), "R"
-        note = ("consider: AADT 2000-6000 pcu with limited passing" if aadt is not None and aadt <= 6000
-                else "normally required above 6000 pcu AADT" if aadt is not None else "AADT not given")
-        out.append({"start": start, "end": end, "side": side, "grade": round(g, 2), "length": round(L, 1),
-                    "limit": round(lim, 1), "note": note})
-    return out
+    for d, side in ((1, "L"), (-1, "R")):                  # traffic with the chainage, then against it
+        seq = ss if d > 0 else ss[::-1]
+        use, lanes, cur, climb = 0.0, [], None, 0.0
+        for a, b in zip(seq, seq[1:]):
+            g = (pr.grade((a + b) / 2) or 0.0) * d
+            ds = abs(b - a)
+            lim = grade_limit(g) if g > 0 else None
+            if lim is not None:
+                use = min(1.0, use + ds / lim)               # at most: the truck down to its crawl speed
+                climb += ds                                  # steep metres since the truck last recovered
+            else:
+                use = max(0.0, use - ds / RECOVERY)          # 3 % or less: no limit in Table 6.6
+                if use == 0.0:
+                    climb = 0.0
+            if use >= 1.0 and cur is None:
+                cur = {"start": b, "climb_end": b, "gmax": g, "steep": climb - (ds if lim is not None else 0.0)}
+            if cur is not None:
+                if lim is not None:
+                    cur["climb_end"] = b
+                    cur["gmax"] = max(cur["gmax"], g)
+                    cur["steep"] += ds
+                elif abs(b - cur["climb_end"]) >= merge:     # the lane ends `merge` m past its climb
+                    lanes.append(cur)
+                    cur = None
+        if cur is not None:
+            lanes.append(cur)
+        joined = []
+        for ln in lanes:
+            if joined and abs(ln["start"] - joined[-1]["climb_end"]) - merge < join:
+                joined[-1].update(climb_end=ln["climb_end"], gmax=max(joined[-1]["gmax"], ln["gmax"]),
+                                  steep=joined[-1]["steep"] + ln["steep"], joined=True)
+            else:
+                joined.append(dict(ln))
+        for ln in joined:
+            end = ln["climb_end"] + d * merge
+            end = min(max(end, al.sta_start), al.sta_end)
+            out.append({"start": round(ln["start"] / 10.0) * 10.0, "end": round(end / 10.0) * 10.0, "side": side,
+                        "grade": round(ln["gmax"] * d, 2), "length": round(ln["steep"], 1),
+                        "limit": round(grade_limit(ln["gmax"]), 1), "note": note
+                        + ("; consecutive steep grades taken together" if ln.get("joined") else "")})
+    return sorted(out, key=lambda c: min(c["start"], c["end"]))
 
 
 def place_lane(al, start: float, end: float, side: str, **kw):
@@ -1058,12 +1535,29 @@ def build_kit(al, pl: Placement, jtype: str, templates: Optional[dict] = None,
     return out
 
 
+def kit_edge_add(T: dict, jtype: str) -> float:
+    """How far a kit's main-road widening moves the edge on the minor road's side (half its width)."""
+    for it in T["kits"].get(jtype, []):
+        if it["piece"] == "main_widening":
+            return float(dict(T["pieces"]["main_widening"]["params"], **(it.get("params") or {}))["width"]) / 2
+    return 0.0
+
+
+def with_edge_add(T: dict, jtype: str, item: dict) -> dict:
+    """The kit item with the kit's edge widening passed to pieces off the main road."""
+    item = dict(item)
+    ea = kit_edge_add(T, jtype)
+    if ea and T["pieces"][item["piece"]]["frame"] != "main" and item["piece"] != "main_widening":
+        item["params"] = dict(item.get("params") or {}, edge_add=ea)
+    return item
+
+
 def kit_items(T: dict, jtype: str, guides: bool = True, splays: bool = True, second_leg: bool = False) -> List[dict]:
-    """The kit's items as placed: without guides / splays when switched off, and without the main-road pieces
-    on the second leg of a crossroads."""
-    return [dict(it) for it in T["kits"][jtype]
+    """The kit's items as placed: without guides / splays when switched off, without the main-road pieces
+    on the second leg of a crossroads, and with the kit's main-road widening passed to the others."""
+    return [with_edge_add(T, jtype, it) for it in T["kits"][jtype]
             if (guides or it["piece"] != "guides") and (splays or it["piece"] != "splays")
-            and not (second_leg and T["pieces"][it["piece"]]["frame"] == "main")]
+            and not (second_leg and T["pieces"][it["piece"]]["frame"] in ("main",) )]
 
 
 def findings(al, pl: Placement) -> List[Tuple[str, str]]:
@@ -1090,3 +1584,90 @@ def findings(al, pl: Placement) -> List[Tuple[str, str]]:
 def skew_degrees(al, pl: Placement) -> float:
     """Departure from square, degrees (0 = square, positive when the minor road leans along the chainage)."""
     return round(90.0 - pl.frame(al).angle, 1)
+
+
+# --------------------------------------------------------------------------- junction warning signs
+JUNCTION_KITS = ("A-1", "A-2", "B", "B-Mod", "C")
+SIGNAL_KITS = ("SIG",)
+WARN_CODES = ("W1", "W2", "W5", "W11", "W12", "W46")
+CROSS_TOL = 10.0                    # m: side roads on opposite sides closer than this make a crossroads
+STAGGER = 60.0                      # m: RDM 6.2 4.2.1 - staggered crossroads sign where junctions are this close
+
+
+@dataclass
+class JunctionAt:
+    """What the warning signs need to know of a placed junction (see JunctionStore.warning_inputs)."""
+    id: str
+    role: str                       # main: a side road on our road; minor: our road meets a greater road
+    station: float                  # on our road
+    side: str = "L"                 # main role: side of the side road (L / R of the chainage direction)
+    up: bool = True                 # minor role: our leg runs towards higher chainage from the junction
+    crossing: bool = False          # minor role: our road crosses the main road (crossroads)
+    kit: str = ""
+
+
+def junction_warnings(al, junctions: Sequence[JunctionAt], speed=None) -> List["object"]:
+    """Junction Ahead warning signs (RDM 6.2 4.2) for the junctions on our road, as autoplace Proposals
+    with the rule junction:<id>:
+
+    - our road is the main road (4.2.1): W2 Side Road for a side road (mirrored for one on the traveller's
+      left), W1 Crossroads where side roads leave on both sides within 10 m, W5 Staggered Crossroads where
+      they are on opposite sides within 60 m;
+    - our road meets a road of greater importance (4.2.3): W12 T Junction, or W11 Crossroads where our road
+      crosses it, on our approach.
+    Each sign stands the RDM 6.2 2.4 advance distance before the junction, on the left of the traffic."""
+    from .autoplace import Proposal, advance_distance
+    out = []
+    v_at = speed or (lambda s: al.speed_at(s) or 80.0)
+    for j in junctions:                                     # signals: W46 on our approaches (RDM 6.2)
+        if j.kit not in SIGNAL_KITS:
+            continue
+        dirs = (1, -1) if j.role == "main" or j.crossing else ((-1,) if j.up else (1,))
+        a = advance_distance(v_at(j.station))
+        for d in dirs:
+            s = j.station - d * a
+            if al.sta_start <= s <= al.sta_end:
+                out.append(Proposal("W46", s, "L" if d > 0 else "R", "Forward" if d > 0 else "Backward",
+                                    f"junction:{j.id}", f"Traffic signals {a:.0f} m ahead (RDM 6.2)"))
+    junctions = [j for j in junctions if j.kit not in SIGNAL_KITS]
+    main = sorted([j for j in junctions if j.role == "main" and j.kit in JUNCTION_KITS], key=lambda j: j.station)
+    for d in (1, -1):                                       # 1: traffic in the chainage direction
+        seq = main if d > 0 else main[::-1]
+        used = set()
+        for i, j in enumerate(seq):
+            if j.id in used:
+                continue
+            nxt = next((k for k in seq[i + 1:] if abs(k.station - j.station) <= STAGGER), None)
+            group = [j]
+            if nxt is not None and nxt.side != j.side:
+                group.append(nxt)
+            used.update(k.id for k in group)
+            # side as the traveller sees it: L of the chainage direction is the left of forward traffic
+            left = (j.side == "L") == (d > 0)
+            if len(group) == 2 and abs(group[1].station - j.station) <= CROSS_TOL:
+                code, mirror, what = "W1", False, "Crossroads"
+            elif len(group) == 2:
+                code, mirror, what = "W5", not left, "Staggered crossroads (first side road on the " \
+                                                     f"{'left' if left else 'right'})"
+            else:
+                code, mirror, what = "W2", left, f"Side road on the {'left' if left else 'right'}"
+            sta0 = j.station
+            a = advance_distance(v_at(sta0))
+            s = sta0 - d * a
+            if not (al.sta_start <= s <= al.sta_end):
+                continue
+            out.append(Proposal(code, s, "L" if d > 0 else "R", "Forward" if d > 0 else "Backward",
+                                f"junction:{j.id}", f"{what} {a:.0f} m ahead (RDM 6.2 4.2.1)", mirror))
+    for j in junctions:
+        if j.role != "minor":
+            continue
+        a = advance_distance(v_at(j.station))
+        # traffic heading for the main road travels against the leg's direction
+        s = j.station + a if j.up else j.station - a
+        if not (al.sta_start <= s <= al.sta_end):
+            continue
+        code, what = ("W11", "Crossroads with a road of greater importance") if j.crossing else \
+            ("W12", "T junction with a road of greater importance")
+        out.append(Proposal(code, s, "R" if j.up else "L", "Backward" if j.up else "Forward",
+                            f"junction:{j.id}", f"{what} {a:.0f} m ahead (RDM 6.2 4.2.3)"))
+    return out

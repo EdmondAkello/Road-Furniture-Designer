@@ -26,7 +26,7 @@ The dock's project summary shows which of these were found.
 
 ## Compatibility and validation
 
-- **QGIS 3.34+:** 318 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 55 headless QGIS tests pass on QGIS 3.34 and 3.44 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. Junctions, accesses, bays, climbing lanes and roundabouts were placed on three of them and run through the report, inventory and DXF. Auto-placement of 850 signs on a 36 km road takes about 2 s. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
+- **QGIS 3.34+:** 326 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 58 headless QGIS tests pass on QGIS 3.34 and 3.44 (offscreen). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. Junctions, accesses, bays, climbing lanes and roundabouts were placed on three of them and run through the report, inventory and DXF. Auto-placement of 850 signs on a 36 km road takes about 2 s. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
 - **Civil 3D:** the georeferenced DXF pasted with COPYBASE 0,0 and PASTEORIG lands on the alignment in a project drawing. The Dynamo route is parked (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures, plus 19 supplementary signs from the Ministry's standard drawings WSCM/84/2/01 (see "Sign catalogue" and "Supplementary signs"). Post and foundation types are generic and project-defined.
 
@@ -430,8 +430,8 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 - Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
 - Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
-- Junction signing (advance direction and direction signs per RDM Table A1-1), and signs on the main road for a junction placed on it.
-- Refinements: minor-road approach visibility on a bend (RDM 1.3 Figure 9.13), BUS word marking, three-centred kerb returns, moving a single piece, right-turn arrows, climbing lanes over consecutive grades and vertical curves, roundabout deflection and fastest paths.
+- Junction signing (advance direction and direction signs per RDM Table A1-1); the Junction Ahead warnings (W1 / W2 / W5 / W11 / W12) are in.
+- Roundabouts: full fastest-path construction (exit and circulating radii, R1 ≤ R2 ≤ R3), multi-lane entries.
 - Dual carriageways.
 - Dynamo route: parked.
 

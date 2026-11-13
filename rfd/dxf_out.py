@@ -514,12 +514,17 @@ def write_junctions(doc, msp, parts):
             doc.layers.add(lay, color=col)
             if code == "GUIDE" and "DASHED" in doc.linetypes:
                 doc.layers.get(lay).dxf.linetype = "DASHED"
+        fill = codes.get(code, {}).get("fill")
         for pts in lines:
             if len(pts) < 2:
                 continue
             closed = len(pts) > 2 and pts[0] == pts[-1]
             pl = msp.add_lwpolyline(pts[:-1] if closed else pts, close=closed, dxfattribs={"layer": lay})
             pl.set_xdata(APPID, [(1000, "rsd-junction/0.1"), (1000, code), (1040, float(sta or 0.0))])
+            if fill and closed:                             # arrows: solid filled, as painted
+                h = msp.add_hatch(dxfattribs={"layer": lay})
+                h.set_solid_fill()
+                h.paths.add_polyline_path(pts[:-1], is_closed=True)
 
 
 def _dash_linetype(doc, mark: float, gap: float) -> str:
@@ -567,22 +572,12 @@ def write_linear(doc, msp, al, runs, cat):
                 c = msp.add_circle((x, y), STUD_RADIUS, dxfattribs={"layer": lay})
                 c.set_xdata(APPID, xd)
             continue
-        d = it.dims(v) if it.is_marking else {}
-        # composite lines (CLS): first kind on the left of chainage direction (traffic keeps left, so the
-        # continuous line there prohibits forward traffic); a flipped run prohibits backward traffic
-        kinds = it.composite or (["line"] * max(1, it.lines if it.is_marking else 1))
-        spacing = float(d.get("spacing") or 0.1) + float(d.get("width") or 0.1)
-        if r.flip:
-            kinds = kinds[::-1]
-        nlines = len(kinds)
-        for j, kind in enumerate(kinds):
-            shift = (j - (nlines - 1) / 2.0) * spacing
-            rr = replace(r, offset=r.offset + (shift if r.side != "L" else -shift))
-            broken = it.is_marking and kind != "continuous" and d.get("mark") and d.get("gap")
+        from .linear import painted_lines
+        for parts, broken, d in painted_lines(al, r, it, step=2.0):
             attrs = {"layer": lay}
             if broken:
                 attrs["linetype"] = _dash_linetype(doc, float(d["mark"]), float(d["gap"]))
-            for pts in geometry(al, rr, step=2.0):
+            for pts in parts:
                 pl = msp.add_lwpolyline(pts, dxfattribs=attrs)
                 if it.is_marking and d.get("width"):
                     pl.dxf.const_width = float(d["width"])

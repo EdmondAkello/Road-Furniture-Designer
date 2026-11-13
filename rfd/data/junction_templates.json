@@ -42,6 +42,11 @@
   "RBT": {
    "name": "Roundabout",
    "drawing": "RDM 1.3 Chapter 10; RDM 6.1 Figures 7.14-7.16"
+  },
+  "SIG": {
+   "name": "Signalised crossroads (four arms, no islands)",
+   "drawing": "RDM 6.1 Figure 7.12",
+   "remark": "Not one of the RDM 1.3 templates: the geometric layout of a four-arm signal-controlled junction of single carriageways (RDM 6.1 7.8, Figure 7.12) - kerb returns, crossings, stop lines, centre lines and arrows. Signals, lane allocation and phasing come from the signals design (RDM 6.3)."
   }
  },
  "codes": {
@@ -175,6 +180,50 @@
     0.6,
     0.3
    ]
+  },
+  "AM03": {
+   "name": "Right arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "AM06": {
+   "name": "Right and left arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "AM07": {
+   "name": "Straight, right and left arrow (RDM 6.1 Table A.5)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "SPLAY-M": {
+   "name": "Minor road approach visibility splay (RDM 1.3 Figure 9.13)",
+   "width": 0.0,
+   "colour": "green"
+  },
+  "WM-BUSSTOP": {
+   "name": "Word marking BUS STOP (RDM 6.1 10.3, Table 6.2)",
+   "width": 0.2,
+   "colour": "white"
+  },
+  "WIDEN": {
+   "name": "Widened carriageway edge for an island (guide for the corridor)",
+   "width": 0.0,
+   "colour": "grey"
+  },
+  "BM02": {
+   "name": "Pedestrian crossing blocks 3000 x 500 mm (RDM 6.1 Table A.4)",
+   "width": 0.0,
+   "colour": "white",
+   "fill": true
+  },
+  "TM01": {
+   "name": "STOP line, continuous 400 mm (RDM 6.1 Table A.2)",
+   "width": 0.4,
+   "colour": "white"
   }
  },
  "pieces": {
@@ -392,9 +441,10 @@
     "return_radius": 15.0,
     "rc": 15.0,
     "reach": 40.0,
-    "nose": 2.0
+    "nose": 2.0,
+    "three_centred": true
    },
-   "remark": "Construction only: no quantities. Kerb returns are single-radius fillets (RDM 1.3 Fig 9.25 uses R1:R2:R3 = 2:1:3 three-centred curves, R2 8-12 m); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1)."
+   "remark": "Construction only: no quantities. Kerb returns are three-centred curves R1 : R2 : R3 = 2 : 1 : 3 (RDM 1.3 Figure 9.25), R2 half the return radius within 8-12 m (set 'r2' to choose it, or 'three_centred': false for a single-radius fillet); Rc arcs are tangent to the main-road centreline and pass through the splitter nose; Rc is the control radius, 15 m recommended (RDM/1/3/2/01 note 1). On a corner with an island the return is drawn from the widened bellmouth, clear of the island by the turning roadway ('slip': 4.9 m in A-1, 5.5 m (W2) in A-2), with the widened edges tapering back over 'slip_taper' (30 m). The minor road's edges flare out by half the splitter's width around it ('minor_flare') and taper back, so its lanes keep their width."
   },
   "bus_bay": {
    "name": "Bus bay (RDM/1/3/3/01)",
@@ -505,6 +555,89 @@
     "criteria": null
    },
    "remark": "Centre on our road; arms where our road and other alignments cross the inscribed circle, plus clicked arms. Central island, outer kerb with entry / exit returns, kerbed splitter islands with hatched lead-ins, TM07 give way and BM07 triangle 2.5 m back on each entry, TM04 across each exit, LM24 on the approach (RDM 6.1 Figure 7.14). Signs: W17 on our approaches, R2 at each entry, M5 on each splitter nose, a W24 chevron on the central island facing each entry."
+  },
+  "turn_arrow": {
+   "name": "Right-turn arrows in the right-turn lane (RDM 6.1 6.4.3)",
+   "types": [
+    "A-1"
+   ],
+   "frame": "main",
+   "kind": "marking",
+   "params": {
+    "at": -6.0,
+    "spacing": 30.0,
+    "count": 2,
+    "y": 0.0,
+    "length": null
+   },
+   "remark": "Two AM03 arrows in the right-turn lane, the first 6 m before the junction point, 30 m apart; length from RDM 6.1 Table 6.1 at the main road's speed. Move them to the lane the junction design gives."
+  },
+  "approach_arrows": {
+   "name": "Arrows on the minor road's approach (RDM 6.1 6.4.3)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "minor",
+   "kind": "marking",
+   "params": {
+    "at": 10.0,
+    "lane": 3.5,
+    "inner": 0.0,
+    "length": 5.0,
+    "crossroads": false
+   },
+   "remark": "AM06 (right and left) on the approach lane, its tip 10 m from the main road's edge; AM07 at a crossroads."
+  },
+  "approach_splay": {
+   "name": "Minor road approach visibility splay (RDM 1.3 Figure 9.13)",
+   "types": [
+    "A-1",
+    "A-2",
+    "B",
+    "B-Mod",
+    "C"
+   ],
+   "frame": "road",
+   "kind": "splay",
+   "params": {},
+   "remark": "Where our road is the minor road: the sight lines from one stopping sight distance back to the give way line and its sign. Added with the splays when our road joins another road."
+  },
+  "main_widening": {
+   "name": "Main road widening for the ghost island (lanes keep their width)",
+   "types": [
+    "A-1",
+    "B-Mod"
+   ],
+   "frame": "main",
+   "kind": "widening",
+   "params": {
+    "width": 3.0,
+    "from": -30.0,
+    "to": 59.5,
+    "taper_from": 60.0,
+    "taper_to": 63.0
+   },
+   "remark": "Both edges move out by half the ghost island's width over the right-turn lane and the island, tapering back; goes into the Widenings table for the Civil 3D corridor. Lengths indicative (RDM/1/3/2/01: 106 m approach taper); set them from the junction design."
+  },
+  "signal_crossroads": {
+   "name": "Signalised crossroads: returns, crossings, stop lines, arrows (RDM 6.1 Figure 7.12)",
+   "types": [
+    "SIG"
+   ],
+   "frame": "road",
+   "kind": "marking",
+   "params": {
+    "return_radius": 12.0,
+    "minor_half": 3.5,
+    "crossing": 3.0,
+    "stop_gap": 1.5,
+    "centre_line": 30.0
+   },
+   "remark": "Four arms: kerb returns (guides, R 12 m), a BM02 crossing where the kerb runs straight, the TM01 stop line 1.5 m behind it across the approach half, 30 m of LM24 and an AM07 arrow on each approach."
   }
  },
  "kits": {
@@ -513,11 +646,25 @@
     "piece": "guides",
     "params": {
      "nose": 3.0,
-     "return_radius": 30.0
+     "return_radius": 30.0,
+     "slip": {
+      "left_turn": 4.9
+     },
+     "minor_flare": {
+      "half": 1.5,
+      "to": 30.0,
+      "taper": 15.0
+     }
     }
    },
    {
     "piece": "ghost_island"
+   },
+   {
+    "piece": "main_widening"
+   },
+   {
+    "piece": "turn_arrow"
    },
    {
     "piece": "splitter_a1"
@@ -549,6 +696,12 @@
     }
    },
    {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.5
+    }
+   },
+   {
     "piece": "splays"
    }
   ],
@@ -557,7 +710,16 @@
     "piece": "guides",
     "params": {
      "nose": 4.0,
-     "return_radius": 30.0
+     "return_radius": 30.0,
+     "slip": {
+      "left_turn": 5.5,
+      "other": 5.5
+     },
+     "minor_flare": {
+      "half": 1.7,
+      "to": 25.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -590,6 +752,12 @@
     }
    },
    {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 2.0
+    }
+   },
+   {
     "piece": "splays"
    }
   ],
@@ -598,7 +766,15 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 25.0
+     "return_radius": 25.0,
+     "slip": {
+      "left_turn": 4.9
+     },
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -627,6 +803,12 @@
     }
    },
    {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
+    }
+   },
+   {
     "piece": "splays"
    }
   ],
@@ -635,7 +817,12 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 15.0
+     "return_radius": 15.0,
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -643,6 +830,16 @@
    },
    {
     "piece": "ghost_wedge"
+   },
+   {
+    "piece": "main_widening",
+    "params": {
+     "width": 3.5,
+     "from": -48.0,
+     "to": 50.0,
+     "taper_from": 30.0,
+     "taper_to": 30.0
+    }
    },
    {
     "piece": "splitter_teardrop"
@@ -663,6 +860,12 @@
     "piece": "minor_centre_line",
     "params": {
      "start": 22.0
+    }
+   },
+   {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
     }
    },
    {
@@ -674,7 +877,12 @@
     "piece": "guides",
     "params": {
      "nose": 2.0,
-     "return_radius": 15.0
+     "return_radius": 15.0,
+     "minor_flare": {
+      "half": 1.7,
+      "to": 22.0,
+      "taper": 15.0
+     }
     }
    },
    {
@@ -696,6 +904,12 @@
     "piece": "minor_centre_line",
     "params": {
      "start": 22.0
+    }
+   },
+   {
+    "piece": "approach_arrows",
+    "params": {
+     "inner": 1.7
     }
    },
    {
@@ -733,6 +947,11 @@
   "RBT": [
    {
     "piece": "roundabout"
+   }
+  ],
+  "SIG": [
+   {
+    "piece": "signal_crossroads"
    }
   ]
  }

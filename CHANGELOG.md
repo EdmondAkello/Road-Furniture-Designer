@@ -4,6 +4,9 @@
 
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
+- **Markings look as painted**: broken lines are dashed at their real mark and gap in metres (rural or urban by speed) on the map and the plan sheets, instead of a screen dash that read as dots; double lines and the combined line show both lines (kept apart on screen at any scale), the CLS's continuous side following "flip".
+- **Climbing lanes over the speed profile**: the proposal follows the trucks along the design profile, vertical curves included, so consecutive steep grades count together, and close lanes are joined.
+- Bays, climbing lanes and the widening round trip use the corridor's carriageway edge whatever it is coded (ETW, EOP, EP, EOTW, EdgeOfPavement, Edge).
 - Junctions: where our road joins or crosses another alignment, the kit faces the leg of our road on the mouse's side, and the preview flips as the mouse moves across the main road. The hover text names the leg. **Both legs** (Junctions tab) places a crossroads: islands, Give Way markings and an R2 on each approach, with the main-road pieces drawn once.
 - Junctions on our road: the minor road's direction follows another alignment of the LandXML when the mouse is within 15 m of it, so it doesn't have to be aimed by hand.
 - Calming tab: **Bar markings on the approaches** sits under the feature type. The placement message says how many bar sets went in, or how to switch them on.
@@ -14,11 +17,26 @@
 - Map tools belong to their tab. Leaving the Linear, Calming or Junctions tab switches its tool off. The hover read-out starts with what a click places (`Linear - BM03:` / `Calming - Circular road hump:`), and the Calming tool has its own cursor.
 
 ### Added
+- **Signalised crossroads** (new type SIG, outside the RDM 1.3 templates; RDM 6.1 7.8, Figure 7.12): four arms of single carriageways without islands — kerb returns (R 12 m) on all corners, a BM02 crossing on every arm where the kerb runs straight, the TM01 stop line 1.5 m behind it across the approach half, 30 m of LM24 and an AM07 arrow on each approach; W46 Traffic Signals Ahead proposed on our approaches. Signals, lanes and phasing stay with the signals design.
+- **Junction Ahead warning signs** (RDM 6.2 4.2) proposed with every junction kit: W2 Side Road on both approaches where our road is the main road (mirrored to the side road's side), W1 Crossroads where side roads leave on both sides within 10 m, W5 Staggered Crossroads within 60 m, and W12 / W11 on our approach where our road meets a road of greater importance. Re-proposed together when a junction is placed, moved or removed; accepted ones are kept.
+- **Arrow markings at junctions** (RDM 6.1 6.4.3, Table A.5): AM06 (AM07 at a crossroads) on the minor approach, AM03 right-turn arrows in the right-turn lane of A-1 and B-Mod kits, 3.5 / 5 / 9 m by speed (Table 6.1); painted area from the outline, solid hatches in the DXF.
+- **Minor road approach visibility splay** (RDM 1.3 Figure 9.13) where our road is the minor road: drawn with the splays, checked against the obstruction layers, and reported with how far it reaches inside a bend.
+- **Roundabout entry path radius** (RDM 1.3 10.6.3.5): checked at every entry on a simplified fastest ahead path, against 100 m (70 m at compact urban roundabouts).
+- **BUS STOP word marking** in bus bays (RDM 6.1 10.3), in each 15 m box, letters by speed (Table 6.2).
+- **Move a piece** (Junctions tab): move a placed junction piece, or with Shift the whole junction, along the road; it is rebuilt from its template there.
+- Kerb returns in the guide lines are three-centred curves, R1 : R2 : R3 = 2 : 1 : 3 (RDM 1.3 Figure 9.25).
+- Bus bay kerbs are split into raised (platform and ramps) and flush (tapers) in the Junctions and Widenings sheets.
 - Climbing lanes draw their widened pavement edge with the 100 m tapers (`BAYEDGE`, as for truck parking bays), with its length in the quantities.
 - A hump's or table's approach bar sets are left out where they would fall on a junction kit, a roundabout, an access, a crossing or another hump, with a note for each. Placing a junction over proposed bar sets removes them.
 - Overlap checks: a hump, table, bump or zebra that overlaps another one, or a junction or roundabout, is flagged on placing it and in the furniture checks ("Transverse items overlapping"). A bar set on a junction is a check there.
 
 ### Fixed
+- Joining a road given by its clicked direction (Olkaria trial): a click a few metres into our road could take the stub behind it as the leg and build the kit off the end of our road. A click within 30 m of our road's end now snaps to the end, a stub under 30 m is never a leg, and where the alignment runs on past the junction the longer leg (our road) is taken, not the tail.
+- Climbing lanes were proposed along most of a rolling road: the truck's speed loss now stops at its crawl speed, ground of 3 % or less gives the allowance back, and each lane ends 200 m past its climb.
+- Calming tab: **Bar markings** is one list (Both approaches / Forward / Backward / None), so humps can go in without bar sets.
+- **Islands no longer narrow the existing lanes** (Edmond's trial): every island comes with its widening, as on the standard drawings. Ghost-island kits (A-1, B-Mod) widen the main road on both sides by half the island's width (new piece `main_widening`, drawn as `WIDEN`), and their other pieces stand off the widened edge; corner islands (A-1, A-2, B) get a bellmouth behind them with the turning roadway (4.9 m; 5.5 m W2 in A-2) and the kerb return drawn from it; the minor road flares around its splitter. The widenings on our road go to the Widenings sheet for Civil 3D and into the round-trip check.
+- The Excel Junctions sheet was written with the Widenings rows when the project had a bus or truck bay.
+- B-Mod no longer gets right-turn arrows (they sat on its hatched wedge).
 - Climbing lanes showed only their I1 / I2 signs: the map style had no symbol for their LM26 / LM03 lines, so they were not drawn. Every template code now has a symbol, and a project saved with the old style gets the missing ones when reopened.
 - A zebra placed from the Linear tab came out as a hump when the Calming tab's tool had been left on.
 

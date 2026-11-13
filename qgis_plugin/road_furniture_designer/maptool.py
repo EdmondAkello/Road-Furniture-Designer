@@ -138,7 +138,7 @@ def bars_text(d, cfg):
     if d.kind not in BAR_KINDS:
         return f"{n} bar set(s)" if n else "no bar sets"
     if cfg is not None and not cfg.bar_markings:
-        return "no bar sets (tick 'Bar markings on the approaches' on the Calming tab for them)"
+        return "no bar sets (Bar markings: None)"
     return f"{n} bar set(s) on the approaches"
 
 
@@ -379,8 +379,17 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         so = st.al.station_offset(lp.x(), lp.y())
         if not so.in_range:
             return None
-        x, y, _ = st.al.point_at(so.station)
-        return so.station, x, y
+        sta = so.station
+        s = self._settings()
+        if s.get("role") == "minor" and s.get("kit") not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"):
+            # our road joining another road usually ends there: near an end, snap to it (as place_minor does)
+            from .rfd.junctions import END_SNAP
+            if sta - st.al.sta_start < END_SNAP:
+                sta = st.al.sta_start
+            elif st.al.sta_end - sta < END_SNAP:
+                sta = st.al.sta_end
+        x, y, _ = st.al.point_at(sta)
+        return sta, x, y
 
     def _rb_params(self, extra=None):
         s = self._settings()
@@ -636,4 +645,115 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
     def deactivate(self):
         self.cancel()
         self.mark.reset(GEOM_POINT)
+        super().deactivate()
+
+
+class MovePieceTool(QgsMapToolEmitPoint):
+    """Move a placed junction piece along its road: click the piece, then where it should go (the preview
+    follows the mouse). Shift moves the whole junction (where our road is the main road). The piece is rebuilt
+    from its template at the new chainage, so it keeps its shape, skew and scale. Right-click or Esc cancels."""
+    hover = pyqtSignal(str)
+    placed = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, canvas, store_getter):
+        super().__init__(canvas)
+        self.canvas = canvas
+        self._store = store_getter
+        self.sel = None                         # (piece_uuid, junction_id, role, station of the first click, main al)
+        self.band = QgsRubberBand(canvas, GEOM_LINE)
+        self.band.setColor(QColor(200, 60, 160, 220))
+        self.band.setWidth(2)
+        self.setCursor(Qt.OpenHandCursor)
+
+    def _xf(self, to_layer=True):
+        st = self._store()
+        a, b = self.canvas.mapSettings().destinationCrs(), st.junctions.layer.crs()
+        return QgsCoordinateTransform(a, b, QgsProject.instance()) if to_layer else \
+            QgsCoordinateTransform(b, a, QgsProject.instance())
+
+    def _delta(self, lp):
+        so = self.sel[4].station_offset(lp.x(), lp.y())
+        return so.station - self.sel[3]
+
+    def canvasMoveEvent(self, e):
+        st = self._store()
+        if st is None:
+            return
+        lp = self._xf().transform(e.mapPoint())
+        if self.sel is None:
+            hit = st.junctions.piece_at(lp.x(), lp.y())
+            self.hover.emit("Click a junction piece to move it (Shift: the whole junction)" if hit
+                            else "No junction piece here")
+            return
+        d = self._delta(lp)
+        self.band.reset(GEOM_LINE)
+        xf = self._xf(False)
+        for f in st.junctions.layer.getFeatures():
+            if f["piece_uuid"] != self.sel[0]:
+                continue
+            g = QgsGeometry(f.geometry())
+            # preview: the piece shifted along the road at its own station (exact on straights)
+            sta = float(f["sta"])
+            al = self.sel[4]
+            x0, y0, _ = al.point_at(min(max(sta, al.sta_start), al.sta_end))
+            x1, y1, _ = al.point_at(min(max(sta + d, al.sta_start), al.sta_end))
+            g.translate(x1 - x0, y1 - y0)
+            g.transform(xf)
+            self.band.addGeometry(g, None)
+        from .rfd.alignment import format_station
+        self.hover.emit(f"Move {d:+.1f} m along the road - click to place")
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.cancel()
+
+    def cancel(self):
+        self.sel = None
+        self.band.reset(GEOM_LINE)
+
+    def canvasReleaseEvent(self, e):
+        st = self._store()
+        if st is None:
+            return
+        if e.button() == Qt.RightButton:
+            if self.sel is not None:
+                self.cancel()
+            else:
+                self.canvas.unsetMapTool(self)
+            return
+        if e.button() != Qt.LeftButton:
+            return
+        self.click(self._xf().transform(e.mapPoint()), bool(e.modifiers() & Qt.ShiftModifier))
+
+    def click(self, lp, whole=False):
+        st = self._store()
+        if self.sel is None:
+            hit = st.junctions.piece_at(lp.x(), lp.y())
+            if hit is None:
+                self.failed.emit("No junction piece here")
+                return None
+            pu, jid, role = hit
+            f = st.junctions._group(pu)[0]
+            from .rfd import junctions as J
+            pl = J.Placement(float(f["sta"]), 0.0, role=role, main_ref=f["main_ref"] or "")
+            al = st.junctions.main_of(pl)
+            self.sel = (pu, jid, role, al.station_offset(lp.x(), lp.y()).station, al, whole)
+            self.placed.emit("Piece picked - click where it should go")
+            return None
+        d = self._delta(lp)
+        pu, whole = self.sel[0], whole or self.sel[5]
+        self.cancel()
+        try:
+            n = st.junctions.move(pu, d, whole=whole)
+            if hasattr(st, "refresh_junction_warnings"):
+                st.refresh_junction_warnings()          # W1 / W2 / W5 follow the junction
+        except ValueError as ex:
+            self.failed.emit(str(ex))
+            return None
+        self.placed.emit(f"{n} piece(s) moved {d:+.1f} m along the road")
+        return n
+
+    def deactivate(self):
+        self.cancel()
         super().deactivate()

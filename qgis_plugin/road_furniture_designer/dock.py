@@ -312,18 +312,18 @@ class RsdDock(QDockWidget):
         self.spn_fspeed.setDecimals(0); self.spn_fspeed.setValue(30); self.spn_fspeed.setSuffix(" km/h")
         self.spn_fwidth = QDoubleSpinBox(); self.spn_fwidth.setRange(1, 6); self.spn_fwidth.setSingleStep(0.5)
         self.spn_fwidth.setValue(3.0); self.spn_fwidth.setSuffix(" m")
-        self.chk_fbars = QCheckBox("Bar markings on the approaches (Table 2.3)"); self.chk_fbars.setChecked(True)
         self.chk_fsigns = QCheckBox("Warning signs on both approaches"); self.chk_fsigns.setChecked(True)
         self.cmb_fdir = QComboBox()
-        for lab, v in (("Both directions", "both"), ("Forward traffic only", "forward"), ("Backward traffic only", "backward")):
+        for lab, v in (("Both approaches", "both"), ("Forward traffic only", "forward"),
+                       ("Backward traffic only", "backward"), ("None", "none")):
             self.cmb_fdir.addItem(lab, v)
+        self.cmb_fdir.setToolTip("Bar sets at the Table 2.3 distances before humps, speed tables and raised crossings "
+                                 "(RDM 6.4). Sets that would fall on a junction, roundabout, crossing or another hump "
+                                 "are left out and reported. None: no bar markings.")
         self.spn_fsta = QDoubleSpinBox(); self.spn_fsta.setRange(-1e6, 1e6); self.spn_fsta.setDecimals(1)
         self.spn_fsta.setSuffix(" m")
         cf.addRow("Feature", self.cmb_fkind)
-        self.chk_fbars.setToolTip("Humps, speed tables and raised crossings: bar sets at the Table 2.3 distances "
-                                  "before them (RDM 6.4). Sets that would fall on a junction, roundabout, crossing "
-                                  "or another hump are left out and reported.")
-        cf.addRow("", self.chk_fbars)
+        cf.addRow("Bar markings", self.cmb_fdir)
         cf.addRow("Hump crossing speed", self.spn_fspeed)
         cf.addRow("Crossing width", self.spn_fwidth)
         self.spn_frefuge = QDoubleSpinBox(); self.spn_frefuge.setRange(0, 30); self.spn_frefuge.setSingleStep(0.5)
@@ -335,7 +335,6 @@ class RsdDock(QDockWidget):
                                   "(part of the road, a dual carriageway, a road without corridor edges)")
         cf.addRow("Refuge / median", self.spn_frefuge)
         cf.addRow("", self.chk_fspan)
-        cf.addRow("Bar markings for", self.cmb_fdir)
         cf.addRow("", self.chk_fsigns)
         cl_.addLayout(cf)
         fb = QHBoxLayout()
@@ -449,7 +448,11 @@ class RsdDock(QDockWidget):
             self._access_rows.append((jf.labelForField(spn), spn))
         jl.addLayout(jf)
         self.btn_jplace = QPushButton("Place on map"); self.btn_jplace.setCheckable(True)
-        jl.addWidget(self.btn_jplace)
+        self.btn_jmove = QPushButton("Move a piece"); self.btn_jmove.setCheckable(True)
+        self.btn_jmove.setToolTip("Click a placed piece, then where it should go along the road; hold Shift for the "
+                                  "whole junction. The piece is rebuilt from its template there.")
+        jrow = QHBoxLayout(); jrow.addWidget(self.btn_jplace); jrow.addWidget(self.btn_jmove)
+        jl.addLayout(jrow)
         self.spn_jaadt = QDoubleSpinBox(); self.spn_jaadt.setRange(0, 200000); self.spn_jaadt.setDecimals(0)
         self.spn_jaadt.setSingleStep(500); self.spn_jaadt.setSpecialValueText("AADT not given")
         self.spn_jaadt.setSuffix(" pcu (year 10)")
@@ -531,6 +534,14 @@ class RsdDock(QDockWidget):
         self.btn_fdel.clicked.connect(self.remove_feature)
         self.lst_features.itemDoubleClicked.connect(self._zoom_feature)
         self.btn_jplace.toggled.connect(self._toggle_junction_tool)
+        from .maptool import MovePieceTool
+        self.mv_tool = MovePieceTool(iface.mapCanvas(), lambda: self.store)
+        self.mv_tool.hover.connect(self.lbl_jhover.setText)
+        self.mv_tool.placed.connect(lambda t: (self.lbl_jhover.setText(t), self.refresh()))
+        self.mv_tool.failed.connect(lambda t: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
+                                                                                 MSG_WARNING, 5))
+        self.mv_tool.deactivated.connect(lambda: self.btn_jmove.setChecked(False))
+        self.btn_jmove.toggled.connect(self._toggle_move_tool)
         self.btn_jclimb.clicked.connect(self.propose_climbing_lanes)
         self.btn_jobst.clicked.connect(self.check_splays)
         self.tabs.currentChanged.connect(
@@ -584,7 +595,6 @@ class RsdDock(QDockWidget):
         "Also where the warrant leaves it to judgement": "Also where left to judgement",
         "No-overtaking section (closer stud interval)": "Closer studs (no overtaking)",
         "Fixed offset (else taken from the click)": "Fixed offset",
-        "Bar markings on the approaches (Table 2.3)": "Bar markings on the approaches",
         "Guide lines (edges, kerb returns, Rc arcs)": "Guide lines",
         "Road furniture report (PDF + PNG sheets + Excel)…": "Road furniture report…",
         "Export to Civil 3D (package + DXF)…": "Export to Civil 3D…",
@@ -915,9 +925,9 @@ class RsdDock(QDockWidget):
     def feature_config(self):
         from .rfd.features import FeatureConfig
         return FeatureConfig(criteria=self.cmb_crit.currentData(), desired_speed=self.spn_fspeed.value(),
-                             crossing_width=self.spn_fwidth.value(), bar_markings=self.chk_fbars.isChecked(),
+                             crossing_width=self.spn_fwidth.value(), bar_markings=self.cmb_fdir.currentData() != "none",
                              signs=self.chk_fsigns.isChecked(), road_class=self.cmb_mclass.currentData(),
-                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData(),
+                             carriageway=self.spn_mwidth.value() or None, directions=self.cmb_fdir.currentData() if self.cmb_fdir.currentData() != "none" else "both",
                              refuge=self.spn_frefuge.value())
 
     def _toggle_run_tool(self, on, mode):
@@ -938,7 +948,8 @@ class RsdDock(QDockWidget):
 
     # map tools that belong to one tab: leaving the tab switches them off, so a click on the map never
     # places what another tab was set to (a hump from the Calming tab while the Linear tab shows a zebra)
-    TOOL_TABS = (("btn_ldraw", "Linear"), ("btn_fplace", "Calming"), ("btn_jplace", "Junctions + bays"))
+    TOOL_TABS = (("btn_ldraw", "Linear"), ("btn_fplace", "Calming"), ("btn_jplace", "Junctions + bays"),
+                 ("btn_jmove", "Junctions + bays"))
 
     def _leave_tab(self, i):
         here = self.tabs.tabText(i)
@@ -1049,6 +1060,11 @@ class RsdDock(QDockWidget):
                                     "of travel; the Bus Stop sign is proposed.")
             return
         self._junction_role_changed()
+        if k == "SIG":
+            self.chk_jboth.setEnabled(False)            # the kit has all four arms already
+            self.lbl_jhover.setText("Click the junction centre on our road, then a point up the crossing road: four "
+                                    "arms with kerb returns, crossings, stop lines and arrows (RDM 6.1 Figure 7.12); "
+                                    "W46 Traffic Signals Ahead is proposed on our approaches.")
         self.cmb_jpiece.addItem(f"Whole type {k} kit", "")
         for pid in [it["piece"] for it in self._jt["kits"][k]]:
             if self.cmb_jpiece.findData(pid) < 0:
@@ -1100,6 +1116,18 @@ class RsdDock(QDockWidget):
             canvas.setMapTool(self.jn_tool)
         elif canvas.mapTool() is self.jn_tool:
             canvas.unsetMapTool(self.jn_tool)
+
+    def _toggle_move_tool(self, on):
+        canvas = self.iface.mapCanvas()
+        if on:
+            if self.store is None:
+                self.btn_jmove.setChecked(False)
+                return
+            self.btn_jplace.setChecked(False)
+            self.mv_tool.cancel()
+            canvas.setMapTool(self.mv_tool)
+        elif canvas.mapTool() is self.mv_tool:
+            canvas.unsetMapTool(self.mv_tool)
 
     def _refresh_junctions(self):
         cur = self.lst_junctions.currentItem()

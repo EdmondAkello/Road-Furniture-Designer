@@ -361,6 +361,31 @@ def _draw_junctions(p, d, lo, hi, poly):
             p.drawPath(poly(ln))
 
 
+def _draw_marking(p, d, r, it, col, halo, poly, vp, pen_w=1.1):
+    """A marking as painted: each of its lines (double lines and the CLS side by side, spread to stay
+    apart at the sheet's scale), broken lines dashed at their real mark / gap."""
+    from dataclasses import replace
+    from .rfd.linear import clamp_run, geometry, line_layout
+    r = clamp_run(d.al, r)
+    v = d.al.speed_at((r.sta_start + r.sta_end) / 2)
+    lines = line_layout(it, v, bool(r.flip))
+    gap_m = 1.6 * pen_w * vp.mpu                       # at least this far apart on paper
+    for left, broken, dm in lines:
+        if abs(left) > 1e-9:
+            left = (1 if left > 0 else -1) * max(abs(left), gap_m * (len(lines) - 1) / 2)
+        rr = replace(r, offset=r.offset + (-left if r.side != "L" else left))
+        pen = QPen(col, pen_w)
+        if broken:
+            pen.setDashPattern([max(float(dm["mark"]) / vp.mpu / pen_w, 0.5),
+                                max(float(dm["gap"]) / vp.mpu / pen_w, 0.5)])
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        for part in geometry(d.al, rr, step=max(2.0, 1.5 * vp.mpu)):
+            path = poly(part)
+            if halo is not None:
+                p.setPen(QPen(halo, 5.0)); p.drawPath(path)
+            p.setPen(pen); p.drawPath(path)
+
+
 def _draw_runs(p, d, lo, hi, poly, P, vp):
     """Runs of rsd_lines inside the sheet's chainage range (proposed ones in orange)."""
     runs, cat = getattr(d, "runs", None), getattr(d, "lcat", None)
@@ -385,6 +410,9 @@ def _draw_runs(p, d, lo, hi, poly, P, vp):
                 p.drawPolygon(QPolygonF([P(*q) for q in ring]))
             p.setBrush(Qt.BrushStyle.NoBrush)
             continue
+        if it.category == "Marking":
+            _draw_marking(p, d, r, it, col, halo if prop else None, poly, vp)
+            continue
         for part in geometry(d.al, r, step=max(2.0, 1.5 * vp.mpu)):
             path = poly(part)
             if prop:                                   # proposed, not accepted: faint orange halo under the line
@@ -394,7 +422,4 @@ def _draw_runs(p, d, lo, hi, poly, P, vp):
             elif it.category == "Road stud":
                 p.setPen(QPen(col, 1.6, Qt.PenStyle.DotLine)); p.drawPath(path)
             else:
-                d0 = it.dims(d.al.speed_at((r.sta_start + r.sta_end) / 2))
-                broken = bool(d0.get("mark") and d0.get("gap")) and not it.composite
-                p.setPen(QPen(col, 1.3, Qt.PenStyle.DashLine if broken else Qt.PenStyle.SolidLine))
-                p.drawPath(path)
+                p.setPen(QPen(col, 1.3)); p.drawPath(path)

@@ -149,12 +149,12 @@ def test_junction_templates_in_a_project(tmp_path):
     up = lambda ang, side=1: (x0 + 30 * math.cos(h + side * math.radians(ang)),
                               y0 + 30 * math.sin(h + side * math.radians(ang)))
     n, finds = st.junctions.place(x0, y0, *up(90), kit="A-2")
-    assert n == 8 and finds == []                               # 7 pieces + splays
+    assert n == 9 and finds == []                               # 7 pieces + approach arrows + splays
     n, finds = st.junctions.place(*st.al.point_at(st.al.sta_end - 300.0)[:2],
                                   *(lambda x, y, hh: (x + 30 * math.cos(hh - math.radians(70)),
                                                       y + 30 * math.sin(hh - math.radians(70))))(*st.al.point_at(st.al.sta_end - 300.0)),
                                   kit="C", guides=False)
-    assert n == 5 and [l for l, _ in finds] == ["check"]        # 4 pieces + splays
+    assert n == 6 and [l for l, _ in finds] == ["check"]        # 4 pieces + approach arrows + splays
     js = st.junctions.junctions()
     assert [j["kit"] for j in js] == ["A-2", "C"]
     a2 = js[0]
@@ -183,6 +183,9 @@ def test_junction_templates_in_a_project(tmp_path):
     from openpyxl import load_workbook
     rows = list(load_workbook(tmp_path / "j.xlsx")["Junctions"].iter_rows(min_row=2, values_only=True))
     assert {r[6] for r in rows} >= {"KERB", "TM07", "BM07", "LM24", "HM07"}
+    # the corner islands' bellmouths go to Civil 3D as widenings, and the Junctions sheet keeps its items
+    wid = list(load_workbook(tmp_path / "j.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
+    assert "bellmouth behind a corner island" in {r[1] for r in wid}
     from road_furniture_designer.rfd.dxf_out import write_junctions
     import ezdxf
     doc = ezdxf.new()
@@ -204,11 +207,14 @@ def test_our_road_joins_a_main_road_and_one_click_crossing(tmp_path):
     x0, y0, h = st.al.point_at(s_end)
     pl = st.junctions.placement_minor(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
     n, finds, nsigns = st.add_junction(pl, "B")
-    assert n == 7 and nsigns == 1                              # 6 pieces + splays
-    r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
-    assert [f["sign_code"] for f in r2] == ["R2"] and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
+    assert n == 9 and nsigns == 2                  # 6 pieces + arrows + splays + approach splay; R2 and W12
+    r2 = [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}" and f["sign_code"] == "R2"]
+    assert len(r2) == 1 and r2[0]["facing"] == "Forward" and r2[0]["status"] == "proposed"
+    w12 = [f for f in st.signs.getFeatures() if f["sign_code"] == "W12"]
+    assert len(w12) == 1 and w12[0]["facing"] == "Forward" and w12[0]["station_int"] < r2[0]["station_int"]
     j = st.junctions.junctions()[0]
     assert j["role"] == "minor" and abs(j["sta"] - s_end) < 0.5
+    assert j["minor_splay"]["ssd"] > 0 and "SPLAY-M" in {f["code"] for f in st.junctions.layer.getFeatures()}
     # re-running auto-placement keeps the junction's sign
     st.auto_propose()
     assert [f for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"]
@@ -285,6 +291,63 @@ def test_hump_bar_sets_keep_off_junctions(tmp_path):
     assert after < before and any("bar set" in t for _lvl, t in finds)
 
 
+def test_junction_ahead_warnings_on_our_road(tmp_path):
+    """RDM 6.2 4.2.1: W2 for a side road, W1 once a second side road leaves opposite it; a W2 the designer
+    accepted is kept; removing a junction re-proposes the rest."""
+    import math
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    nrm = lambda sg: (x0 + sg * 40 * math.cos(h + math.pi / 2), y0 + sg * 40 * math.sin(h + math.pi / 2))
+    warn = lambda: sorted((f["sign_code"], f["facing"], bool(f["mirror"])) for f in st.signs.getFeatures()
+                          if f["sign_code"] in ("W1", "W2", "W5"))
+    st.junctions.place(x0, y0, *nrm(1), kit="C")
+    st.refresh_junction_warnings()
+    assert warn() == [("W2", "Backward", False), ("W2", "Forward", True)]     # side road on the left of chainage
+    from road_furniture_designer.rfd import junctions as J
+    pl = J.place(st.al, x0, y0, *nrm(-1))
+    st.add_junction(pl, "C")
+    assert warn() == [("W1", "Backward", False), ("W1", "Forward", False)]
+    st.remove_junction(pl.junction_id)
+    assert [c for c, _f, _m in warn()] == ["W2", "W2"]
+
+
+def test_move_a_junction_piece(tmp_path):
+    """C7: a placed piece moves along the road and is rebuilt there; Shift moves the whole junction."""
+    import math
+    from road_furniture_designer.maptool import MovePieceTool
+    from qgis.core import QgsPointXY
+    from qgis.gui import QgsMapCanvas
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    st.junctions.place(x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2), kit="C")
+    split = next(f for f in st.junctions.layer.getFeatures() if f["piece"] == "splitter_teardrop" and f["code"] == "KERB")
+    c = split.geometry().centroid().asPoint()
+    canvas = QgsMapCanvas(); canvas.setDestinationCrs(CRS)
+    tool = MovePieceTool(canvas, lambda: st)
+    tool.click(QgsPointXY(c.x(), c.y()))
+    x1, y1, _ = st.al.point_at(st.al.station_offset(c.x(), c.y()).station + 12.0)
+    assert tool.click(QgsPointXY(x1, y1)) == 1
+    stas = {f["piece"]: f["sta"] for f in st.junctions.layer.getFeatures()}
+    assert abs(stas["splitter_teardrop"] - 612.0) < 0.5 and abs(stas["give_way_line"] - 600.0) < 1e-6
+    pu = next(f["piece_uuid"] for f in st.junctions.layer.getFeatures() if f["piece"] == "give_way_line")
+    assert st.junctions.move(pu, -5.0, whole=True) >= 5
+    assert all(abs(f["sta"] - (607.0 if f["piece"] == "splitter_teardrop" else 595.0)) < 0.5
+               for f in st.junctions.layer.getFeatures())
+
+
+def test_signalised_crossroads_in_a_project(tmp_path):
+    import math
+    from road_furniture_designer.rfd import junctions as J
+    st, xml = _fill_road(tmp_path)
+    x0, y0, h = st.al.point_at(600.0)
+    pl = J.place(st.al, x0, y0, x0 + 40 * math.cos(h + math.pi / 2), y0 + 40 * math.sin(h + math.pi / 2))
+    n, finds, nsigns = st.add_junction(pl, "SIG")
+    assert n == 1 and nsigns == 2
+    assert sorted(f["facing"] for f in st.signs.getFeatures() if f["sign_code"] == "W46") == ["Backward", "Forward"]
+    codes = {f["code"] for f in st.junctions.layer.getFeatures()}
+    assert {"BM02", "TM01", "LM24", "AM07", "GUIDE"} <= codes
+
+
 def test_crossing_kerb_to_kerb_with_refuge(tmp_path):
     from road_furniture_designer.maptool import PlaceRunTool
     from road_furniture_designer.rfd.autoplace import AutoConfig
@@ -315,6 +378,7 @@ def test_bus_bay_in_a_project(tmp_path):
     j = st.junctions.junctions()[0]
     assert j["bay"]["side"] == "L" and j["widen_m2"] > 150 and j["kerb_m"] > 60
     assert [f["sign_code"] for f in st.signs.getFeatures() if f["rule"] == f"junction:{pl.junction_id}"] == ["WSCM-I3"]
+    assert j["kerb_raised_m"] == 25.0 + 2 * 2.0 and abs(j["kerb_raised_m"] + j["kerb_flush_m"] - j["kerb_m"]) < 1e-6
     st.junctions.recompute_all()                                   # rebuilt from its stored parameters
     assert abs(st.junctions.junctions()[0]["widen_m2"] - j["widen_m2"]) < 1e-6
     d = ReportData(st, AutoConfig())

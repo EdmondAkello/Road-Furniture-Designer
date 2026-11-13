@@ -2,7 +2,8 @@
 
 QGIS 3.44 enforces the scoped enums (Qgis.LabelPlacement, Qgis.WkbType, ...), and some old unscoped
 aliases (e.g. QgsPalLayerSettings.OverPoint) resolve to the wrong enum there. All the scoped forms below
-exist from QGIS 3.30, so they are used directly.
+exist from QGIS 3.30, so they are used directly. QgsSymbolLayer.Property is the exception: it became
+scoped in QGIS 3.36 (Property.Name); 3.34 only has the old member names (PropertyName), so prop() tries both.
 """
 from qgis.core import Qgis, QgsSimpleMarkerSymbolLayerBase, QgsSymbolLayer, QgsVectorFileWriter  # noqa: F401
 
@@ -16,11 +17,21 @@ WKB_NOGEOM = Qgis.WkbType.NoGeometry
 GEOM_LINE = Qgis.GeometryType.Line
 GEOM_POINT = Qgis.GeometryType.Point
 
-PROP_NAME = QgsSymbolLayer.Property.Name
-PROP_ANGLE = QgsSymbolLayer.Property.Angle
-PROP_SIZE = QgsSymbolLayer.Property.Size
-PROP_OFFSET = QgsSymbolLayer.Property.Offset
-PROP_ENABLED = QgsSymbolLayer.Property.LayerEnabled
+
+
+def prop(name):
+    """A symbol layer data-defined property key: QgsSymbolLayer.Property.<name> on QGIS 3.36+, and
+    QgsSymbolLayer.Property<name> on 3.34."""
+    scoped = getattr(QgsSymbolLayer.Property, name, None)
+    return scoped if scoped is not None else getattr(QgsSymbolLayer, "Property" + name)
+
+
+PROP_NAME = prop("Name")
+PROP_ANGLE = prop("Angle")
+PROP_SIZE = prop("Size")
+PROP_OFFSET = prop("Offset")
+PROP_ENABLED = prop("LayerEnabled")
+PROP_CUSTOM_DASH = prop("CustomDash")
 
 MARKER_ARROWHEAD = Qgis.MarkerShape.ArrowHeadFilled
 GEOM_CIRCLE = Qgis.MarkerShape.Circle

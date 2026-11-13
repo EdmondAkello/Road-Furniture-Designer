@@ -36,14 +36,15 @@ FIELDS = [
     ("sight", QVariant.String), ("access", QVariant.String), ("rbt", QVariant.String),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
-NO_PAINT = ("KERB", "GUIDE", "BAYEDGE", "SPLAY-A", "SPLAY-S", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON")
+NO_PAINT = ("KERB", "GUIDE", "WIDEN", "BAYEDGE", "SPLAY-A", "SPLAY-S", "SPLAY-M", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON")
 STYLE = {   # code -> (colour, width mm, dashed)
     "KERB": ("40,40,40", 0.6, False), "GUIDE": ("120,120,120", 0.2, True),
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
     "HM04": ("70,110,170", 0.25, False), "LM27": ("70,110,170", 0.4, False),
     "TM07": ("70,110,170", 0.6, False), "BM07": ("70,110,170", 0.4, False),
+    "WIDEN": ("60,60,60", 0.45, True), "WM-BUSSTOP": ("70,110,170", 0.4, False), "AM03": ("70,110,170", 0.3, False), "AM06": ("70,110,170", 0.3, False), "AM07": ("70,110,170", 0.3, False),
     "LM05": ("70,110,170", 0.4, False), "LM26": ("70,110,170", 0.4, False), "LM03": ("70,110,170", 0.4, False), "BUSPLAT": ("90,90,90", 0.3, False), "BAYEDGE": ("40,40,40", 0.5, False),
-    "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True),
+    "SPLAY-A": ("40,150,60", 0.3, True), "SPLAY-S": ("200,40,40", 0.35, True), "SPLAY-M": ("200,120,20", 0.35, True),
     "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
     "TM04": ("70,110,170", 0.4, True),
     "ACCESS": ("60,60,60", 0.5, False), "ACCESS-P": ("110,110,110", 0.25, False), "PIPE": ("40,90,200", 0.4, False), "SHELTER": ("120,120,120", 0.3, True),
@@ -101,7 +102,12 @@ class JunctionStore(QObject):
     def _features(self, pl: J.Placement, kit: str, piece: str, corner: str, params: dict, puuid: str,
                   status="approved", remarks=""):
         main = self.main_of(pl)
-        pc = J.build_piece(main, pl, piece, corner, params, self.templates)
+        if piece == "approach_splay":                    # needs our road's own geometry
+            prm = params or {}
+            pc = J.approach_splay(self.al, pl, main, speed=prm.get("minor_speed"), criteria=prm.get("criteria"),
+                                  edge_add=prm.get("edge_add") or 0.0)
+        else:
+            pc = J.build_piece(main, pl, piece, corner, params, self.templates)
         F = pl.frame(main)
         our = pl.our_station if pl.role == "minor" else pl.station
         by_code = {}
@@ -126,10 +132,12 @@ class JunctionStore(QObject):
                     # piece quantities go on its first feature only, so sums over the layer are right
                     "kerb_m": pc.quantities.get("kerb_m") if code == "KERB" else None,
                     "island_m2": pc.quantities.get("island_m2") if code == "KERB" else None,
-                    "line_m": round(ln, 2) if code not in NO_PAINT else None,
-                    "paint_m2": round(ln * codes[code]["width"], 3) if code not in NO_PAINT else None,
+                    "line_m": round(ln, 2) if code not in NO_PAINT and not codes[code].get("fill") else None,
+                    "paint_m2": (round(sum(J.area(p.pts) for p in parts), 3) if codes[code].get("fill")
+                                 else round(ln * codes[code]["width"], 3)) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
-                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")},
+                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")
+                                            if k in pc.params}, edge_code=pc.params.get("edge_code"),
                                            taper=pc.params.get("taper")))
                     if piece in J.BAY_PIECES else None,
                     "sight": json.dumps({k: pc.params[k] for k in ("speed_used", "speed_assumed", "ref", "splays",
@@ -141,6 +149,10 @@ class JunctionStore(QObject):
                     "rbt": json.dumps({k: pc.params[k] for k in ("notes", "quantities", "n_arms", "arms_used", "island",
                                                                    "detail")})
                     if piece == "roundabout" and code == next(iter(by_code), code) else None}
+            if piece == "approach_splay":                # its record rides in remarks-free params
+                vals["params"] = json.dumps(dict(params or {}, result=pc.params))
+            elif pc.params.get("rows") and code == next(iter(by_code)):
+                vals["params"] = json.dumps(dict(params or {}, widen=self._our_rows(pl, F, pc.params["rows"])))
             for n, x in vals.items():
                 f.setAttribute(n, x)
             out.append(f)
@@ -172,13 +184,24 @@ class JunctionStore(QObject):
             # a lone piece takes the kit's own settings for it, if the kit uses it
             for it in self.templates["kits"].get(kit, []):
                 if it["piece"] == piece:
-                    items = [dict(it)]
+                    items = [J.with_edge_add(self.templates, kit, it)]
                     break
         else:
             items = J.kit_items(self.templates, kit, guides, splays, second_leg)
         if params:
             for it in items:
                 it["params"] = dict(it.get("params") or {}, **params)
+        if pl.role == "minor" and pl.our_station is not None and not piece and splays and kit in J.JUNCTION_KITS:
+            sp = {k: v for k, v in (splay or {}).items() if k == "criteria" and v}
+            if J.kit_edge_add(self.templates, kit):
+                sp["edge_add"] = J.kit_edge_add(self.templates, kit)
+            items.append({"piece": "approach_splay", "params": sp})
+        if pl.role == "minor" and pl.our_station is not None:
+            # our road crossing the main road: the approach arrows also show straight ahead (AM07)
+            crosses = len(J.minor_legs(self.al, pl.our_station, self.main_of(pl))) > 1
+            for it in items:
+                if it["piece"] == "approach_arrows":
+                    it["params"] = dict(it.get("params") or {}, crossroads=crosses)
         if splay:
             for it in items:
                 if it["piece"] == "splays":
@@ -248,6 +271,42 @@ class JunctionStore(QObject):
             self._rebuild(f["piece_uuid"], {name: value})
             self.changed.emit()
 
+    def piece_at(self, x, y, tol=5.0):
+        """(piece_uuid, junction_id, role) of the placed piece nearest the point, within tol m; None if none."""
+        from qgis.core import QgsFeatureRequest, QgsRectangle
+        pt = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+        best = None
+        for f in self.layer.getFeatures(QgsFeatureRequest().setFilterRect(QgsRectangle(x - tol, y - tol, x + tol, y + tol))):
+            if f["code"] in self.FOOTPRINT_SKIP:
+                continue
+            d = f.geometry().distance(pt)
+            if d <= tol and (best is None or d < best[0]):
+                best = (d, f["piece_uuid"], f["junction_id"], f["role"] or "main")
+        return best[1:] if best else None
+
+    def move(self, piece_uuid, delta, whole=False):
+        """Move a placed piece (or, whole=True, every piece of its junction) delta m along the road it is
+        placed on, rebuilding it from its template. A junction where our road joins another road moves piece
+        by piece only (its point on our road is fixed). Returns the pieces moved."""
+        group = self._group(piece_uuid)
+        if not group:
+            return 0
+        f0 = group[0]
+        role = f0["role"] or "main"
+        uuids = [piece_uuid]
+        if whole:
+            if role == "minor":
+                raise ValueError("A junction on another road moves piece by piece: its point on our road is fixed")
+            uuids = sorted({f["piece_uuid"] for f in self.layer.getFeatures() if f["junction_id"] == f0["junction_id"]})
+        n = 0
+        for pu in uuids:
+            g = self._group(pu)
+            if g and self._rebuild(pu, {"sta": float(g[0]["sta"]) + delta}):
+                n += 1
+        self.layer.triggerRepaint()
+        self.changed.emit()
+        return n
+
     def set_scale(self, junction_id, scale):
         """Rescale every piece of a junction about its junction point."""
         for pu in {f["piece_uuid"] for f in self.layer.getFeatures() if f["junction_id"] == junction_id}:
@@ -283,13 +342,20 @@ class JunctionStore(QObject):
                 "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
                 "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None,
-                "sight": None, "access": None, "rbt": None})
+                "sight": None, "access": None, "rbt": None, "minor_splay": None, "widen": []})
             if f["bay"]:
                 j["bay"] = json.loads(f["bay"])
             if f["access"]:
                 j["access"] = json.loads(f["access"])
             if f["rbt"]:
                 j["rbt"] = json.loads(f["rbt"])
+            if f["params"] and '"widen"' in f["params"]:
+                j.setdefault("widen", []).extend(json.loads(f["params"]).get("widen") or [])
+            if f["piece"] == "approach_splay" and f["params"]:
+                ms = json.loads(f["params"]).get("result")
+                if ms:
+                    ms["obstructions"] = [o for o in self.obstructions.get(f["junction_id"], []) if o["kind"] == "minor"]
+                    j["minor_splay"] = ms
             if f["sight"]:
                 j["sight"] = json.loads(f["sight"])
                 j["sight"]["obstructions"] = self.obstructions.get(f["junction_id"], [])
@@ -303,9 +369,61 @@ class JunctionStore(QObject):
                 p = j["paint"].setdefault(f["code"], [0.0, 0.0])
                 p[0] += float(f["line_m"] or 0.0)
                 p[1] += float(f["paint_m2"])
+        for j in out.values():
+            # raised / flush kerb: bus bays are raised along the platform and its ramps, flush along the
+            # tapers (RDM/1/3/3/01); island and roundabout kerbs are raised
+            raised = j["kerb_m"]
+            b = j.get("bay")
+            if b and b.get("kind", "bus bay") == "bus bay" and j["kerb_m"]:
+                ramp = (self.templates["pieces"]["bus_bay"]["params"].get("ramp") or 0.0)
+                raised = min(j["kerb_m"], abs(b["stations"][2] - b["stations"][1]) + 2 * ramp)
+            j["kerb_raised_m"], j["kerb_flush_m"] = raised, max(0.0, j["kerb_m"] - raised)
         return sorted(out.values(), key=lambda j: j["sta"] or 0.0)
 
-    FOOTPRINT_SKIP = ("GUIDE", "SPLAY-A", "SPLAY-S")
+    def _our_rows(self, pl, F, rows):
+        """The widening rows that lie on our road, in our chainage (Widenings table, edge-line trim): main-road
+        rows where our road is the main road, minor-road rows where it is the minor road."""
+        out = []
+        for r in rows:
+            if r.get("road") == "main" and pl.role == "main":
+                out.append({k: v for k, v in r.items() if k != "road"})
+            elif r.get("road") == "minor" and pl.role == "minor" and pl.our_station is not None:
+                _, _, h = self.al.point_at(pl.our_station)
+                dirn = 1 if math.cos(pl.bearing - h) > 0 else -1
+                ss = [pl.our_station + dirn * (F.u_edge + u) for u in r["u"]]
+                # sides on our road: L / R of the minor direction become our chainage's sides
+                side = r["side"] if dirn > 0 else ("R" if r["side"] == "L" else "L")
+                out.append(dict({k: v for k, v in r.items() if k not in ("road", "u")},
+                                stations=[round(v, 3) for v in (ss if dirn > 0 else ss[::-1])], side=side))
+        return out
+
+    def warning_inputs(self):
+        """One junctions.JunctionAt per placed junction kit, for the Junction Ahead warning signs."""
+        seen = {}
+        for f in self.layer.getFeatures():
+            jid = f["junction_id"]
+            if jid in seen or f["kit"] not in J.JUNCTION_KITS + J.SIGNAL_KITS:
+                continue
+            role = f["role"] or "main"
+            pl = J.Placement(float(f["sta"]), math.radians(float(f["bearing_deg"])), junction_id=jid, role=role,
+                             main_ref=f["main_ref"] or "",
+                             our_station=None if f["our_sta"] is None or (hasattr(f["our_sta"], "isNull")
+                                                                          and f["our_sta"].isNull())
+                             else float(f["our_sta"]))
+            if role == "minor" and pl.our_station is not None:
+                try:
+                    main = self.main_of(pl)
+                except ValueError:
+                    continue
+                _, _, h = self.al.point_at(pl.our_station)
+                seen[jid] = J.JunctionAt(jid, "minor", pl.our_station, up=math.cos(pl.bearing - h) > 0,
+                                         crossing=len(J.minor_legs(self.al, pl.our_station, main)) > 1,
+                                         kit=f["kit"])
+            elif role == "main":
+                seen[jid] = J.JunctionAt(jid, "main", pl.station, side=f["side"] or "L", kit=f["kit"])
+        return list(seen.values())
+
+    FOOTPRINT_SKIP = ("GUIDE", "WIDEN", "SPLAY-A", "SPLAY-S", "SPLAY-M")
 
     def footprints(self, al=None, reach=15.0):
         """Chainage range on our road of each junction's islands and markings (or bay, roundabout), from
@@ -344,9 +462,9 @@ class JunctionStore(QObject):
         from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject, QgsWkbTypes
         found = {}
         for f in self.layer.getFeatures():
-            if f["code"] not in ("SPLAY-A", "SPLAY-S"):
+            if f["code"] not in ("SPLAY-A", "SPLAY-S", "SPLAY-M"):
                 continue
-            kind = "approach" if f["code"] == "SPLAY-A" else "stop"
+            kind = {"SPLAY-A": "approach", "SPLAY-S": "stop", "SPLAY-M": "minor"}[f["code"]]
             g = f.geometry()
             rings = g.asMultiPolyline() if g.isMultipart() else [g.asPolyline()]
             for i, ring in enumerate(rings):

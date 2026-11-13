@@ -694,8 +694,12 @@ def _furniture_sheets(wb, d, sheet):
         for j in jl:
             base = [j["ch"], round(al.display_station(j["sta"]), 3), j["kit"], j["side"], j["crossing_deg"], j["scale"]]
             if j["kerb_m"]:
-                rows.append(base + ["KERB", codes["KERB"]["name"], round(j["kerb_m"], 2), "m",
-                                    round(j["island_m2"], 2), j["status"], j["id"]])
+                raised, flush = j.get("kerb_raised_m", j["kerb_m"]), j.get("kerb_flush_m", 0.0)
+                rows.append(base + ["KERB", codes["KERB"]["name"] + (" - raised" if flush else ""),
+                                    round(raised, 2), "m", round(j["island_m2"], 2), j["status"], j["id"]])
+                if flush:
+                    rows.append(base + ["KERB-F", codes["KERB"]["name"] + " - flush (bay tapers)", round(flush, 2),
+                                        "m", None, j["status"], j["id"]])
             for c, (ln, area) in sorted(j["paint"].items()):
                 rows.append(base + [c, codes[c]["name"], round(ln, 2), "m", round(area, 3), j["status"], j["id"]])
             if j.get("access"):
@@ -706,19 +710,29 @@ def _furniture_sheets(wb, d, sheet):
                 if aq.get("pipe_no"):
                     rows.append(base + ["PIPE", codes["PIPE"]["name"], aq.get("pipe_m"), "m", None, j["status"], j["id"]])
         bays = [j for j in jl if j.get("bay")]
-        if bays:
+        extra = [(j, w) for j in jl for w in (j.get("widen") or [])]
+        if bays or extra:
             from .rfd.junctions import bay_table
             ws = wb.create_sheet("Widenings")
-            rows = []
+            wrows = []
             for j, t in zip(bays, bay_table(al, [dict(j["bay"]) for j in bays])):
-                rows.append([j["id"], j["bay"].get("kind", "bus bay"), t["side"], round(al.display_station(t["start"]), 3),
+                wrows.append([j["id"], j["bay"].get("kind", "bus bay"), t["side"], round(al.display_station(t["start"]), 3),
                              round(al.display_station(t["full_from"]), 3), round(al.display_station(t["full_to"]), 3),
                              round(al.display_station(t["end"]), 3), t["entry"], t["exit"], t["width"],
-                             round(j["widen_m2"], 1), round(j["kerb_m"], 1)])
+                             round(j["widen_m2"], 1), round(j["kerb_m"], 1),
+                             round(j.get("kerb_raised_m", j["kerb_m"]), 1), round(j.get("kerb_flush_m", 0.0), 1)])
+            # junction widenings: the ghost island's, the bellmouth behind a corner island, the minor road's flare
+            for (j, w), t in zip(extra, bay_table(al, [dict(w) for _j, w in extra])):
+                area = w["depth"] * (abs(t["full_to"] - t["full_from"]) + (t["entry"] + t["exit"]) / 2)
+                wrows.append([j["id"], w["kind"], t["side"], round(al.display_station(t["start"]), 3),
+                             round(al.display_station(t["full_from"]), 3), round(al.display_station(t["full_to"]), 3),
+                             round(al.display_station(t["end"]), 3), t["entry"], t["exit"], t["width"],
+                             round(area, 1), None, None, None])
             sheet(ws, "RFD_Widenings", ["ID", "Kind", "Side", "Widening from (m)", "Full width from (m)",
                                        "Full width to (m)", "Widening to (m)", "Entry taper (m)", "Exit taper (m)",
-                                       "Width (m)", "Widening area (m2)", "Kerb (m)"],
-                  rows, [10, 14, 6, 14, 14, 14, 14, 11, 11, 9, 12, 9])
+                                       "Width (m)", "Widening area (m2)", "Kerb (m)", "Raised kerb (m)",
+                                       "Flush kerb (m)"],
+                  wrows, [10, 14, 6, 14, 14, 14, 14, 11, 11, 9, 12, 9, 10, 10])
         ws = wb.create_sheet("Junctions")
         sheet(ws, "RFD_Junctions", ["Chainage", "Chainage (m)", "Type", "Minor road side", "Crossing angle (deg)",
                                     "Scale", "Item", "Description", "Length", "Unit",

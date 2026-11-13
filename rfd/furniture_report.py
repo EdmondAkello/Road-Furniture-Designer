@@ -570,10 +570,12 @@ def junction_checks(al, junctions) -> List[Check]:
                              f"should not be sited where visibility is restricted (RDM 1.3 13.2)", "check"))
     from .junctions import widening_check
     for j in junctions:                              # round trip: placed widenings vs the re-imported corridor
-        if j.get("bay"):
-            a, b = sorted((j["bay"]["stations"][0], j["bay"]["stations"][3]))
-            for level, text in widening_check(al, j["bay"]):
-                out.append(Check("widening", a, b, j["bay"]["side"], f"{text[0].upper()}{text[1:]} ({_ch(al, a)} to "
+        recs = ([j["bay"]] if j.get("bay") else []) + [w for w in j.get("widen") or []
+                                                       if w.get("kind", "").startswith(("main road", "minor road"))]
+        for rec in recs:
+            a, b = sorted((rec["stations"][0], rec["stations"][3]))
+            for level, text in widening_check(al, rec):
+                out.append(Check("widening", a, b, rec["side"], f"{text[0].upper()}{text[1:]} ({_ch(al, a)} to "
                                  f"{_ch(al, b)})", level))
     trucks = sorted((j for j in junctions if j.get("bay") and j["bay"].get("kind") == "truck parking bay"),
                     key=lambda j: j["bay"]["stations"][1])
@@ -607,7 +609,13 @@ def junction_checks(al, junctions) -> List[Check]:
             for level, text in acc.get("notes", []):
                 out.append(Check("access", sta, sta, j.get("side") or "Both",
                                  f"private access at {_ch(al, sta)} on the {side}: {text}", level))
-    from .junctions import splay_findings
+    from .junctions import approach_splay_findings, splay_findings
+    for j in junctions:
+        if j.get("minor_splay"):
+            sta = j.get("sta") or 0.0
+            for level, text in approach_splay_findings(j["minor_splay"]):
+                out.append(Check("junction_sight", sta, sta, "Both",
+                                 f"type {j.get('kit', '')} junction at {_ch(al, sta)}: {text}", level))
     for j in junctions:
         if j.get("bay") or not j.get("sight"):
             continue

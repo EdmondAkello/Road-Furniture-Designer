@@ -20,10 +20,11 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 
 def test_templates_are_consistent():
-    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"}
+    assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS",
+                                                 "RBT", "SIG"}
     for k, items in T["kits"].items():
         assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access",
-                                     "RBT": "roundabout"}.get(k, "guides")
+                                     "RBT": "roundabout", "SIG": "signal_crossroads"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -40,7 +41,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT")]:
+            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT", "SIG")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:
@@ -164,6 +165,21 @@ def test_our_road_joins_a_main_road():
         J.place_minor(ours, 200, 2.0)                                            # neither alignment nor click
 
 
+def test_climbing_lanes_over_consecutive_grades():
+    """Two 6 % grades of 500 m each (each inside its 700 m limit) with a short 2 % break between them: the
+    truck has not recovered, so one lane is proposed; with a long level break, none."""
+    from rfd.profile import VerticalProfile
+    al = Alignment.from_polyline("S", [(0, 0), (4000, 0)])
+    al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 60), (1000, 130, 60), (1100, 132, 60),
+                                       (1600, 162, 60), (4000, 162, 0)])
+    (c,) = J.climbing_lanes(al)
+    assert c["side"] == "L" and 1100 <= c["start"] <= 1500 and c["end"] == pytest.approx(1800, abs=40)
+    assert c["length"] > 900
+    al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 60), (1000, 130, 60), (2000, 132, 60),
+                                       (2500, 162, 60), (4000, 162, 0)])
+    assert J.climbing_lanes(al) == []
+
+
 def test_crossroads_leg_follows_the_cursor():
     """Our road crosses the main road: the leg is the one on the cursor's side; both legs on request."""
     ours = Alignment.from_polyline("OURS", [(200, 300), (200, -300)])
@@ -234,7 +250,8 @@ def test_bus_bay():
     with pytest.raises(ValueError):
         J.place_bay(al, 200, 4.0, 202, 4.0)
     # LM05 is 0.2 m wide (RDM 6.1 Table 4.1)
-    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2 +
+                                                      pc.quantities.get("WM-BUSSTOP_m", 0.0) * J.WORD_STROKE, abs=0.01)
     assert T["codes"]["LM05"]["width"] == 0.2
 
 
@@ -254,7 +271,8 @@ def test_truck_parking_bay():
     # separation line from start point to end point, 1 m marks at 1 m gaps, 0.2 m wide
     lm = [p for p in pc.parts if p.code == "LM05"]
     assert min(p.pts[0][0] for p in lm) == pytest.approx(85) and max(p.pts[-1][0] for p in lm) == pytest.approx(180, abs=1)
-    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2)
+    assert pc.quantities["paint_m2"] == pytest.approx(pc.quantities["LM05_m"] * 0.2 +
+                                                      pc.quantities.get("WM-BUSSTOP_m", 0.0) * J.WORD_STROKE, abs=0.01)
     # checks: a short bay, and bays more than 30 km apart in one direction; not the bus-bay spacing rule
     short, Bs = J.place_bay(al, 100, -4.0, 140, -4.0)
     ps = J.build_piece(al, short, "truck_bay", params={"bay": Bs}, templates=T)
@@ -271,8 +289,11 @@ def test_climbing_lanes_from_the_profile():
     al = Alignment.from_polyline("S", [(0, 0), (3000, 0)])
     al.profile = VerticalProfile("P", [(0, 100, 0), (500, 100, 100), (1700, 172, 200), (3000, 172, 0)])
     (c,) = J.climbing_lanes(al)
-    assert (c["start"], c["end"], c["side"], c["limit"]) == (1200, 1900, "L", 700)
-    pl, L = J.place_lane(al, c["start"], c["end"], c["side"])
+    # the 6 % grade's 700 m allowance runs out about 700 m up it (a little earlier: the sag curve's
+    # steepening part counts too); the lane ends 200 m past the climb
+    assert c["side"] == "L" and c["limit"] == 700 and c["end"] == 1900
+    assert 1150 <= c["start"] <= 1230 and c["length"] > 1000
+    pl, L = J.place_lane(al, 1200, 1900, c["side"])
     pc = J.build_piece(al, pl, "climbing_lane", params={"bay": L}, templates=T)
     assert pc.params["stations"] == [1100, 1200, 1900, 2000] and pc.params["depth"] == 3.25
     assert pc.quantities["widen_m2"] == pytest.approx(3.25 * 700 + 3.25 * 100, rel=0.01)
@@ -285,7 +306,7 @@ def test_climbing_lanes_from_the_profile():
     # downhill with the chainage: the lane serves traffic running against it, on the right
     al.profile = VerticalProfile("P", [(0, 172, 0), (1200, 100, 200), (3000, 100, 0)])
     (d,) = J.climbing_lanes(al)
-    assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700) and d["end"] == 0
+    assert d["side"] == "R" and d["start"] == pytest.approx(1200 - 700, abs=60) and d["end"] == 0
     assert J.climbing_lanes(al, aadt=1500) == []                     # RDM 1.3 6.6.2: none under 2000 pcu
     assert "6000" in J.climbing_lanes(al, aadt=8000)[0]["note"]
 
@@ -423,7 +444,9 @@ def test_roundabout_geometry_and_checks():
     assert all(y < 0 for _, y in east.pts)                         # traffic heading west keeps to the south
     q = pc.quantities
     assert q["icd"] == 30.8 and q["width"] == pytest.approx(10.4) and q["overlaps"] == 0
-    assert [lvl for lvl, _ in pc.params["notes"]] == ["info", "info"]       # compact hint, deflection not checked
+    # compact hint and the path caveat; radial arms round a 10 m island in a 30.8 m ICD deflect little
+    assert [lvl for lvl, _ in pc.params["notes"]][:2] == ["info", "info"]
+    assert all(lvl == "check" and "entry path radius" in t for lvl, t in pc.params["notes"][2:])
     # checks: two arms only, a tiny island, an ICD over 100 m, arms too close, returns that cross
     two = J.build_piece(al, pl, "roundabout", templates=T)
     assert any(lvl == "issue" and "at least 3" in t for lvl, t in two.params["notes"])
@@ -479,3 +502,179 @@ def test_continuation_is_not_a_junction():
     assert FR.end_control_checks(ours, [onward], [], []) == []
     branch = Alignment.from_polyline("BRANCH", [(300, 0), (300, 400)])          # starts here but at 90 deg
     assert len(FR.end_control_checks(ours, [branch], [], [])) == 1
+
+
+def test_junction_ahead_warnings():
+    """RDM 6.2 4.2: W2 / W1 / W5 on our road as the main road, W12 / W11 where it meets a greater road."""
+    al = Alignment.from_polyline("M", [(0, 0), (2000, 0)])
+    JA = J.JunctionAt
+    out = J.junction_warnings(al, [JA("a", "main", 500, "L", kit="B"), JA("b", "main", 505, "R", kit="C"),
+                                   JA("c", "main", 1200, "L", kit="B"), JA("d", "main", 1240, "R", kit="B"),
+                                   JA("e", "main", 300, "R", kit="ACCESS"),             # accesses: no warning
+                                   JA("m", "minor", 1900, up=False), JA("x", "minor", 50, up=True, crossing=True)])
+    got = sorted((p.code, round(p.station), p.facing, p.mirror) for p in out)
+    a = 140                                                     # 80 km/h: 6 s of travel, rounded up to 10 m
+    assert got == sorted([("W1", 500 - a, "Forward", False), ("W1", 505 + a, "Backward", False),
+                          ("W5", 1200 - a, "Forward", False),       # first side road on the left, as drawn
+                          ("W5", 1240 + a, "Backward", False),      # backward traffic meets d first, on its left
+                          ("W12", 1900 - a, "Forward", False), ("W11", 50 + a, "Backward", False)])
+    lone = J.junction_warnings(al, [JA("s", "main", 800, "R", kit="C")])
+    assert sorted((p.facing, p.mirror) for p in lone) == [("Backward", True), ("Forward", False)]
+
+
+def test_turn_and_approach_arrows():
+    """RDM 6.1 6.4.3: AM03 in the right-turn lane of a ghost island kit, AM06 / AM07 on the minor approach."""
+    al = straight()                                            # main road east along x, minor road to the north
+    pcs = {p.piece: p for p in J.build_kit(al, at(al, 90), "A-1", templates=T)}
+    turn = pcs["turn_arrow"]
+    assert turn.quantities["AM03_no"] == 2 and turn.quantities["paint_m2"] > 1.0
+    xs = [x for p in turn.parts for x, _ in p.pts]
+    assert min(xs) > 200                                       # on the westbound right-turners' approach (east)
+    assert max(y for p in turn.parts for _, y in p.pts) > 1.0  # the head turns north, into the minor road
+    app = pcs["approach_arrows"]
+    assert {p.code for p in app.parts} == {"AM06"}
+    assert all(x > 200 and y > 3.5 for p in app.parts for x, y in p.pts)   # southbound lane, on the minor road
+    cross = J.build_piece(al, at(al, 90), "approach_arrows", params={"crossroads": True}, templates=T)
+    assert {p.code for p in cross.parts} == {"AM07"} and len(cross.parts) == 3
+    assert J.arrow_length(50) == 3.5 and J.arrow_length(80) == 5.0 and J.arrow_length(120) == 9.0
+    assert "turn_arrow" not in {p.piece for p in J.build_kit(al, at(al, 90), "C", templates=T)}
+
+
+def test_minor_road_approach_splay_on_a_bend():
+    """RDM 1.3 Figure 9.13: our road comes round a 120 m bend onto the main road; the splay reaches across
+    the inside of the bend. A straight approach needs (almost) nothing beyond the road."""
+    major = Alignment.from_polyline("MAJOR", [(-300, 0), (300, 0)])
+    R = 120.0
+    arc = [(R - R * math.cos(t), 3.0 + R * math.sin(t)) for t in [k * math.pi / 2 / 40 for k in range(41)]]
+    ours = Alignment.from_polyline("OURS", list(reversed(arc)) )          # chainage runs towards the main road
+    ours.speeds = [(0.0, 60.0)]
+    pl, main = J.place_minor(ours, 0.0, 3.0, major=major)
+    pc = J.approach_splay(ours, pl, main)
+    assert pc.parts[0].code == "SPLAY-M" and pc.params["ssd"] > 60
+    assert pc.params["clear_m"] > 3.0                                      # across the inside of the bend
+    assert "inside of the bend" in J.approach_splay_findings(pc.params)[0][1]
+    straight_road = Alignment.from_polyline("ST", [(0, 300), (0, 3.0)])
+    ps, ms = J.place_minor(straight_road, 0.0, 3.0, major=major)
+    assert J.approach_splay(straight_road, ps, ms).params["clear_m"] < 0.1
+    with pytest.raises(ValueError):
+        J.approach_splay(straight_road, J.place(major, 0, 0, 0, 30), major)
+
+
+def test_roundabout_entry_path_radius():
+    """RDM 1.3 10.6.3.5: a 20 m island in a 40 m ICD deflects the ahead path enough (radius under 100 m); a
+    10 m island in a 60 m ICD hardly does, and is flagged."""
+    al = straight()
+    arms = [{"bearing_deg": 90, "src": "click", "half": 3.5}, {"bearing_deg": -90, "src": "click", "half": 3.5}]
+    good = J.build_piece(al, J.place_roundabout(al, 200, 0), "roundabout",
+                         params={"island": 20, "icd": 40, "arms": arms}, templates=T)
+    assert all(r is not None and r < 100 for r in good.params["quantities"]["entry_path_r"])
+    assert not [t for _l, t in good.params["notes"] if "entry path radius" in t]
+    poor = J.build_piece(al, J.place_roundabout(al, 200, 0), "roundabout",
+                         params={"island": 10, "icd": 60, "arms": arms}, templates=T)
+    assert len([t for lvl, t in poor.params["notes"] if lvl == "check" and "entry path radius" in t]) == 4
+
+
+def test_three_centred_kerb_returns():
+    """RDM 1.3 Figure 9.25: R1 : R2 : R3 = 2 : 1 : 3, tangent to the main edge and to the minor edge."""
+    for ang, sgn in ((90, 1), (90, -1), (70, 1), (110, -1)):
+        d = (math.cos(math.radians(ang)), math.sin(math.radians(ang)))
+        p0 = (sgn * d[1] * 3.5, -sgn * d[0] * 3.5)
+        c = J.three_centred_return(p0, d, sgn, 10.0)
+        assert c[0][1] == pytest.approx(0.0) and c[1][1] > 0                  # leaves the main edge tangentially
+        e = c[-1]
+        assert d[0] * (e[1] - p0[1]) - d[1] * (e[0] - p0[0]) == pytest.approx(0.0, abs=1e-6)   # on the minor edge
+        t = (e[0] - c[-2][0], e[1] - c[-2][1])
+        assert (t[0] * d[0] + t[1] * d[1]) / math.hypot(*t) == pytest.approx(1.0, abs=1e-3)   # along it
+    pcs = {p.piece: p for p in J.build_kit(straight(), at(straight(), 90), "C", templates=T)}
+    assert len(pcs["guides"].parts) >= 6
+
+
+def test_bus_stop_word_marking_and_edge_code():
+    """RDM 6.1 10.3: BUS STOP in each 15 m box of the bay; the carriageway edge is found by any usual code."""
+    from rfd.corridor import Edges
+    al = straight()
+    al.speeds = [(0.0, 50.0)]
+    pl, B = J.place_bay(al, 200, 4.0, 230, 4.0)
+    pc = J.build_piece(al, pl, "bus_bay", params={"bay": B}, templates=T)
+    words = [p for p in pc.parts if p.code == "WM-BUSSTOP"]
+    assert pc.quantities["WM-BUSSTOP_no"] == 2 and len(words) == 2 * (4 + 5)   # B U S + S T O P strokes, twice
+    assert all(200 <= x <= 230 and 3.5 < y < 7.5 for p in words for x, y in p.pts)   # inside the bay
+    assert J.word_strokes("STOP", 2.5)[0][0][0] < 0 < J.word_strokes("STOP", 2.5)[-1][-1][0]
+    # a corridor whose carriageway edge is coded EOP: used for the bay and the round trip
+    al.edges = Edges({("EOP", s): [(x, 3.5) for x in range(0, 401, 10)] for s in "LR"})
+    assert J.edge_code(al, "L") == "EOP" and J.edge_code(al, "L", "ETW") == "EOP"
+    pc = J.build_piece(al, pl, "bus_bay", params={"bay": B}, templates=T)
+    assert pc.params["edge_code"] == "EOP"
+    rec = {k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind", "edge_code")}
+    assert "not in the corridor yet" in J.widening_check(al, rec)[0][1]
+
+
+def test_islands_never_narrow_the_existing_lanes():
+    """Islands come with their widenings: ghost islands with the main road widened on both sides, corner
+    islands off the (widened) edge with a bellmouth behind them, splitters with the minor road flared."""
+    al = straight()                                  # no corridor edges: ETW taken as 3.5 m
+    for ang in (90, 70):
+        pl = at(al, ang)
+        for k in ("A-1", "A-2", "B", "B-Mod", "C"):
+            pcs = {p.piece: p for p in J.build_kit(al, pl, k, templates=T, splays=False)}
+            ea = J.kit_edge_add(T, k)
+            # a ghost island in the middle: the widening adds at least its half-width to each side
+            for g in ("ghost_island", "ghost_lead", "ghost_wedge"):
+                if g in pcs:
+                    half = max(abs(y) for p in pcs[g].parts for _, y in p.pts)
+                    assert ea >= half - 1e-6, (k, g)
+                    assert "main_widening" in pcs
+            # corner islands and their hatching stay off the (widened) through lane
+            for c in ("corner_island", "corner_hatch"):
+                if c in pcs:
+                    assert all(y > 3.5 + ea for p in pcs[c].parts for _, y in p.pts), (k, c, ang)
+            # the guides carry the bellmouth and the minor flare as widening rows
+            kinds = {r["kind"] for r in pcs["guides"].params["rows"]}
+            assert "minor road flare at the splitter" in kinds
+            if "corner_island" in pcs:
+                assert "bellmouth behind a corner island" in kinds
+
+
+def test_joining_a_clicked_main_road_near_our_road_end():
+    """Trial (Olkaria video): our road starts on a main road given by its clicked direction. A click a few
+    metres into our road snaps to its end, and the stub behind the junction point is never taken as the leg,
+    whatever the mouse does."""
+    ours = Alignment.from_polyline("OURS", [(0, 0), (0, -500)])          # starts at 0+000, runs south
+    for back in (0.3, 8.0, 20.0, 29.0):
+        for cur in ((100, 40), (100, -60), (80, 80), (-90, 10)):
+            pl, main = J.place_minor(ours, 0.0, -back, *cur)
+            assert pl.our_station == 0.0 and math.degrees(pl.bearing) == pytest.approx(-90)
+            pcs = {p.piece: p for p in J.build_kit(main, pl, "B", templates=T)}
+            assert all(y < 0 for p in pcs["splitter_teardrop"].parts for _, y in p.pts)   # on our road
+    # further in, the click stays where it is; a 45 m stub behind it is a real leg (our road crosses)
+    pl, main = J.place_minor(ours, 0.0, -45.0, 100, 40)
+    assert pl.our_station == pytest.approx(45.0) and len(J.minor_legs(ours, 45.0, main)) == 2
+
+
+def test_alignment_running_on_past_the_junction():
+    """Trial (Olkaria 16+700): the alignment runs on 40 m past the junction on a slight curve; the long leg
+    is our road, not the tail."""
+    ours = Alignment.from_polyline("OURS", [(30, 1500), (8, 600), (0, 40), (1.5, 0)])   # ends 40 m past y = 40
+    major_click = (100, 45)
+    pl, main = J.place_minor(ours, 0.0, 40.0, *major_click)
+    assert math.sin(pl.bearing) > 0.99                                    # north, up our road
+    assert len(J.minor_legs(ours, pl.our_station, main)) == 2             # the tail is a leg for Both legs
+
+
+def test_signalised_crossroads():
+    """RDM 6.1 7.8 / Figure 7.12: four arms, each with a crossing, a stop line on the approach half, a centre
+    line and an arrow; kerb returns at the corners; W46 on our approaches."""
+    al = straight()
+    for ang in (90, 75):
+        pc = J.build_kit(al, at(al, ang), "SIG", templates=T)[0]
+        q = pc.quantities
+        assert pc.params["arms"] == 4 and q["TM01_m"] == pytest.approx(4 * 3.5, abs=0.1) and q["AM07_no"] == 12
+        # stop lines are on the approach half for left-hand traffic: on the west arm, north of the centre line
+        stops = [p for p in pc.parts if p.code == "TM01"]
+        west = min(stops, key=lambda p: p.pts[0][0])
+        assert all(y >= -1e-6 for _, y in west.pts) and west.pts[0][0] < 185
+        # crossings between the stop line and the junction
+        bm = [p for p in pc.parts if p.code == "BM02" and p.pts[0][1] < 4 and p.pts[0][0] < 200]
+        assert bm and all(west.pts[0][0] < x < 200 for p in bm for x, _ in p.pts)
+    out = J.junction_warnings(al, [J.JunctionAt("s", "main", 200, "L", kit="SIG")])
+    assert sorted((p.code, p.facing) for p in out) == [("W46", "Backward"), ("W46", "Forward")]
