@@ -10,6 +10,7 @@ A patch for the QGIS plugin repository; not tagged (the citation and DOI stay wi
 - The DXF export is about three times faster (850 signs: 1.0 s instead of 3.4 s).
 - Plugin code tidied for the repository's active Flake8 checks: no lambda assignments (E731) or ambiguous names (E741).
 - An export that cannot write its file (open in Excel or CAD, read-only folder) says so.
+- **Broken markings show their dashes in Civil 3D.** Each marking is a polyline with a vertex every 2 m; without linetype generation CAD restarts the dash pattern at every vertex, and a 3 m mark on 2 m segments drew solid. Polylines are now written with linetype generation on (this affected every version since markings were added).
 
 ### Added
 - `tests/test_xlsx.py`, `tests/test_dxfw.py`: the new writers checked with openpyxl and ezdxf (development dependencies only), including ezdxf's audit, attribute placement against ezdxf's own, editing a workbook saved by another program, and reading back a DXF saved by another program.

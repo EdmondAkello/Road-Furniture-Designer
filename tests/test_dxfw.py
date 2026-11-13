@@ -70,6 +70,7 @@ def test_drawing_audits_clean_and_reads_back(tmp_path):
     msp = doc.modelspace()
     pl = msp.query("LWPOLYLINE")[0]
     assert pl.closed and pl.dxf.const_width == 0.15 and pl.dxf.linetype == "RSD_3_9"
+    assert pl.dxf.flags & 128                       # linetype generation: dashes run on across vertices
     assert msp.query("MTEXT")[0].text == "A\\PB" * 100
     t = msp.query("TEXT")[0]
     assert t.dxf.halign == 2 and t.dxf.valign == 2 and t.dxf.rotation == 10

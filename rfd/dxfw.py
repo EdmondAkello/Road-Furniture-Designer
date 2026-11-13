@@ -236,8 +236,10 @@ class Layout:
         return self.add(Entity("POINT", _common(layer) + [(100, "AcDbPoint")] + _xyz(10, p), layer))
 
     def add_lwpolyline(self, pts, close=False, layer="0", linetype=None, const_width=None, rgb=None):
+        # flag 128 (linetype generation): the dash pattern runs on along the whole polyline instead of
+        # restarting at every vertex, so a dashed marking with a vertex every 2 m still shows its dashes
         t = _common(layer, linetype=linetype, rgb=rgb) + [(100, "AcDbPolyline"), (90, str(len(pts))),
-                                                           (70, "1" if close else "0")]
+                                                           (70, str((1 if close else 0) | 128))]
         if const_width:
             t.append((43, _f(const_width)))
         for p in pts:
