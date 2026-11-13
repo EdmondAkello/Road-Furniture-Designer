@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.2 — 2026-11-13
+
+### Changed
+- The user guide PDF ships inside the plugin (`doc/`): the dock's **Guide** button and the Plugins menu entry open it in your PDF viewer, offline; the copy on GitHub is used only if it is missing.
+
 ## 0.11.1 — 2026-11-13
 
 ### Fixed

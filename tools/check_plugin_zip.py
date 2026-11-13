@@ -4,7 +4,7 @@
 
 Fails (exit 1) when:
   * the ZIP does not hold exactly one top folder, road_furniture_designer/
-  * LICENSE (plugins.qgis.org requires it), metadata.txt, __init__.py with classFactory, the core (rfd/) or the export libraries (ext_libs/) are missing
+  * LICENSE (plugins.qgis.org requires it), the user guide PDF for the version (doc/), metadata.txt, __init__.py with classFactory, the core (rfd/) or the export libraries (ext_libs/) are missing
   * metadata.txt lacks name, version, qgisMinimumVersion or author
   * compiled files, caches, project data or archives are inside
 """
@@ -34,6 +34,13 @@ def check(path: str) -> list:
         for n in names:
             if any(f in n for f in FORBIDDEN):
                 problems.append(f"should not be packaged: {n}")
+        if f"{TOP}/metadata.txt" in names:
+            cpv = configparser.ConfigParser(interpolation=None)
+            cpv.read_string(z.read(f"{TOP}/metadata.txt").decode("utf-8"))
+            v = cpv.get("general", "version", fallback="")
+            guide = f"{TOP}/doc/Road_Furniture_Designer_{v}_User_Guide.pdf"
+            if guide not in names:
+                problems.append(f"missing {guide} (the Guide button opens it)")
         if f"{TOP}/__init__.py" in names and b"def classFactory" not in z.read(f"{TOP}/__init__.py"):
             problems.append("__init__.py has no classFactory")
         if f"{TOP}/metadata.txt" in names:
