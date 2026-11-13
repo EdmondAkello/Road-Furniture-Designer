@@ -82,6 +82,9 @@ st.add_junction(J.place_roundabout(st.al, _rx, _ry), "RBT", "", False,
                 False, None)
 pl, B = J.place_bay(st.al, *P(2420.0, -5.0), *P(2490.0, -5.0))       # a truck parking bay on the straight
 st.add_junction(pl, "TRUCK", params={"bay": B})
+_sx, _sy, _sh = st.al.point_at(3290.0)                               # a signalised crossroads in the village
+st.add_junction(J.place(st.al, _sx, _sy, _sx + 40 * math.cos(_sh + math.pi / 2), _sy + 40 * math.sin(_sh + math.pi / 2)),
+                "SIG")
 from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayer  # noqa: E402
 blds = QgsVectorLayer(f"Polygon?crs={st.signs.crs().authid()}", "Buildings (sample)", "memory")
 _bf = []
@@ -134,15 +137,13 @@ x, y = P(2080, 11)                                                    # the priv
 render_map(QgsRectangle(x - 27, y - 18, x + 27, y + 18), (1500, 1000), "fig_map_access.png")
 x, y = P(2452, 0)                                                     # the truck parking bay
 render_map(QgsRectangle(x - 75, y - 50, x + 75, y + 50), (1500, 1000), "fig_map_truckbay.png")
-jext = QgsRectangle()                                                 # type A-1 junction with its guide lines
-for f in st.junctions.layer.getFeatures():
-    if f["kit"] == "A-1" and not str(f["code"]).startswith("SPLAY"):
-        jext.combineExtentWith(f.geometry().boundingBox())
-jext.grow(12)
-jw = max(jext.width(), jext.height() * 1600 / 1050)
-cx, cy = jext.center().x(), jext.center().y()
+x, y = P(3290, 0)                                                     # the signalised crossroads
+render_map(QgsRectangle(x - 60, y - 40, x + 60, y + 40), (1500, 1000), "fig_map_signals.png")
+cx, cy, ch = st.al.point_at(2300.0, -14.0)                           # type A-1 junction with its widening,
+az = 90.0 - math.degrees(ch)                                          # road turned to run across the figure
+jw = 150.0
 render_map(QgsRectangle(cx - jw / 2, cy - jw * 1050 / 3200, cx + jw / 2, cy + jw * 1050 / 3200), (1600, 1050),
-           "fig_map_junction.png")
+           "fig_map_junction.png", rotation=-(az - 90.0))
 cx, cy, ch = st.al.point_at(2300.0, -22.0)                           # the A-1 junction's visibility splays,
 az = 90.0 - math.degrees(ch)                                          # road turned to run across the figure
 sw = 2 * 270.0
