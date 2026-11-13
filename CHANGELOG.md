@@ -16,6 +16,10 @@
 
 ## 0.9.0 — 2026-11-13
 
+
+### Fixed
+- Feature lines for Civil 3D were slow to import: each edge was one feature line of a vertex every 5 m (7,245 on a 36 km road). They are now thinned (20 mm in plan, 5 mm in level) and split into pieces of at most 500 vertices; the export message gives the counts.
+- Applying a typical section again after **Switch off** did not show the edges on the map until the project was reopened: the edges layer is reloaded after it is rewritten.
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
 - **Markings look as painted**: broken lines are dashed at their real mark and gap in metres (rural or urban by speed) on the map and the plan sheets, instead of a screen dash that read as dots; double lines and the combined line show both lines (kept apart on screen at any scale), the CLS's continuous side following "flip".

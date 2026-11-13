@@ -977,6 +977,7 @@ class SignStore(QObject):
             pr = self.edges_layer.dataProvider()
             pr.deleteFeatures([f.id() for f in self.edges_layer.getFeatures()])
             pr.addFeatures(_edge_features(self.al))
+            self.edges_layer.reload()           # QGIS desktop reads through its own connection: refresh it
             self.edges_layer.updateExtents()
             self.edges_layer.triggerRepaint()
         elif self.al.edges:

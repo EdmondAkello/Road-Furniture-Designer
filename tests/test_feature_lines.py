@@ -64,3 +64,20 @@ def test_verge_elements_take_their_own_fall():
     lines = {n: pts for n, _, pts in FL.edge_lines(al)}
     z = lines["RFD Walkway L"][0][2]
     assert z == pytest.approx(100.0 - 5.0 * 0.025 - 3.0 * 0.04)
+
+
+def test_thinning_keeps_tolerance_and_long_lines_are_split():
+    import math
+    # a straight constant grade collapses to its ends; an arc keeps enough vertices for 20 mm
+    straight = [(x, 0.0, 100 + 0.01 * x) for x in range(0, 1001, 5)]
+    assert FL.simplify(straight) == [straight[0], straight[-1]]
+    arc = [(1000 * math.sin(a / 1000), 1000 * (1 - math.cos(a / 1000)), 100.0) for a in range(0, 301, 5)]
+    kept = FL.simplify(arc)
+    assert 2 < len(kept) < len(arc)
+    for x, y, _ in arc:                                     # every sample within 20 mm of the thinned line
+        d = min(abs(math.hypot(x - a[0], y - a[1]) + math.hypot(x - b[0], y - b[1]) - math.hypot(b[0] - a[0], b[1] - a[1]))
+                for a, b in zip(kept, kept[1:]))
+        assert d < 0.05
+    pieces = FL.split("RFD ETW L", "ETW", [(float(i), 0.0, 0.0) for i in range(1200)], max_vertices=500)
+    assert [p[0] for p in pieces] == ["RFD ETW L", "RFD ETW L-2", "RFD ETW L-3"]
+    assert pieces[0][2][-1] == pieces[1][2][0] and sum(len(p[2]) for p in pieces) == 1200 + 2

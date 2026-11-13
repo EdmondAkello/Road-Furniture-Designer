@@ -27,6 +27,9 @@ from .corridor import SHOULDER, TRAVELLED_WAY
 PAVEMENT = tuple(TRAVELLED_WAY) + tuple(SHOULDER) + ("Parking", "Crown")
 SITE = "RFD"
 STEP = 5.0                  # m: sampling along the road for straight-line segments
+H_TOL = 0.02                # m: plan tolerance when the sampled lines are thinned (Douglas-Peucker)
+V_TOL = 0.005               # m: level tolerance (against the straight grade between kept vertices)
+MAX_VERTICES = 500          # a longer feature line is split into pieces (Civil 3D slows on very long ones)
 WIDENING_CODES = ("WIDEN", "BAYEDGE")
 
 Pt3 = Tuple[float, float, float]
@@ -181,6 +184,53 @@ def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[Tuple[str,
     return out
 
 
+def simplify(pts: Sequence[Pt3], h_tol: float = H_TOL, v_tol: float = V_TOL) -> List[Pt3]:
+    """Thin a sampled 3D line: drop vertices that lie within h_tol of the chord in plan and within v_tol
+    of the straight grade along it (iterative Douglas-Peucker on both). Ends always kept."""
+    n = len(pts)
+    if n <= 2:
+        return list(pts)
+    keep = [False] * n
+    keep[0] = keep[-1] = True
+    stack = [(0, n - 1)]
+    while stack:
+        a, b = stack.pop()
+        if b - a < 2:
+            continue
+        (xa, ya, za), (xb, yb, zb) = pts[a], pts[b]
+        dx, dy = xb - xa, yb - ya
+        L2 = dx * dx + dy * dy
+        worst, wi = 0.0, -1
+        for i in range(a + 1, b):
+            x, y, z = pts[i]
+            if L2 < 1e-12:
+                t, h = 0.0, math.hypot(x - xa, y - ya)
+            else:
+                t = ((x - xa) * dx + (y - ya) * dy) / L2
+                h = abs((x - xa) * dy - (y - ya) * dx) / math.sqrt(L2)
+            v = abs(z - (za + (zb - za) * min(1.0, max(0.0, t))))
+            score = max(h / h_tol, v / v_tol)
+            if score > worst:
+                worst, wi = score, i
+        if worst > 1.0:
+            keep[wi] = True
+            stack += [(a, wi), (wi, b)]
+    return [p for p, k in zip(pts, keep) if k]
+
+
+def split(name: str, code: str, pts: Sequence[Pt3], max_vertices: int = MAX_VERTICES):
+    """A line in pieces of at most max_vertices (sharing their end vertices), named 'name', 'name-2' ..."""
+    if len(pts) <= max_vertices:
+        return [(name, code, list(pts))]
+    out, i, k = [], 0, 1
+    while i < len(pts) - 1:
+        piece = list(pts[i:i + max_vertices])
+        out.append((name if k == 1 else f"{name}-{k}", code, piece))
+        i += max_vertices - 1
+        k += 1
+    return out
+
+
 # ------------------------------------------------------------------ LandXML
 def _header_elements(source_path) -> Tuple[str, str]:
     """The source file's <Units>...</Units> and <CoordinateSystem .../> as text (empty when absent)."""
@@ -250,7 +300,11 @@ def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[s
     no_super = src == "typical section" and not getattr(al, "super_runs", None)
     if no_super:
         notes.append("The LandXML has no superelevation: levels on curves are at the normal crossfall.")
-    lines = edge_lines(al, step) + widening_lines(al, parts)
+    raw = edge_lines(al, step) + widening_lines(al, parts)
+    lines = [piece for name, code, pts in raw for piece in split(name, code, simplify(pts))]
+    before, after = sum(len(p) for *_, p in raw), sum(len(p) for *_, p in lines)
+    notes.append(f"{after} vertices ({before} sampled, thinned to {H_TOL * 1000:g} mm in plan and "
+                 f"{V_TOL * 1000:g} mm in level).")
     desc = f"Road edges ({src}) and widenings of {al.name}" + (" - no superelevation in the source"
                                                                 if no_super else "")
     n = write_landxml(path, lines, source_path, desc=desc)
