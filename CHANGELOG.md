@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-11-13
 
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).
@@ -12,7 +12,7 @@
 - Calming tab: **Bar markings on the approaches** sits under the feature type. The placement message says how many bar sets went in, or how to switch them on.
 - Raised crossings have their own item, `TABLE-X` (Raised pedestrian crossing), with its own legend entry and fill, so they are counted apart from speed tables. Raised crossings placed before keep the `TABLE` code and are still reported as raised crossings.
 - Where a bus bay, truck parking bay or climbing lane widens the road, our road's edge line and edge studs on that side are cut from the start of the entry taper to the end of the exit taper (its own lines take over), on placing it and on every markings proposal, as at roundabouts.
-- The pre-3.34 enum fallbacks are gone (`compat.py` uses the scoped enums), and CI runs the QGIS tests on 3.34 as well as 3.44.
+- The pre-3.34 enum fallbacks are gone (`compat.py` uses the scoped enums, and `compat.prop()` for the symbol layer property keys, scoped only from QGIS 3.36), and CI runs the QGIS tests on 3.34 as well as 3.44.
 - CI: `actions/upload-artifact` and `download-artifact` v6 (Node.js 24).
 - Map tools belong to their tab. Leaving the Linear, Calming or Junctions tab switches its tool off. The hover read-out starts with what a click places (`Linear - BM03:` / `Calming - Circular road hump:`), and the Calming tool has its own cursor.
 
@@ -29,6 +29,7 @@
 - Climbing lanes draw their widened pavement edge with the 100 m tapers (`BAYEDGE`, as for truck parking bays), with its length in the quantities.
 - A hump's or table's approach bar sets are left out where they would fall on a junction kit, a roundabout, an access, a crossing or another hump, with a note for each. Placing a junction over proposed bar sets removes them.
 - Overlap checks: a hump, table, bump or zebra that overlaps another one, or a junction or roundabout, is flagged on placing it and in the furniture checks ("Transverse items overlapping"). A bar set on a junction is a check there.
+- User guide 0.9.0: islands with their widenings, the signalised crossroads (new figure), Junction Ahead signs and arrows, bar markings per approach and raised crossings; the A-1 figure redrawn with the widened main road.
 
 ### Fixed
 - Joining a road given by its clicked direction (Olkaria trial): a click a few metres into our road could take the stub behind it as the leg and build the kit off the end of our road. A click within 30 m of our road's end now snaps to the end, a stub under 30 m is never a leg, and where the alignment runs on past the junction the longer leg (our road) is taken, not the tail.
@@ -39,6 +40,7 @@
 - B-Mod no longer gets right-turn arrows (they sat on its hatched wedge).
 - Climbing lanes showed only their I1 / I2 signs: the map style had no symbol for their LM26 / LM03 lines, so they were not drawn. Every template code now has a symbol, and a project saved with the old style gets the missing ones when reopened.
 - A zebra placed from the Linear tab came out as a hump when the Calming tab's tool had been left on.
+- QGIS 3.34: closing or clearing a project could crash QGIS (the sign symbol's layers were freed twice); the plugin also failed to load on 3.34 (symbol layer property keys).
 
 ## 0.8.0 — 2026-11-12
 

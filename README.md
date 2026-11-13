@@ -4,7 +4,7 @@
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
-The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.8.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.8.0)](docs/user-guide/Road_Furniture_Designer_0.8.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.9.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.9.0)](docs/user-guide/Road_Furniture_Designer_0.9.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
 
 ```
  Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
@@ -428,6 +428,15 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 ## Roadmap
 
+Next releases:
+
+- **0.10 Centreline-only mode**: work from a LandXML with only the alignment and its profiles (existing and design), with the carriageway, shoulder and other edges from a typical section the designer sets, so every tool snaps to them as to a corridor.
+- **0.11 Descents**: descending lanes, brake check areas and truck escape ramps (horizontal layout for Civil 3D).
+- **0.12 Interaction**: handles on placed items, a properties panel, snapping between items and undo.
+- **0.13 Civil 3D geometry**: widenings and islands exported as Civil 3D-ready geometry.
+
+Later:
+
 - Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
 - Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
 - Junction signing (advance direction and direction signs per RDM Table A1-1); the Junction Ahead warnings (W1 / W2 / W5 / W11 / W12) are in.
@@ -450,7 +459,7 @@ python tools/build_plugin.py
 QT_QPA_PLATFORM=offscreen python -m pytest -q tests_qgis   # with the QGIS Python
 ```
 
-GitHub Actions runs the core tests, the core and QGIS tests in the official QGIS 3.44 container, and Bandit on pull requests and pushes to `main`. Only synthetic LandXML is committed; project exports stay outside the repository. Rebuild the user guide with `tools/guide/build_guide.sh <build folder>` (QGIS Python, Node with Playwright, poppler).
+GitHub Actions runs the core tests, the core and QGIS tests in the official QGIS 3.34 and 3.44 containers, and Bandit on pull requests and pushes to `main`. Only synthetic LandXML is committed; project exports stay outside the repository. Rebuild the user guide with `tools/guide/build_guide.sh <build folder>` (QGIS Python, Node with Playwright, poppler).
 
 ## Contributing
 
@@ -462,4 +471,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.8.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; version 0.8.0 is https://doi.org/10.5281/zenodo.24162213. Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.9.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo. Citation metadata is in `CITATION.cff`.
