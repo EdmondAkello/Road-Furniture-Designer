@@ -24,7 +24,9 @@ from qgis.PyQt.QtGui import QColor
 from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_CREATE_LAYER, FW_NO_ERROR, LABEL_OVER_POINT, MARKER_ARROWHEAD,
                      PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT,
                      make_field)
+from .rfd import typical_section as _ts
 from .rfd.alignment import format_station, landxml_crs, parse_landxml
+from .rfd.corridor import edge_polylines
 from .rfd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
 from .rfd.legend import face_svg
 from .rfd.records import (auto_facing, build_signlist, face_azimuth_deg, facing_from_rotation)
@@ -71,6 +73,20 @@ def _write_layer(path, name, fields, wkb, crs, first):
     return w
 
 
+EDGE_FIELDS = [("code", QVariant.String), ("side", QVariant.String)]
+
+
+def _edge_features(al):
+    """The alignment's edges (corridor or typical section) as rsd_edges features, split at gaps."""
+    out = []
+    for code, side, pts in edge_polylines(al):
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in pts]))
+        f.setAttributes([code, side])
+        out.append(f)
+    return out
+
+
 class SignStore(QObject):
     changed = pyqtSignal()          # inventory-relevant change
     message = pyqtSignal(str, int)  # text, level (0 info, 1 warning, 2 critical)
@@ -88,6 +104,8 @@ class SignStore(QObject):
         if not als:
             raise ValueError(f"Alignment '{meta['alignment']}' not found in {lx}")
         self.al = als[0]
+        self.typical = self._load_typical(meta)
+        _ts.apply(self.al, self.typical)
         self.signs = QgsVectorLayer(f"{gpkg}|layername=rsd_signs", "RFD signs", "ogr")
         self.alignment_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_alignment", "RFD alignment", "ogr")
         self.chainage_layer = QgsVectorLayer(f"{gpkg}|layername=rsd_chainage", "RFD chainage", "ogr")
@@ -149,24 +167,9 @@ class SignStore(QObject):
             s += tick
         del w
         if al.edges:
-            w = _write_layer(gpkg, "rsd_edges", _fields([("code", QVariant.String), ("side", QVariant.String)]),
-                             WKB_LINESTRING, crs, False)
-            for (code, side), pts in sorted(al.edges.data.items()):
-                sg = -1.0 if side == "L" else 1.0
-                run = []
-                def flush():
-                    if len(run) >= 2:
-                        f = QgsFeature(); f.setGeometry(QgsGeometry.fromPolylineXY(run)); f.setAttributes([code, side])
-                        w.addFeature(f)
-                prev = None
-                for sta, off in pts:
-                    if sta < al.sta_start - 1e-6 or sta > al.sta_end + 1e-6:
-                        continue
-                    if prev is not None and sta - prev > al.edges._gap[(code, side)]:   # gap (daylight only in cut)
-                        flush(); run = []
-                    run.append(QgsPointXY(*al.point_at(sta, sg * off)[:2]))
-                    prev = sta
-                flush()
+            w = _write_layer(gpkg, "rsd_edges", _fields(EDGE_FIELDS), WKB_LINESTRING, crs, False)
+            for f in _edge_features(al):
+                w.addFeature(f)
             del w
         if al.profile is not None and al.profile.curves:
             w = _write_layer(gpkg, "rsd_vcurves", _fields([
@@ -262,6 +265,21 @@ class SignStore(QObject):
                 grp.addLayer(lyr)
         self.style()
 
+    def _style_edges(self):
+        """Categorised edge lines; ETW dashed when it comes from a typical section (assumed, not modelled)."""
+        from qgis.core import QgsCategorizedSymbolRenderer, QgsRendererCategory
+        cats = []
+        assumed = self.edge_source == _ts.SOURCE
+        looks = {"ETW": ("90,90,90", "0.35", "dash" if assumed else "solid"), "EPS": ("130,130,130", "0.3", "dash"),
+                 "Daylight": ("160,120,60", "0.25", "dot")}
+        codes = self.al.edges.codes() if self.al.edges else []
+        for code in codes:
+            col, wid, style = looks.get(code, ("170,170,170", "0.2", "dot"))
+            sym = QgsLineSymbol.createSimple({"color": col, "width": wid, "line_style": style})
+            cats.append(QgsRendererCategory(code, sym, code))
+        self.edges_layer.setRenderer(QgsCategorizedSymbolRenderer("code", cats))
+        self.edges_layer.triggerRepaint()
+
     def style(self):
         # alignment
         self.alignment_layer.setRenderer(QgsSingleSymbolRenderer(
@@ -281,17 +299,7 @@ class SignStore(QObject):
         self.chainage_layer.setLabeling(QgsVectorLayerSimpleLabeling(pal))
         self.chainage_layer.setLabelsEnabled(True)
         if self.edges_layer.isValid():
-            from qgis.core import QgsCategorizedSymbolRenderer, QgsRendererCategory
-            cats = []
-            looks = {"ETW": ("90,90,90", "0.35", "solid"), "EPS": ("130,130,130", "0.3", "dash"),
-                     "Daylight": ("160,120,60", "0.25", "dot")}
-            codes = self.al.edges.codes() if self.al.edges else []
-            for code in codes:
-                col, wid, style = looks.get(code, ("170,170,170", "0.2", "dot"))
-                sym = QgsLineSymbol.createSimple({"color": col, "width": wid, "line_style": style})
-                cats.append(QgsRendererCategory(code, sym, code))
-            self.edges_layer.setRenderer(QgsCategorizedSymbolRenderer("code", cats))
-            self.edges_layer.triggerRepaint()
+            self._style_edges()
         if self.vcurve_layer.isValid():
             from qgis.core import QgsRuleBasedRenderer
             crest = QgsMarkerSymbol.createSimple({"name": "triangle", "size": "3.2", "color": "200,60,40",
@@ -934,6 +942,57 @@ class SignStore(QObject):
                 ml.addFeature(f)
         ml.commitChanges()
 
+    # ------------------------------------------------------------------ typical section (centreline-only)
+    @staticmethod
+    def _load_typical(meta):
+        raw = meta.get("typical_section") or ""
+        if not raw:
+            return None
+        try:
+            return _ts.TypicalSection.from_dict(json.loads(raw))
+        except (ValueError, TypeError, KeyError):
+            return None
+
+    @property
+    def edge_source(self):
+        """'corridor', 'typical section' or '' (no edges)."""
+        return getattr(self.al, "edge_source", "") or ""
+
+    def set_typical_section(self, ts):
+        """Store the typical section with the project and rebuild the road edges from it (where the
+        LandXML has no corridor, or always with ts.use_over_corridor). ts None switches it off.
+        Returns (applied, problems)."""
+        problems = ts.check(self.al) if ts is not None else []
+        self.typical = ts
+        self.set_meta(typical_section=json.dumps(ts.to_dict()) if ts is not None else "")
+        applied = _ts.apply(self.al, ts)
+        self.junctions._others = None          # side roads pick up their section on the next junction
+        self.write_edges()
+        self.changed.emit()
+        return applied, problems
+
+    def write_edges(self, project=None):
+        """Rewrite the rsd_edges layer from the alignment's current edges (creating it if needed)."""
+        if self.edges_layer.isValid():
+            pr = self.edges_layer.dataProvider()
+            pr.deleteFeatures([f.id() for f in self.edges_layer.getFeatures()])
+            pr.addFeatures(_edge_features(self.al))
+            self.edges_layer.updateExtents()
+            self.edges_layer.triggerRepaint()
+        elif self.al.edges:
+            w = _write_layer(self.gpkg, "rsd_edges", _fields(EDGE_FIELDS), WKB_LINESTRING, self.signs.crs(), False)
+            for f in _edge_features(self.al):
+                w.addFeature(f)
+            del w
+            self.edges_layer = QgsVectorLayer(f"{self.gpkg}|layername=rsd_edges", "RFD road edges", "ogr")
+            project = project or QgsProject.instance()
+            if self.edges_layer.isValid() and project.mapLayer(self.signs.id()) is not None:
+                project.addMapLayer(self.edges_layer, False)
+                grp = project.layerTreeRoot().findGroup("Road Furniture Designer")
+                (grp or project.layerTreeRoot()).addLayer(self.edges_layer)
+        if self.edges_layer.isValid():
+            self._style_edges()
+
     def add_junction(self, pl, kit, piece="", guides=True, params=None, splays=True, splay=None, second_leg=False):
         """Place junction pieces or a bay; where our road is the minor road, also propose its R2 Give
         Way; a bus bay proposes its bus stop sign, a truck parking bay I15 and I14, a climbing lane I1 / I2.
@@ -1139,9 +1198,13 @@ class SignStore(QObject):
     def other_alignments(self):
         """The LandXML's other alignments (side roads, link roads) for reference in drawings and sheets."""
         try:
-            return [a for a in parse_landxml(self.landxml_path) if a.name != self.al.name]
+            out = [a for a in parse_landxml(self.landxml_path) if a.name != self.al.name]
         except Exception:
             return []
+        side = self.typical.for_others() if self.typical is not None else None
+        for a in out:
+            _ts.apply(a, side)            # side roads without a corridor: the chosen standard section
+        return out
 
     def export_civil3d(self, json_path, dxf_path=None, plan_scale=2500.0):
         from .rfd.package import build_package, write_package
@@ -1156,6 +1219,12 @@ class SignStore(QObject):
                       linear=(self.lines.runs(include_proposed=False), self.lines.cat),
                       junctions=self.junctions.parts())
         return sl
+
+    def export_feature_lines(self, path):
+        """Road edges and widenings (bays, climbing lanes, junction widenings) as 3D feature lines in a
+        LandXML for Civil 3D, levels from the design profile and the section. Returns (count, notes)."""
+        from .rfd.feature_lines import export
+        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path)
 
     def import_readback(self, json_path):
         """Apply sign moves / rotations made in Civil 3D (matched by face UUID)."""

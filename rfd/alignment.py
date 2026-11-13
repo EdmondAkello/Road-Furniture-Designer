@@ -147,6 +147,9 @@ class Alignment:
     edges: Optional["Edges"] = None                                     # corridor edges (ETW, EPS, ...)
     sections: Optional["Sections"] = None                               # corridor section shapes (offset, rel. z)
     superelevation: List[Tuple[float, float, float]] = field(default_factory=list)  # (start, end, full e %)
+    # Civil 3D superelevation stations per curve: begin_runout, begin_runoff, full, runoff, start_runout,
+    # end_runout (internal stations; missing ones None) and e (full rate %, as written)
+    super_runs: List[dict] = field(default_factory=list)
     ground: List[Tuple[float, float]] = field(default_factory=list)   # existing ground (station, z) from ProfSurf
 
     def speed_at(self, internal: float) -> Optional[float]:
@@ -618,6 +621,16 @@ def parse_landxml(path_or_text, corridor: bool = True) -> List[Alignment]:
                             if full is not None and full.text:
                                 al.superelevation.append((float(se.get("staStart")), float(se.get("staEnd")),
                                                           float(full.text)))
+                                run = {"e": float(full.text), "full": float(se.get("staStart")),
+                                       "runoff": float(se.get("staEnd"))}
+                                for key, tag in (("begin_runout", "BeginRunoutSta"),
+                                                 ("begin_runoff", "BeginRunoffSta"), ("full", "FullSuperSta"),
+                                                 ("runoff", "RunoffSta"), ("start_runout", "StartofRunoutSta"),
+                                                 ("end_runout", "EndofRunoutSta")):
+                                    c = _child(se, tag)
+                                    if c is not None and c.text:
+                                        run[key] = float(c.text)
+                                al.super_runs.append(run)
                         except (TypeError, ValueError):
                             pass
                 al.edges = Edges(edge_acc or {}) or None

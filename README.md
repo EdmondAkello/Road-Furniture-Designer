@@ -97,6 +97,10 @@ Do **not** use GitHub's green **Code → Download ZIP**, or the **Source code (z
 
 No pip is needed. The export libraries are bundled in the plugin's `ext_libs` folder as pure Python (openpyxl, ezdxf, fontTools, pyparsing, typing_extensions, et_xmlfile). If QGIS's own Python already has any of them, those copies are used instead.
 
+## A LandXML with only the centreline (Section tab)
+
+For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** writes the edges and the widened edges of bays, lanes and junctions as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
+
 ## Auto-placement (Auto tab)
 
 **Propose signs** reads the alignment, superelevation, design speeds, profile and corridor edges, and adds the signs the rules call for as **proposed** signs. They show with an orange ring on the map and the report. Review them, move or delete any you disagree with, then **Accept all proposals**. Proposals are left out of the inventory and the Civil 3D export until they are accepted. Re-running replaces the open proposals and never duplicates a sign that is already there.
@@ -285,7 +289,7 @@ On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:250
 - **Callouts.** Each sign is one block inserted at its post (true coordinates). The block holds a post marker, a leader and the sign face upright beside the road, clear of the carriageway and of the neighbouring signs, with the code underneath. A sign and its plate stack; back-to-back faces sit side by side.
 - **Text** (codes, legends, chainages) prints at 1.8 mm. Chainage labels read the right way up on either side.
 - **Text-bearing signs:** directional signs and plates get their own block with the real legend (coloured background, arrows, place names, route numbers, distances), drawn at 0.6 of the symbol size. Legend text uses the `RSD_LEGEND` style (Arial) so it fits its plate.
-- **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers.
+- **Reference geometry** (non-plotting): the alignment with chainages, every other alignment in the LandXML (`RSD-ALIGN-OTHER`), and the corridor edges on `RSD-EDGE-<code>` layers (`RSD-EDGE-TS-<code>` when they come from a typical section, ready to use as corridor targets).
 
 (Dynamo, when it is picked up again: symbol scale = the value shown after export, block source IN[4] = the exported DXF.)
 
@@ -430,7 +434,7 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 Next releases:
 
-- **0.10 Centreline-only mode**: work from a LandXML with only the alignment and its profiles (existing and design), with the carriageway, shoulder and other edges from a typical section the designer sets, so every tool snaps to them as to a corridor.
+- **0.10 Centreline-only mode** (in progress): work from a LandXML with only the alignment and its profiles (existing and design), with the carriageway, shoulder and other edges from a typical section the designer sets, so every tool snaps to them as to a corridor.
 - **0.11 Descents**: descending lanes, brake check areas and truck escape ramps (horizontal layout for Civil 3D).
 - **0.12 Interaction**: handles on placed items, a properties panel, snapping between items and undo.
 - **0.13 Civil 3D geometry**: widenings and islands exported as Civil 3D-ready geometry.
@@ -471,4 +475,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.9.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo. Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.9.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; version 0.9.0 is https://doi.org/10.5281/zenodo.24190252. Citation metadata is in `CITATION.cff`.

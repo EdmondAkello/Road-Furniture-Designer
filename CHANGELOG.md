@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Centreline-only LandXML** (new **Section** tab): with only the alignment and its design and existing ground profiles in the LandXML, a typical section gives the road edges. Elements per side from the centreline outwards (ETW, EPS, NMT, Walkway, Parking or any code, with widths), by chainage range, with linear width changes between ranges; standard sections R4-R9, U5 and U6 from RDM 1.3 Tables 4.23 / 4.24. It produces the same edge table a corridor gives, so signs, clearances, markings, barriers, calming, bays and junctions use it unchanged, and the `RFD road edges` layer carries it for snapping (ETW dashed: assumed). Stored with the project.
+- Embankment barriers without a corridor: a simplified section (crossfall, verge fall, hinge at the outer edge, fill or cut batter to the existing ground level at the centreline) gives the fill heights; the report notes that edges and fills are assumed.
+- A corridor and a typical section side by side: tick **Use it even where the LandXML has a corridor** to use the section; applying it lists where the corridor's ETW / EPS differ from it by more than 0.3 m.
+- **Superelevation on the typical section**: on curves the pavement rotates about the centreline as the LandXML's superelevation gives it (runout, runoff and full-rate stations from Civil 3D; a 0.5 % relative gradient where the file gives only the full-rate stations), so the section's levels, fill heights and feature lines follow it; the inside of the curve is taken from the alignment.
+- **Feature lines for Civil 3D** (Section tab): the road edges and the widened edges of bays, climbing lanes and junctions as 3D feature lines in a LandXML (`PlanFeatures`, site `RFD`, Northing Easting Elevation), to import into Civil 3D and use as corridor targets. Levels from the design profile and the section: the corridor's (superelevation included) or the typical section's coded points; beyond the pavement edge a widening carries the last crossfall on. The source file's Units and CoordinateSystem are copied.
+- **Side roads** (Section tab): the LandXML's other alignments without a corridor get a standard section, so a junction where our road joins one sits at its edge (3.5 m was assumed).
+- Typical sections saved to and loaded from a file, for use in other projects.
+- When a project with a typical section is reopened and the LandXML now has a corridor, the corridor is used and the differences from the section are listed.
+- Edges from a typical section are dashed on the plan sheets and go to `RSD-EDGE-TS-<code>` layers in the DXF.
+- User guide: the Section tab (section 5), with a figure.
+
 ## 0.9.0 — 2026-11-13
 
 ### Changed

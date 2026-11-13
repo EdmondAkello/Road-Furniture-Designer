@@ -42,7 +42,7 @@ def _dock_fits(RsdDock):
     iface, win = _iface()
     d = RsdDock(iface, win)
     labels = [d.tabs.tabText(i) for i in range(d.tabs.count())]
-    assert labels == ["Place", "Inventory", "Auto", "Signs", "Linear", "Calming", "Speed limits", "Junctions + bays"]
+    assert labels == ["Place", "Inventory", "Auto", "Section", "Signs", "Linear", "Calming", "Speed limits", "Junctions + bays"]
     for i in range(d.tabs.count()):
         assert isinstance(d.tabs.widget(i), QScrollArea)
         assert d.page(labels[i]) is d.tabs.widget(i).widget()

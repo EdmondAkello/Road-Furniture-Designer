@@ -46,8 +46,9 @@ REFERENCE_LAYERS = ("RSD-ALIGN", "RSD-ALIGN-OTHER", "RSD-REF-NOTES")
 EDGE_COLOURS = {"ETW": 7, "EPS": 2, "Hinge": 30, "Ditch_In": 5, "Ditch_Out": 5, "Daylight": 3}
 
 
-def _edge_layer(doc, code):
-    lay = "RSD-EDGE-" + "".join(c if c.isalnum() or c in "-_" else "_" for c in code)
+def _edge_layer(doc, code, assumed=False):
+    """RSD-EDGE-<code>; RSD-EDGE-TS-<code> for edges from a typical section (assumed, not a corridor)."""
+    lay = ("RSD-EDGE-TS-" if assumed else "RSD-EDGE-") + "".join(c if c.isalnum() or c in "-_" else "_" for c in code)
     if lay not in doc.layers:
         doc.layers.add(lay, color=EDGE_COLOURS.get(code, 8))
         doc.layers.get(lay).dxf.plot = 0
@@ -297,8 +298,9 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     for other in others or []:
         _draw_alignment(msp, other, "RSD-ALIGN-OTHER", max(tick, 100.0), text_h, label_name=True)
     for a in [al] + list(others or []):
+        assumed = getattr(a, "edge_source", "") == "typical section"
         for code, side, pts in edge_polylines(a):
-            msp.add_lwpolyline(pts, dxfattribs={"layer": _edge_layer(doc, code)})
+            msp.add_lwpolyline(pts, dxfattribs={"layer": _edge_layer(doc, code, assumed)})
 
     # coordinate check point at the start of the alignment (non-plotting)
     x0, y0, _ = al.point_at(al.sta_start)

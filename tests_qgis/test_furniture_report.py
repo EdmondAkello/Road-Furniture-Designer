@@ -1,4 +1,5 @@
 """Road furniture pages of the report: strip diagram, schedules and checks."""
+import pytest
 import math
 import os
 import re
@@ -581,3 +582,89 @@ def test_climbing_lane_proposed_in_a_project(tmp_path):
         r.deleteCategory(r.categoryIndexForValue(code))
     assert st.junctions.ensure_style() == 2
     assert {"LM26", "LM03"} <= {c.value() for c in st.junctions.layer.renderer().categories()}
+
+
+def _centreline_road(tmp_path):
+    """Demo road with only the alignment, the design profile and an existing ground profile: 8 m below the
+    road from 300 to 500, level with it elsewhere. No corridor."""
+    QgsProject.instance().clear()
+    els = build()
+    L = sum(e.length for e in els)
+    ground = "0 100 280 100 300 92 500 92 520 100 %.3f 100" % L
+    prof = ('<Profile name="DEMO"><ProfAlign name="FRL"><PVI>0 100</PVI><PVI>%.3f 100</PVI></ProfAlign>'
+            '<ProfSurf name="EG" state="existing"><PntList2D>%s</PntList2D></ProfSurf></Profile>' % (L, ground))
+    xml = tmp_path / "road.xml"
+    xml.write_text(to_landxml(els, extra=prof))
+    st = SignStore.create(str(tmp_path / "signs.gpkg"), str(xml), "DEMO-RD", CRS, "Test")
+    st.add_to_project()
+    return st, str(xml)
+
+
+def test_centreline_only_road_with_a_typical_section(tmp_path):
+    from road_furniture_designer.rfd import typical_section as T
+    from road_furniture_designer.rfd.barriers import BarrierConfig
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    from road_furniture_designer.rfd import furniture_report as FR
+    st, xml = _centreline_road(tmp_path)
+    assert st.edge_source == "" and not st.al.edges and not st.edges_layer.isValid()
+    applied, problems = st.set_typical_section(T.TypicalSection.standard("R5"))
+    assert applied and problems == []
+    assert st.edge_source == "typical section"
+    assert st.al.edges.offset("EPS", "L", 100.0) == pytest.approx(5.5)
+    # the edges layer exists now, in the project, for snapping
+    assert st.edges_layer.isValid() and QgsProject.instance().mapLayer(st.edges_layer.id()) is not None
+    assert {f["code"] for f in st.edges_layer.getFeatures()} == {"ETW", "EPS"}
+    # signs and barriers measure from it
+    assert st.edge_info(100.0, "L")[0] == "EPS"
+    st.lines.auto_propose_barriers(BarrierConfig(landxml=xml))
+    bars = [f for f in st.lines.layer.getFeatures() if f["item_code"] == "GR-W"]
+    assert bars and all(f["sta_from"] < 400 < f["sta_to"] for f in bars)
+    rep = FR.build(st.al, [], st.lines.cat, [], AutoConfig())
+    assert any("typical section" in n for n in rep.notes)
+    # feature lines for Civil 3D
+    n, notes = st.export_feature_lines(str(tmp_path / "fl.xml"))
+    assert n == 4 and "PlanFeature" in (tmp_path / "fl.xml").read_text()
+    # stored with the project: reopening rebuilds the same edges
+    st2 = SignStore.open(st.gpkg)
+    assert st2.edge_source == "typical section" and st2.al.edges.offset("ETW", "R", 50.0) == pytest.approx(3.5)
+    # switched off: no edges again, layer emptied
+    st.set_typical_section(None)
+    assert not st.al.edges and st.edge_source == "" and st.edges_layer.featureCount() == 0
+
+
+def test_section_tab_applies_and_switches_off(tmp_path):
+    from unittest import mock
+    from qgis.gui import QgsMapCanvas
+    from qgis.PyQt.QtWidgets import QMainWindow, QTableWidgetItem
+    from road_furniture_designer.dock import RsdDock
+    st, _ = _centreline_road(tmp_path)
+    win = QMainWindow()
+    iface = mock.MagicMock()
+    iface.mapCanvas.return_value = QgsMapCanvas()
+    iface.mainWindow.return_value = win
+    d = RsdDock(iface, win)
+    d.set_store(st)
+    assert d.tbl_ts.rowCount() == 1 and "ETW" in d.tbl_ts.item(0, 2).text()      # a standard section offered
+    d.tbl_ts.setItem(0, 1, QTableWidgetItem("500"))                               # rural to 0+500 ...
+    d.tbl_ts.insertRow(1)                                                          # ... then a town section
+    for c, v in enumerate(("500", "", "ETW 3.5, EPS 1.5, Walkway 3", "ETW 3.5, EPS 1.5")):
+        d.tbl_ts.setItem(1, c, QTableWidgetItem(v))
+    d.apply_typical_section()
+    assert st.edge_source == "typical section"
+    assert st.al.edges.offset("Walkway", "L", 700.0) == pytest.approx(8.0)
+    assert d.cmb_ref.findData("EPS") >= 0 and d.chk_restrict.isEnabled()
+    assert d.btn_toff.isEnabled()
+    # saved to a file and loaded back (chainages as shown)
+    f = str(tmp_path / "town.rfdsection.json")
+    with mock.patch("road_furniture_designer.dock.QFileDialog.getSaveFileName", return_value=(f, "")):
+        d.save_typical_section()
+    d.tbl_ts.setRowCount(0)
+    with mock.patch("road_furniture_designer.dock.QFileDialog.getOpenFileName", return_value=(f, "")):
+        d.load_typical_section()
+    assert d.tbl_ts.rowCount() == 2 and d.tbl_ts.item(1, 0).text() == "500"
+    assert d.typical_section() == st.typical
+    d.tbl_ts.setItem(1, 2, QTableWidgetItem("ETW"))                                # a code without a width
+    d.apply_typical_section()
+    assert "Row 2" in str(iface.messageBar().pushMessage.call_args)
+    d.switch_off_typical_section()
+    assert not st.al.edges and d.cmb_ref.count() == 1 and not d.btn_toff.isEnabled()
