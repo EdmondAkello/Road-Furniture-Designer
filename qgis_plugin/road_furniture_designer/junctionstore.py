@@ -75,7 +75,7 @@ class JunctionStore(QObject):
         self.layer = QgsVectorLayer(f"{gpkg}|layername={LAYER}", "RFD junctions", "ogr")
         if not self.layer.isValid():
             from .store import _write_layer
-            w = _write_layer(gpkg, LAYER, _fields(), WKB_MULTILINESTRING, crs, False)
+            w = _write_layer(gpkg, LAYER, _fields(), WKB_MULTILINESTRING, crs, False)  # noqa: F841 (closed by del)
             del w
             self.layer = QgsVectorLayer(f"{gpkg}|layername={LAYER}", "RFD junctions", "ogr")
         have = {f.name() for f in self.layer.fields()}

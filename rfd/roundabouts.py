@@ -331,7 +331,6 @@ def entry_paths(O: Pt, arms: List[dict], P: dict, q: dict, window: float = 25.0)
         for a, b in zip(path, path[1:]):
             cum.append(cum[-1] + math.dist(a, b))
         k_gw = min(range(len(path)), key=lambda k: math.dist(path[k], ctrl[1]))
-        k_is = min(range(len(path)), key=lambda k: math.dist(path[k], ctrl[2]))
         best = math.inf
         for a in range(len(path)):
             if cum[a] < cum[k_gw] - 50.0:

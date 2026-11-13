@@ -18,7 +18,11 @@ import re
 # Every file is checked by safe_xml.check() before it is parsed.
 import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
+
+if TYPE_CHECKING:                     # annotations only: the modules import this one
+    from .corridor import Edges, Sections
+    from .profile import VerticalProfile
 
 TWO_PI = 2.0 * math.pi
 
