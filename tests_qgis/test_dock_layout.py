@@ -107,7 +107,7 @@ def test_opens_as_a_tab_beside_the_processing_toolbox():
     from qgis.PyQt.QtWidgets import QDockWidget
     iface, win = _iface()
     tb = QDockWidget("Processing Toolbox", win); tb.setObjectName("ProcessingToolbox")
-    win.addDockWidget(Qt.RightDockWidgetArea, tb)
+    win.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, tb)
     win.show(); tb.show()
     plugin = P.classFactory(iface)
     plugin.initGui()

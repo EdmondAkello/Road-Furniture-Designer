@@ -41,7 +41,7 @@ KIND_TEXT = {"curve": "Curve", "grade_descent": "Steep descent", "grade_ascent":
 
 def _font(px, bold=False):
     f = QFont("Arial")
-    f.setStyleHint(QFont.StyleHint.SansSerif if hasattr(QFont, "StyleHint") else QFont.SansSerif)
+    f.setStyleHint(QFont.StyleHint.SansSerif)
     f.setPixelSize(int(px))
     f.setBold(bold)
     return f
@@ -525,9 +525,8 @@ def draw_page(p, d, item, i, n):
 def write_pdf(path, d, sheet_len=1000.0):
     items = pages(d, sheet_len)
     writer = QPdfWriter(path)
-    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A3 if hasattr(QPageSize, "PageSizeId") else QPageSize.A3))
-    writer.setPageOrientation(QPageLayout.Orientation.Landscape if hasattr(QPageLayout, "Orientation")
-                              else QPageLayout.Landscape)
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A3))
+    writer.setPageOrientation(QPageLayout.Orientation.Landscape)
     writer.setResolution(200)
     writer.setTitle(d.title)
     writer.setCreator("Road Furniture Designer")
@@ -535,7 +534,7 @@ def write_pdf(path, d, sheet_len=1000.0):
     vp = p.viewport()
     sc = vp.width() / W
     p.scale(sc, sc)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing if hasattr(QPainter, "RenderHint") else QPainter.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
     for i, item in enumerate(items, start=1):
         if i > 1:
             writer.newPage()
@@ -551,11 +550,10 @@ def write_pngs(folder, d, sheet_len=1000.0, scale=1.5, sheets_only=True):
     for i, item in enumerate(items, start=1):
         if sheets_only and item[0] not in ("sheet", "plan", "strip"):
             continue
-        img = QImage(int(W * scale), int(H * scale), QImage.Format.Format_ARGB32 if hasattr(QImage, "Format")
-                     else QImage.Format_ARGB32)
+        img = QImage(int(W * scale), int(H * scale), QImage.Format.Format_ARGB32)
         img.fill(QColor("#ffffff"))
         p = QPainter(img)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing if hasattr(QPainter, "RenderHint") else QPainter.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.scale(scale, scale)
         draw_page(p, d, item, i, len(items))
         p.end()

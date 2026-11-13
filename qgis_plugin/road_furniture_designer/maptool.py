@@ -26,7 +26,7 @@ class PlaceSignTool(QgsMapToolEmitPoint):
         self.mark = QgsRubberBand(canvas, GEOM_POINT)
         self.mark.setColor(QColor(255, 120, 0, 220))
         self.mark.setIconSize(10)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
     # -- coordinates
     def _to_layer(self, pt):
@@ -91,10 +91,10 @@ class PlaceSignTool(QgsMapToolEmitPoint):
         self.hover.emit(text)
 
     def canvasReleaseEvent(self, e):
-        if e.button() == Qt.RightButton:
+        if e.button() == Qt.MouseButton.RightButton:
             self.canvas.unsetMapTool(self)
             return
-        if e.button() != Qt.LeftButton or self._store() is None:
+        if e.button() != Qt.MouseButton.LeftButton or self._store() is None:
             return
         self.place_at(self._to_layer(e.mapPoint()))
 
@@ -166,7 +166,7 @@ class PlaceRunTool(QgsMapToolEmitPoint):
         self.mark = QgsRubberBand(canvas, GEOM_POINT)
         self.mark.setColor(QColor(0, 160, 120, 230))
         self.mark.setIconSize(10)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
     def _xf(self, to_layer=True):
         st = self._store()
@@ -236,7 +236,7 @@ class PlaceRunTool(QgsMapToolEmitPoint):
         self.hover.emit(text)
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Escape:
+        if e.key() == Qt.Key.Key_Escape:
             self.cancel()
 
     def cancel(self):
@@ -246,13 +246,13 @@ class PlaceRunTool(QgsMapToolEmitPoint):
     def canvasReleaseEvent(self, e):
         if self._store() is None:
             return
-        if e.button() == Qt.RightButton:
+        if e.button() == Qt.MouseButton.RightButton:
             if self.start is not None:
                 self.cancel()
             else:
                 self.canvas.unsetMapTool(self)
             return
-        if e.button() == Qt.LeftButton:
+        if e.button() == Qt.MouseButton.LeftButton:
             self.click(self._xf().transform(e.mapPoint()))
 
     def click(self, layer_pt):
@@ -367,7 +367,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         self.mark = QgsRubberBand(canvas, GEOM_POINT)
         self.mark.setColor(QColor(200, 60, 160, 230))
         self.mark.setIconSize(10)
-        self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
     def _xf(self, to_layer=True):
         st = self._store()
@@ -585,9 +585,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                             f"{'left' if F.side == 'L' else 'right'} - click to place")
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Escape:
+        if e.key() == Qt.Key.Key_Escape:
             self.cancel()
-        elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and self.p0 is not None \
+        elif e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.p0 is not None \
                 and self._settings().get("kit") == "RBT":
             self.place_roundabout()
 
@@ -601,7 +601,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
         st = self._store()
         if st is None:
             return
-        if e.button() == Qt.RightButton:
+        if e.button() == Qt.MouseButton.RightButton:
             if self.p0 is not None and self._settings().get("kit") == "RBT":
                 self.place_roundabout()
             elif self.p0 is not None:
@@ -609,7 +609,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             else:
                 self.canvas.unsetMapTool(self)
             return
-        if e.button() != Qt.LeftButton:
+        if e.button() != Qt.MouseButton.LeftButton:
             return
         self.click(self._xf().transform(e.mapPoint()))
 
@@ -689,7 +689,7 @@ class MovePieceTool(QgsMapToolEmitPoint):
         self.band = QgsRubberBand(canvas, GEOM_LINE)
         self.band.setColor(QColor(200, 60, 160, 220))
         self.band.setWidth(2)
-        self.setCursor(Qt.OpenHandCursor)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def _xf(self, to_layer=True):
         st = self._store()
@@ -729,7 +729,7 @@ class MovePieceTool(QgsMapToolEmitPoint):
         self.hover.emit(f"Move {d:+.1f} m along the road - click to place")
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Escape:
+        if e.key() == Qt.Key.Key_Escape:
             self.cancel()
 
     def cancel(self):
@@ -742,15 +742,15 @@ class MovePieceTool(QgsMapToolEmitPoint):
         st = self._store()
         if st is None:
             return
-        if e.button() == Qt.RightButton:
+        if e.button() == Qt.MouseButton.RightButton:
             if self.sel is not None:
                 self.cancel()
             else:
                 self.canvas.unsetMapTool(self)
             return
-        if e.button() != Qt.LeftButton:
+        if e.button() != Qt.MouseButton.LeftButton:
             return
-        self.click(self._xf().transform(e.mapPoint()), bool(e.modifiers() & Qt.ShiftModifier))
+        self.click(self._xf().transform(e.mapPoint()), bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier))
 
     def click(self, lp, whole=False):
         st = self._store()

@@ -7,7 +7,7 @@ and rebuilt whenever one of those fields changes.
 """
 from __future__ import annotations
 
-from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
+from qgis.PyQt.QtCore import QMetaType, QObject, pyqtSignal
 from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
                        QgsRendererCategory, QgsVectorLayer)
 
@@ -17,16 +17,16 @@ from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_
 
 LAYER = "rsd_lines"
 LINE_FIELDS = [
-    ("line_uuid", QVariant.String), ("item_code", QVariant.String),
-    ("sta_from", QVariant.Double), ("sta_to", QVariant.Double), ("side", QVariant.String),
-    ("offset_m", QVariant.Double), ("width_m", QVariant.Double), ("edge_ref", QVariant.String), ("no_overtaking", QVariant.Int), ("flip", QVariant.Int),
-    ("status", QVariant.String), ("rule", QVariant.String), ("reason", QVariant.String),
-    ("remarks", QVariant.String),
+    ("line_uuid", QMetaType.Type.QString), ("item_code", QMetaType.Type.QString),
+    ("sta_from", QMetaType.Type.Double), ("sta_to", QMetaType.Type.Double), ("side", QMetaType.Type.QString),
+    ("offset_m", QMetaType.Type.Double), ("width_m", QMetaType.Type.Double), ("edge_ref", QMetaType.Type.QString), ("no_overtaking", QMetaType.Type.Int), ("flip", QMetaType.Type.Int),
+    ("status", QMetaType.Type.QString), ("rule", QMetaType.Type.QString), ("reason", QMetaType.Type.QString),
+    ("remarks", QMetaType.Type.QString),
     # derived
-    ("description", QVariant.String), ("category", QVariant.String), ("colour", QVariant.String),
-    ("pattern", QVariant.String), ("ch_from", QVariant.String), ("ch_to", QVariant.String),
-    ("length_m", QVariant.Double), ("quantity", QVariant.Double), ("unit", QVariant.String),
-    ("speed_kmh", QVariant.Double),
+    ("description", QMetaType.Type.QString), ("category", QMetaType.Type.QString), ("colour", QMetaType.Type.QString),
+    ("pattern", QMetaType.Type.QString), ("ch_from", QMetaType.Type.QString), ("ch_to", QMetaType.Type.QString),
+    ("length_m", QMetaType.Type.Double), ("quantity", QMetaType.Type.Double), ("unit", QMetaType.Type.QString),
+    ("speed_kmh", QMetaType.Type.Double),
 ]
 TRIGGERS = ("item_code", "sta_from", "sta_to", "side", "offset_m", "width_m", "edge_ref", "no_overtaking", "flip")
 

@@ -1,6 +1,7 @@
 [general]
 name=Road Furniture Designer
-qgisMinimumVersion=3.34
+qgisMinimumVersion=3.44
+qgisMaximumVersion=4.99
 description=Road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, markings and road studs, safety barriers, traffic calming, crossings and speed limit zones, placed by hand or proposed from the geometry, with a live inventory, reports and a georeferenced DXF for Civil 3D.
 version=0.11.2
 author=Edmond Akello

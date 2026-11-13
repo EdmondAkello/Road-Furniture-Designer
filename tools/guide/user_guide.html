@@ -20,7 +20,7 @@
       <b>Author</b><span>Edmond Akello</span>
       <b>Licence</b><span>GNU General Public License v2 or later</span>
       <b>Status</b><span>Stable, in active development</span>
-      <b>QGIS</b><span>3.34 or later (tests run headless on 3.34 and 3.44)</span>
+      <b>QGIS</b><span>3.44 or later, including QGIS 4 (tests run headless on 3.44 and 4.2)</span>
       <b>Civil 3D</b><span>2026 and later, by copy and paste from a georeferenced DXF</span>
       <b>Standards</b><span>Kenya Road Design Manual (2025): Part 6.2 Traffic Signs, 6.1 Road Marking, 6.4 Other Traffic Control Devices, 1.3 Geometric Design</span>
       <b>Demo data</b><span>A synthetic 4.4 km road (tools/guide/make_guide_road.py)</span>
@@ -80,7 +80,7 @@
 This guide describes version {{VERSION}}. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
 <p>What has been checked:</p>
 <ul>
-  <li>353 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks, the junction templates and the packaged plugin ZIP; and 66 headless QGIS tests (QGIS 3.34 and 3.44, offscreen).</li>
+  <li>380 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks, the junction templates and the packaged plugin ZIP; and 66 headless QGIS tests (QGIS 3.44 and 4.2, offscreen).</li>
   <li>Nine alignments from private Civil 3D project exports (Arc 1960 / UTM 36S and 37S, up to 59 MB with TIN surfaces and corridor sections; project names withheld) run through the whole workflow: auto-placement, markings, barriers, features, speed zones, report, inventory and DXF.</li>
   <li>DXF georeferencing: every exported sign maps back to its chainage and offset with no measurable difference, and signs pasted with COPYBASE and PASTEORIG landed on the alignment in a Civil 3D project drawing (section 21).</li>
 </ul>

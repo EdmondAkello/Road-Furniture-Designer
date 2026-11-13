@@ -14,7 +14,7 @@ import math
 import os
 import uuid
 
-from qgis.PyQt.QtCore import QObject, QPointF, QVariant, pyqtSignal
+from qgis.PyQt.QtCore import QMetaType, QObject, QPointF, pyqtSignal
 from qgis.core import (
     QgsCoordinateReferenceSystem, QgsFeature, QgsFields, QgsGeometry, QgsPointXY,
     QgsProject, QgsVectorFileWriter, QgsVectorLayer, QgsCoordinateTransformContext, QgsFeatureRequest, QgsRectangle,
@@ -37,19 +37,19 @@ from .rfd.records import (auto_facing, build_signlist, face_azimuth_deg, facing_
 SVG_DIR = SIGNS_DIR
 
 SIGN_FIELDS = [
-    ("face_uuid", QVariant.String), ("install_uuid", QVariant.String), ("post_ref", QVariant.String),
-    ("sign_code", QVariant.String), ("description", QVariant.String), ("size", QVariant.String),
-    ("facing", QVariant.String), ("facing_auto", QVariant.Int), ("skew", QVariant.Double),
-    ("post_type", QVariant.String), ("foundation", QVariant.String), ("remarks", QVariant.String),
-    ("legend", QVariant.String), ("road_class", QVariant.String), ("mirror", QVariant.Int),
-    ("size_auto", QVariant.Int),
+    ("face_uuid", QMetaType.Type.QString), ("install_uuid", QMetaType.Type.QString), ("post_ref", QMetaType.Type.QString),
+    ("sign_code", QMetaType.Type.QString), ("description", QMetaType.Type.QString), ("size", QMetaType.Type.QString),
+    ("facing", QMetaType.Type.QString), ("facing_auto", QMetaType.Type.Int), ("skew", QMetaType.Type.Double),
+    ("post_type", QMetaType.Type.QString), ("foundation", QMetaType.Type.QString), ("remarks", QMetaType.Type.QString),
+    ("legend", QMetaType.Type.QString), ("road_class", QMetaType.Type.QString), ("mirror", QMetaType.Type.Int),
+    ("size_auto", QMetaType.Type.Int),
     # derived - never typed by the user
-    ("chainage", QVariant.String), ("chainage_m", QVariant.Double), ("station_int", QVariant.Double),
-    ("offset_m", QVariant.Double), ("side", QVariant.String), ("face_az", QVariant.Double),
-    ("speed_kmh", QVariant.Double), ("face_svg", QVariant.String),
-    ("edge_ref", QVariant.String), ("edge_clear", QVariant.Double), ("grade_pct", QVariant.Double),
-    ("status", QVariant.String), ("rule", QVariant.String), ("reason", QVariant.String),
-    ("stack", QVariant.Int),
+    ("chainage", QMetaType.Type.QString), ("chainage_m", QMetaType.Type.Double), ("station_int", QMetaType.Type.Double),
+    ("offset_m", QMetaType.Type.Double), ("side", QMetaType.Type.QString), ("face_az", QMetaType.Type.Double),
+    ("speed_kmh", QMetaType.Type.Double), ("face_svg", QMetaType.Type.QString),
+    ("edge_ref", QMetaType.Type.QString), ("edge_clear", QMetaType.Type.Double), ("grade_pct", QMetaType.Type.Double),
+    ("status", QMetaType.Type.QString), ("rule", QMetaType.Type.QString), ("reason", QMetaType.Type.QString),
+    ("stack", QMetaType.Type.Int),
 ]
 DERIVED = ("chainage", "chainage_m", "station_int", "offset_m", "side", "face_az", "facing", "description",
            "speed_kmh", "size", "face_svg", "edge_clear", "grade_pct")
@@ -99,7 +99,7 @@ def journaled(label):
     return deco
 
 
-EDGE_FIELDS = [("code", QVariant.String), ("side", QVariant.String)]
+EDGE_FIELDS = [("code", QMetaType.Type.QString), ("side", QMetaType.Type.QString)]
 
 
 def _edge_features(al):
@@ -175,14 +175,14 @@ class SignStore(QObject):
         al = [a for a in parse_landxml(landxml) if a.name == alignment_name][0]
         w = _write_layer(gpkg, "rsd_signs", _fields(SIGN_FIELDS), WKB_POINT, crs, True)
         del w
-        w = _write_layer(gpkg, "rsd_alignment", _fields([("name", QVariant.String)]),
+        w = _write_layer(gpkg, "rsd_alignment", _fields([("name", QMetaType.Type.QString)]),
                          WKB_LINESTRING, crs, False)
         n = max(2, int(al.length / 1.0))
         pts = [QgsPointXY(*al.point_at(al.sta_start + al.length * k / n)[:2]) for k in range(n + 1)]
         f = QgsFeature(); f.setGeometry(QgsGeometry.fromPolylineXY(pts)); f.setAttributes([al.name])
         w.addFeature(f)
         del w
-        w = _write_layer(gpkg, "rsd_chainage", _fields([("label", QVariant.String), ("az", QVariant.Double)]),
+        w = _write_layer(gpkg, "rsd_chainage", _fields([("label", QMetaType.Type.QString), ("az", QMetaType.Type.Double)]),
                          WKB_POINT, crs, False)
         s = math.ceil(al.sta_start / tick) * tick
         while s <= al.sta_end + 1e-6:
@@ -199,9 +199,9 @@ class SignStore(QObject):
             del w
         if al.profile is not None and al.profile.curves:
             w = _write_layer(gpkg, "rsd_vcurves", _fields([
-                ("kind", QVariant.String), ("chainage", QVariant.String), ("length_m", QVariant.Double),
-                ("k_value", QVariant.Double), ("a_pct", QVariant.Double), ("grade_in", QVariant.Double),
-                ("grade_out", QVariant.Double), ("label", QVariant.String)]), WKB_POINT, crs, False)
+                ("kind", QMetaType.Type.QString), ("chainage", QMetaType.Type.QString), ("length_m", QMetaType.Type.Double),
+                ("k_value", QMetaType.Type.Double), ("a_pct", QMetaType.Type.Double), ("grade_in", QMetaType.Type.Double),
+                ("grade_out", QMetaType.Type.Double), ("label", QMetaType.Type.QString)]), WKB_POINT, crs, False)
             for c in al.profile.curves:
                 if not (al.sta_start - 1e-6 <= c.pvi_station <= al.sta_end + 1e-6):
                     continue
@@ -220,7 +220,7 @@ class SignStore(QObject):
         meta = {"landxml": rel, "alignment": alignment_name, "project": project_name,
                 "schema": "rsd-gpkg/0.1", "crs_epsg": lx_crs.get("epsg", ""), "crs_name": lx_crs.get("name", ""),
                 "crs_map_zone": lx_crs.get("map_zone", ""), "layer_crs": crs.authid()}
-        w = _write_layer(gpkg, "rsd_meta", _fields([("key", QVariant.String), ("value", QVariant.String)]),
+        w = _write_layer(gpkg, "rsd_meta", _fields([("key", QMetaType.Type.QString), ("value", QMetaType.Type.QString)]),
                          WKB_NOGEOM, crs, False)
         for k, v in meta.items():
             f = QgsFeature(); f.setAttributes([k, v]); w.addFeature(f)
@@ -364,8 +364,7 @@ class SignStore(QObject):
         ring = QgsSimpleMarkerSymbolLayer(GEOM_CIRCLE, 10.0)
         ring.setColor(QColor(255, 140, 0, 60)); ring.setStrokeColor(QColor(255, 120, 0)); ring.setStrokeWidth(0.6)
         ring.setDataDefinedProperty(PROP_ENABLED, QgsProperty.fromExpression("\"status\" = 'proposed'"))
-        # appendSymbolLayer() takes ownership; the QgsMarkerSymbol(list) constructor does not on
-        # QGIS 3.34, where the layers were then freed twice when the project closed
+        # appendSymbolLayer() hands ownership to the symbol, so the layers are freed exactly once
         sym = QgsMarkerSymbol()
         sym.deleteSymbolLayer(0)
         for lyr in (ring, arrow, svg):

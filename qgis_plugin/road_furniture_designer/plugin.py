@@ -2,8 +2,9 @@ import os
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
 from qgis.core import QgsProject
+
+from .compat import QAction
 
 
 class RoadFurnitureDesignerPlugin:
@@ -31,7 +32,7 @@ class RoadFurnitureDesignerPlugin:
         if self.dock is None:
             from .dock import RsdDock
             self.dock = RsdDock(self.iface, self.iface.mainWindow())
-            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+            self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
             self._tab_with_toolbox()
             self.dock.visibilityChanged.connect(self.action.setChecked)
         return self.dock
@@ -46,7 +47,7 @@ class RoadFurnitureDesignerPlugin:
         try:
             docks = [d for d in win.findChildren(QDockWidget)
                      if d is not self.dock and d.isVisible() and not d.isFloating()
-                     and win.dockWidgetArea(d) == Qt.RightDockWidgetArea]
+                     and win.dockWidgetArea(d) == Qt.DockWidgetArea.RightDockWidgetArea]
         except (TypeError, RuntimeError):
             return
         if not docks:

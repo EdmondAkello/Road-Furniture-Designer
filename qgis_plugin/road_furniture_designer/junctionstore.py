@@ -12,7 +12,7 @@ import json
 import math
 import uuid as _uuid
 
-from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
+from qgis.PyQt.QtCore import QMetaType, QObject, pyqtSignal
 from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
                        QgsRendererCategory, QgsVectorLayer)
 
@@ -22,18 +22,18 @@ from .rfd.alignment import format_station
 
 LAYER = "rsd_junctions"
 FIELDS = [
-    ("piece_uuid", QVariant.String), ("junction_id", QVariant.String), ("kit", QVariant.String),
-    ("piece", QVariant.String), ("corner", QVariant.String), ("code", QVariant.String),
-    ("sta", QVariant.Double), ("bearing_deg", QVariant.Double), ("scale", QVariant.Double),
-    ("edge_m", QVariant.Double), ("params", QVariant.String),
-    ("role", QVariant.String), ("main_ref", QVariant.String), ("our_sta", QVariant.Double),
-    ("status", QVariant.String), ("rule", QVariant.String), ("remarks", QVariant.String),
+    ("piece_uuid", QMetaType.Type.QString), ("junction_id", QMetaType.Type.QString), ("kit", QMetaType.Type.QString),
+    ("piece", QMetaType.Type.QString), ("corner", QMetaType.Type.QString), ("code", QMetaType.Type.QString),
+    ("sta", QMetaType.Type.Double), ("bearing_deg", QMetaType.Type.Double), ("scale", QMetaType.Type.Double),
+    ("edge_m", QMetaType.Type.Double), ("params", QMetaType.Type.QString),
+    ("role", QMetaType.Type.QString), ("main_ref", QMetaType.Type.QString), ("our_sta", QMetaType.Type.Double),
+    ("status", QMetaType.Type.QString), ("rule", QMetaType.Type.QString), ("remarks", QMetaType.Type.QString),
     # derived
-    ("kind", QVariant.String), ("description", QVariant.String), ("ch", QVariant.String),
-    ("side", QVariant.String), ("crossing_deg", QVariant.Double),
-    ("kerb_m", QVariant.Double), ("island_m2", QVariant.Double), ("line_m", QVariant.Double),
-    ("paint_m2", QVariant.Double), ("widen_m2", QVariant.Double), ("bay", QVariant.String),
-    ("sight", QVariant.String), ("access", QVariant.String), ("rbt", QVariant.String),
+    ("kind", QMetaType.Type.QString), ("description", QMetaType.Type.QString), ("ch", QMetaType.Type.QString),
+    ("side", QMetaType.Type.QString), ("crossing_deg", QMetaType.Type.Double),
+    ("kerb_m", QMetaType.Type.Double), ("island_m2", QMetaType.Type.Double), ("line_m", QMetaType.Type.Double),
+    ("paint_m2", QMetaType.Type.Double), ("widen_m2", QMetaType.Type.Double), ("bay", QMetaType.Type.QString),
+    ("sight", QMetaType.Type.QString), ("access", QMetaType.Type.QString), ("rbt", QMetaType.Type.QString),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
 # kept with a bay / lane / ramp record (Widenings table, checks, feature lines)
@@ -570,7 +570,7 @@ class JunctionStore(QObject):
     def check_obstructions(self, layers):
         """Features of the given vector layers (buildings, trees, fences ...) inside a visibility splay.
         Returns {junction_id: [{kind, dir, layer, fid}]} and keeps it for the junction list and the report."""
-        from qgis.core import QgsCoordinateTransform, QgsFeatureRequest, QgsProject, QgsWkbTypes
+        from qgis.core import Qgis, QgsCoordinateTransform, QgsFeatureRequest, QgsProject
         found = {}
         for f in self.layer.getFeatures():
             if f["code"] not in ("SPLAY-A", "SPLAY-S", "SPLAY-M"):
@@ -590,7 +590,7 @@ class JunctionStore(QObject):
                         og = o.geometry()
                         if og.isEmpty() or not eng.intersects(og.constGet()):
                             continue
-                        if (QgsWkbTypes.geometryType(og.wkbType()) != QgsWkbTypes.PointGeometry
+                        if (og.type() != Qgis.GeometryType.Point
                                 and eng.touches(og.constGet())):
                             continue                                    # only along the edge
                         found.setdefault(f["junction_id"], []).append(

@@ -18,7 +18,7 @@ STRIPS_PER_PAGE = 3
 LANE_H = {"ticks": 34.0, "bars": 18.0}
 MARK_COL = {"white": "#4f5a69", "yellow": "#d9a400"}
 LEVEL_TEXT = {"issue": "Issue", "check": "Check", "info": "Info"}
-WRAP = int(Qt.TextFlag.TextWordWrap) if hasattr(Qt, "TextFlag") else int(Qt.TextWordWrap)
+WRAP = int(Qt.TextFlag.TextWordWrap)
 AL_LEFT = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
 

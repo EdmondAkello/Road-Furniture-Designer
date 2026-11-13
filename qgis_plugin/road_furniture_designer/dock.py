@@ -26,7 +26,7 @@ class _busy:
     """Wait cursor while a LandXML is read, so a short pause never looks like a hang."""
     def __enter__(self):
         from qgis.PyQt.QtWidgets import QApplication
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor if hasattr(Qt, "CursorShape") else Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
     def __exit__(self, *a):
         from qgis.PyQt.QtWidgets import QApplication
@@ -75,12 +75,12 @@ class RsdDock(QDockWidget):
         frow.addWidget(self.cmb_cat); frow.addWidget(self.search, 1)
         pl.addLayout(frow)
         self.palette = QListWidget()
-        self.palette.setViewMode(QListWidget.IconMode)
+        self.palette.setViewMode(QListWidget.ViewMode.IconMode)
         self.palette.setIconSize(QSize(44, 44))
         self.palette.setGridSize(QSize(112, 90))
-        self.palette.setResizeMode(QListWidget.Adjust)
+        self.palette.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.palette.setWordWrap(True)
-        self.palette.setMovement(QListWidget.Static)
+        self.palette.setMovement(QListWidget.Movement.Static)
         pl.addWidget(self.palette, 1)
         form = QFormLayout()
         self.cmb_size = QComboBox()
@@ -130,10 +130,10 @@ class RsdDock(QDockWidget):
         il.addWidget(self.lbl_totals)
         self.tbl = QTableWidget(0, 3)
         self.tbl.setHorizontalHeaderLabels(["Item", "Size", "No."])
-        self.tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
         il.addWidget(self.tbl, 2)
         il.addWidget(QLabel("Checks"))
@@ -226,8 +226,7 @@ class RsdDock(QDockWidget):
         from .rfd.typical_section import STANDARD
         for k, v in STANDARD.items():
             self.cmb_tstd.addItem(k, k)
-            self.cmb_tstd.setItemData(self.cmb_tstd.count() - 1, v["name"], Qt.ItemDataRole.ToolTipRole
-                                      if hasattr(Qt, "ItemDataRole") else Qt.ToolTipRole)
+            self.cmb_tstd.setItemData(self.cmb_tstd.count() - 1, v["name"], Qt.ItemDataRole.ToolTipRole)
         from .rfd.typical_section import DEFAULT as _TS_DEFAULT
         self.cmb_tstd.setCurrentIndex(self.cmb_tstd.findData(_TS_DEFAULT))
         self.cmb_tstd.setToolTip("RDM 1.3 Tables 4.23 / 4.24, single carriageways")
@@ -241,8 +240,7 @@ class RsdDock(QDockWidget):
                                "right: elements from the centreline outwards as CODE width, e.g. "
                                "ETW 3.5, EPS 2.0, Walkway 3.0")
         hh = self.tbl_ts.horizontalHeader()
-        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive if hasattr(QHeaderView, "ResizeMode")
-                                else QHeaderView.Interactive)
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hh.setStretchLastSection(True)
         for col, cw in ((0, 52), (1, 52), (2, 110)):
             self.tbl_ts.setColumnWidth(col, cw)
@@ -308,9 +306,9 @@ class RsdDock(QDockWidget):
         self.tbl_signs.setHorizontalHeaderLabels(["Post", "Chainage", "Side", "Clear", "Sign", "Size", "Legend"])
         hh = self.tbl_signs.horizontalHeader()
         for c in range(7):
-            hh.setSectionResizeMode(c, QHeaderView.Stretch if c == 4 else QHeaderView.ResizeToContents)
-        self.tbl_signs.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_signs.setSelectionBehavior(QAbstractItemView.SelectRows)
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 4 else QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_signs.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_signs.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_signs.verticalHeader().setVisible(False)
         sl_.addWidget(QLabel("Double-click a sign to zoom to it."))
         sl_.addWidget(self.tbl_signs, 1)
@@ -398,9 +396,9 @@ class RsdDock(QDockWidget):
         self.tbl_lines.setHorizontalHeaderLabels(["Item", "From", "To", "Side", "Qty", "Status"])
         hl = self.tbl_lines.horizontalHeader()
         for c in range(6):
-            hl.setSectionResizeMode(c, QHeaderView.Stretch if c == 0 else QHeaderView.ResizeToContents)
-        self.tbl_lines.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_lines.setSelectionBehavior(QAbstractItemView.SelectRows)
+            hl.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch if c == 0 else QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_lines.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_lines.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_lines.verticalHeader().setVisible(False)
         ll_.addWidget(QLabel("Double-click a run to zoom to it. Edit stations, side or offset in the "
                              "attribute table; the run is redrawn."))
@@ -731,8 +729,8 @@ class RsdDock(QDockWidget):
             page, label = tabs.widget(i), tabs.tabText(i)
             sa = QScrollArea()
             sa.setWidgetResizable(True)
-            sa.setFrameShape(QFrame.NoFrame)
-            sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            sa.setFrameShape(QFrame.Shape.NoFrame)
+            sa.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             tabs.removeTab(i)
             sa.setWidget(page)
             tabs.insertTab(i, sa, label)
@@ -770,7 +768,7 @@ class RsdDock(QDockWidget):
         from qgis.PyQt.QtWidgets import QAbstractButton
 
         for cb in root.findChildren(QComboBox):
-            cb.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            cb.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             cb.setMinimumContentsLength(12)
             cb.setMinimumWidth(120)             # Qt keeps the old minimum size hint after a policy change
             cb.currentTextChanged.connect(cb.setToolTip)
@@ -788,7 +786,7 @@ class RsdDock(QDockWidget):
         for lab in root.findChildren(QLabel):
             lab.setWordWrap(True)               # hover read-outs and results arrive later, often long
         for fl in root.findChildren(QFormLayout):
-            fl.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            fl.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         from qgis.PyQt.QtWidgets import QBoxLayout, QLayout
 
         def refresh():                          # drop minimum sizes cached before the changes
@@ -799,7 +797,7 @@ class RsdDock(QDockWidget):
         refresh()
         for row in root.findChildren(QHBoxLayout):
             if row.minimumSize().width() > RsdDock.ROW_MAX:
-                row.setDirection(QBoxLayout.TopToBottom)    # side-by-side buttons stack when too wide
+                row.setDirection(QBoxLayout.Direction.TopToBottom)    # side-by-side buttons stack when too wide
         refresh()
 
     ROW_MAX = 340
@@ -839,9 +837,9 @@ class RsdDock(QDockWidget):
         it = self.palette.currentItem()
         facing = ["Auto", "Forward", "Backward"][self.cmb_facing.currentIndex()]
         size = self.cmb_size.currentData() or self.cmb_size.currentText() or None
-        sd = self.store.cat.signs.get(it.data(Qt.UserRole)) if (it and self.store) else None
+        sd = self.store.cat.signs.get(it.data(Qt.ItemDataRole.UserRole)) if (it and self.store) else None
         legend = self.txt_legend.toPlainText().strip() if (sd and sd.legend) else ""
-        return {"code": it.data(Qt.UserRole) if it else None, "size": size,
+        return {"code": it.data(Qt.ItemDataRole.UserRole) if it else None, "size": size,
                 "legend": legend, "road_class": self.cmb_class.currentData() if legend else "",
                 "mirror": self.chk_mirror.isChecked() and self.chk_mirror.isEnabled(),
                 "facing": facing, "skew": self.spn_skew.value(),
@@ -1122,8 +1120,8 @@ class RsdDock(QDockWidget):
         key = lambda c: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", c)]
         for sd in sorted(self.store.cat.signs.values(), key=lambda s: (cats.index(s.category), key(s.code))):
             it = QListWidgetItem(QIcon(sd.svg()), f"{sd.code}\n{sd.name}")
-            it.setData(Qt.UserRole, sd.code)
-            it.setData(Qt.UserRole + 1, sd.category)
+            it.setData(Qt.ItemDataRole.UserRole, sd.code)
+            it.setData(Qt.ItemDataRole.UserRole + 1, sd.category)
             it.setToolTip(f"{sd.code}: {sd.name}\n{sd.category}  ·  RDM 6.2 Fig. {sd.figure} (p. {sd.page})"
                           + (f"\n{sd.note}" if sd.note else ""))
             self.palette.addItem(it)
@@ -1136,13 +1134,13 @@ class RsdDock(QDockWidget):
         for i in range(self.palette.count()):
             it = self.palette.item(i)
             hit = t in it.text().lower().replace("\n", " ")
-            it.setHidden(not hit or (cat is not None and it.data(Qt.UserRole + 1) != cat))
+            it.setHidden(not hit or (cat is not None and it.data(Qt.ItemDataRole.UserRole + 1) != cat))
 
     def _sign_selected(self, cur, _prev=None):
         self.cmb_size.clear()
         if cur is None or self.store is None:
             return
-        sd = self.store.cat.signs[cur.data(Qt.UserRole)]
+        sd = self.store.cat.signs[cur.data(Qt.ItemDataRole.UserRole)]
         if sd.size_rule and self.store.al.speeds or sd.size_rule == "expressway":
             self.cmb_size.addItem("Auto (RDM, by design speed)", "Auto")
         for z in sd.sizes:
@@ -1176,7 +1174,7 @@ class RsdDock(QDockWidget):
                 cell = QTableWidgetItem(v)
                 cell.setToolTip(f"{item}\n{desc}")
                 if c == 2:
-                    cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.tbl.setItem(r, c, cell)
         self._refresh_lines()
         self._refresh_features()
@@ -1191,7 +1189,7 @@ class RsdDock(QDockWidget):
             for c, v in enumerate([f["post_ref"], f["chainage"], f["side"], clr,
                                    f"{f['sign_code']} {f['description']}", f["size"], leg]):
                 cell = QTableWidgetItem("" if v is None else str(v))
-                cell.setData(Qt.UserRole, f.id())
+                cell.setData(Qt.ItemDataRole.UserRole, f.id())
                 self.tbl_signs.setItem(r, c, cell)
         nprop = len(self.store.proposals())
         self.lbl_totals.setText(f"<b>{len(sl.faces)}</b> sign faces on <b>{len(sl.installations)}</b> posts"
@@ -1331,7 +1329,7 @@ class RsdDock(QDockWidget):
             self.btn_place.setChecked(False)
             self._run_mode = mode
             self.run_tool.cancel()
-            self.run_tool.setCursor(Qt.CrossCursor if mode == "run" else Qt.PointingHandCursor)
+            self.run_tool.setCursor(Qt.CursorShape.CrossCursor if mode == "run" else Qt.CursorShape.PointingHandCursor)
             canvas.setMapTool(self.run_tool)
         elif canvas.mapTool() is self.run_tool and getattr(self, "_run_mode", None) == mode:
             canvas.unsetMapTool(self.run_tool)
@@ -1385,7 +1383,7 @@ class RsdDock(QDockWidget):
             main = next((c for c in g["codes"] if c not in ("BAR-SET", "BM04")), (g["codes"] or ["signs"])[0])
             it = QListWidgetItem(f"{format_station(self.store.al.display_station(g['station'] or 0), 0)}  {main}  "
                                  f"({g['runs']} items, {g['signs']} signs)")
-            it.setData(Qt.UserRole, gid)
+            it.setData(Qt.ItemDataRole.UserRole, gid)
             self.lst_features.addItem(it)
 
     # ------------------------------------------------------------------ junction templates
@@ -1515,7 +1513,7 @@ class RsdDock(QDockWidget):
 
     def _road_line_layers(self):
         """Line layers of the project other than the plugin's own, to snap the clicked main road to."""
-        from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
+        from qgis.core import Qgis, QgsProject, QgsVectorLayer
         import os
         gpkg = os.path.normcase(os.path.abspath(self.store.gpkg)) if self.store else None
 
@@ -1524,7 +1522,7 @@ class RsdDock(QDockWidget):
             return bool(gpkg) and os.path.normcase(os.path.abspath(src)) == gpkg if src else False
         out = []
         for lyr in QgsProject.instance().mapLayers().values():
-            if isinstance(lyr, QgsVectorLayer) and lyr.geometryType() == QgsWkbTypes.LineGeometry \
+            if isinstance(lyr, QgsVectorLayer) and lyr.geometryType() == Qgis.GeometryType.Line \
                     and not own(lyr):
                 out.append(lyr)
         return sorted(out, key=lambda l: l.name().lower())
@@ -1567,7 +1565,7 @@ class RsdDock(QDockWidget):
 
     def _refresh_junctions(self):
         cur = self.lst_junctions.currentItem()
-        keep = cur.data(Qt.UserRole) if cur else None
+        keep = cur.data(Qt.ItemDataRole.UserRole) if cur else None
         self.lst_junctions.clear()
         for j in self.store.junctions.junctions():
             paint = sum(v[1] for v in j["paint"].values())
@@ -1577,7 +1575,7 @@ class RsdDock(QDockWidget):
                 r = j["rbt"]
                 it = QListWidgetItem(f"{j['ch']}  roundabout ICD {r['quantities']['icd']:g} m, island {r['island']:g} m, "
                                      f"{r['n_arms']} arms  (kerb {j['kerb_m']:.0f} m)")
-                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                it.setData(Qt.ItemDataRole.UserRole, j["id"]); it.setData(Qt.ItemDataRole.UserRole + 1, j["sta"])
                 self.lst_junctions.addItem(it)
                 if j["id"] == keep:
                     self.lst_junctions.setCurrentItem(it)
@@ -1588,7 +1586,7 @@ class RsdDock(QDockWidget):
                                      f"{j['crossing_deg']:.0f} deg  (area {a['quantities'].get('area_m2', 0):.0f} m2)"
                                      + (f"  - {len(j['sight']['obstructions'])} obstruction(s) in the splays"
                                         if j.get("sight") and j["sight"].get("obstructions") else ""))
-                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                it.setData(Qt.ItemDataRole.UserRole, j["id"]); it.setData(Qt.ItemDataRole.UserRole + 1, j["sta"])
                 self.lst_junctions.addItem(it)
                 if j["id"] == keep:
                     self.lst_junctions.setCurrentItem(it)
@@ -1598,7 +1596,7 @@ class RsdDock(QDockWidget):
                 kerb = f", kerb {j['kerb_m']:.0f} m" if j["kerb_m"] else ""
                 it = QListWidgetItem(f"{j['ch']}  {b.get('kind', 'bus bay')} {abs(b['stations'][2] - b['stations'][1]):.0f} m  {where}  "
                                      f"(widening {j['widen_m2']:.0f} m2{kerb})")
-                it.setData(Qt.UserRole, j["id"]); it.setData(Qt.UserRole + 1, j["sta"])
+                it.setData(Qt.ItemDataRole.UserRole, j["id"]); it.setData(Qt.ItemDataRole.UserRole + 1, j["sta"])
                 self.lst_junctions.addItem(it)
                 if j["id"] == keep:
                     self.lst_junctions.setCurrentItem(it)
@@ -1608,8 +1606,8 @@ class RsdDock(QDockWidget):
                                  f"{j['crossing_deg']:.0f} deg  x{j['scale']:g}  "
                                  f"(kerb {j['kerb_m']:.0f} m, islands {j['island_m2']:.0f} m2, paint {paint:.1f} m2)"
                                  + (f"  - {obst} obstruction(s) in the splays" if obst else ""))
-            it.setData(Qt.UserRole, j["id"])
-            it.setData(Qt.UserRole + 1, j["sta"])
+            it.setData(Qt.ItemDataRole.UserRole, j["id"])
+            it.setData(Qt.ItemDataRole.UserRole + 1, j["sta"])
             self.lst_junctions.addItem(it)
             if j["id"] == keep:
                 self.lst_junctions.setCurrentItem(it)
@@ -1627,7 +1625,7 @@ class RsdDock(QDockWidget):
             src = os.path.normcase(os.path.abspath(lyr.source().split("|")[0])) if lyr.source() else ""
             if gpkg and src == gpkg:
                 continue                                   # RFD's own layers
-            self.cmb_jobst.addItemWithCheckState(lyr.name(), Qt.Checked if lyr.id() in (keep | saved) else Qt.Unchecked,
+            self.cmb_jobst.addItemWithCheckState(lyr.name(), Qt.CheckState.Checked if lyr.id() in (keep | saved) else Qt.CheckState.Unchecked,
                                                  lyr.id())
 
     def check_splays(self):
@@ -1664,23 +1662,23 @@ class RsdDock(QDockWidget):
     def remove_junction(self):
         it = self.lst_junctions.currentItem()
         if self.store and it:
-            self.store.remove_junction(it.data(Qt.UserRole))
+            self.store.remove_junction(it.data(Qt.ItemDataRole.UserRole))
             self.refresh()
 
     def rescale_junction(self):
         it = self.lst_junctions.currentItem()
         if self.store and it:
-            self.store.set_junction_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.store.set_junction_scale(it.data(Qt.ItemDataRole.UserRole), self.spn_jscale.value())
             self.refresh()
 
     # ------------------------------------------------------------------ properties panel, undo / redo
     def _fill_junction_properties(self):
         self.tbl_jprops.setRowCount(0)
         it = self.lst_junctions.currentItem()
-        if not (self.store and it and it.data(Qt.UserRole)):
+        if not (self.store and it and it.data(Qt.ItemDataRole.UserRole)):
             self.grp_jprops.setTitle("Properties of the selected item")
             return
-        rows = self.store.junctions.properties(it.data(Qt.UserRole))
+        rows = self.store.junctions.properties(it.data(Qt.ItemDataRole.UserRole))
         self._jprops = rows
         self.grp_jprops.setTitle(f"Properties: {it.text().split('  ')[0]}")
         pieces = {r["puuid"] for r in rows}
@@ -1694,7 +1692,7 @@ class RsdDock(QDockWidget):
                                       else str(r["default"])), QTableWidgetItem(r["reason"] or "")]
             cells[0].setToolTip(r["piece_name"])
             for c in (0, 2):
-                cells[c].setFlags(cells[c].flags() & ~Qt.ItemIsEditable)
+                cells[c].setFlags(cells[c].flags() & ~Qt.ItemFlag.ItemIsEditable)
             if cells[1].text() != cells[2].text():
                 from qgis.PyQt.QtGui import QColor
                 cells[1].setForeground(QColor("#b9770e"))
@@ -1724,7 +1722,7 @@ class RsdDock(QDockWidget):
             return
         try:
             with _busy():
-                n = self.store.set_junction_properties(it.data(Qt.UserRole), changes)
+                n = self.store.set_junction_properties(it.data(Qt.ItemDataRole.UserRole), changes)
         except ValueError as e:
             self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 8)
             return
@@ -1756,7 +1754,7 @@ class RsdDock(QDockWidget):
 
     def _zoom_junction(self, item):
         from qgis.core import QgsCoordinateTransform, QgsPointXY, QgsRectangle
-        x, y, _ = self.store.al.point_at(item.data(Qt.UserRole + 1))
+        x, y, _ = self.store.al.point_at(item.data(Qt.ItemDataRole.UserRole + 1))
         canvas = self.iface.mapCanvas()
         xf = QgsCoordinateTransform(self.store.signs.crs(), canvas.mapSettings().destinationCrs(), QgsProject.instance())
         p = xf.transform(QgsPointXY(x, y))
@@ -1802,23 +1800,23 @@ class RsdDock(QDockWidget):
             ch = lambda s: format_station(self.store.al.display_station(s), 0)
             it = QListWidgetItem(f"{ch(z['start'])} – {ch(z['end'])}  {z['limit'] or '?'} km/h  "
                                  f"({len(z['signs'])} signs, {z['status']})")
-            it.setData(Qt.UserRole, z["id"])
+            it.setData(Qt.ItemDataRole.UserRole, z["id"])
             self.lst_zones.addItem(it)
 
     def remove_speed_zone(self):
         it = self.lst_zones.currentItem()
         if it is not None and self.store is not None:
-            self.store.remove_speed_zone(it.data(Qt.UserRole))
+            self.store.remove_speed_zone(it.data(Qt.ItemDataRole.UserRole))
             self.refresh()
 
     def remove_feature(self):
         it = self.lst_features.currentItem()
         if it is not None:
-            self.store.remove_feature(it.data(Qt.UserRole))
+            self.store.remove_feature(it.data(Qt.ItemDataRole.UserRole))
             self.store.lines.layer.triggerRepaint(); self.store.signs.triggerRepaint()
 
     def _zoom_feature(self, item):
-        gid = item.data(Qt.UserRole)
+        gid = item.data(Qt.ItemDataRole.UserRole)
         ids = [f.id() for f in self.store.lines.layer.getFeatures() if f["rule"] == f"feature:{gid}"]
         if ids:
             from qgis.core import QgsCoordinateTransform
@@ -1834,7 +1832,7 @@ class RsdDock(QDockWidget):
 
     def delete_line_runs(self):
         rows = sorted({i.row() for i in self.tbl_lines.selectedIndexes()})
-        ids = [self.tbl_lines.item(r, 0).data(Qt.UserRole) for r in rows]
+        ids = [self.tbl_lines.item(r, 0).data(Qt.ItemDataRole.UserRole) for r in rows]
         if ids:
             self.store.lines._set_status_or_delete(ids)
 
@@ -1848,11 +1846,11 @@ class RsdDock(QDockWidget):
                                    f"{q:g} {f['unit'] or ''}" if isinstance(q, (int, float)) else "",
                                    f["status"]]):
                 cell = QTableWidgetItem("" if v is None else str(v))
-                cell.setData(Qt.UserRole, f.id())
+                cell.setData(Qt.ItemDataRole.UserRole, f.id())
                 self.tbl_lines.setItem(r, c, cell)
 
     def _zoom_line(self, row, _col):
-        fid = self.tbl_lines.item(row, 0).data(Qt.UserRole)
+        fid = self.tbl_lines.item(row, 0).data(Qt.ItemDataRole.UserRole)
         lyr = self.store.lines.layer
         f = lyr.getFeature(fid)
         if not f.isValid() or f.geometry().isEmpty():
@@ -1867,7 +1865,7 @@ class RsdDock(QDockWidget):
         self.iface.mapCanvas().refresh()
 
     def _zoom_to(self, row, _col):
-        fid = self.tbl_signs.item(row, 0).data(Qt.UserRole)
+        fid = self.tbl_signs.item(row, 0).data(Qt.ItemDataRole.UserRole)
         f = self.store.signs.getFeature(fid)
         if not f.isValid():
             return
@@ -1884,7 +1882,7 @@ class RsdDock(QDockWidget):
         if not rows:
             QMessageBox.information(self, "Road Furniture Designer", "Select a sign in the list first.")
             return
-        fid = self.tbl_signs.item(rows[0].row(), 0).data(Qt.UserRole)
+        fid = self.tbl_signs.item(rows[0].row(), 0).data(Qt.ItemDataRole.UserRole)
         f = self.store.signs.getFeature(fid)
         text, ok = QInputDialog.getMultiLineText(
             self, f"Legend: {f['post_ref']} {f['sign_code']}",
@@ -1957,7 +1955,7 @@ class RsdDock(QDockWidget):
             it = QListWidgetItem(f"{format_station(self.store.al.display_station(f.start), 0)}–"
                                  f"{format_station(self.store.al.display_station(f.end), 0)}  "
                                  f"{names.get(f.kind, f.kind)} ({f.direction.lower()}): {f.text}")
-            it.setData(Qt.UserRole, (f.start + f.end) / 2)
+            it.setData(Qt.ItemDataRole.UserRole, (f.start + f.end) / 2)
             self.lst_findings.addItem(it)
         self.lbl_auto.setText(f"<b>{n}</b> signs proposed from <b>{len(findings)}</b> findings. "
                               "Sag/crest sight-distance findings are for the designer (no sign proposed).")
@@ -1978,7 +1976,7 @@ class RsdDock(QDockWidget):
         for c in fr.checks:
             it = QListWidgetItem(f"{c.level.upper():6s} {format_station(self.store.al.display_station(c.start), 0)}  "
                                  f"{c.text}")
-            it.setData(Qt.UserRole, c.start)
+            it.setData(Qt.ItemDataRole.UserRole, c.start)
             from qgis.PyQt.QtGui import QColor
             it.setForeground(QColor(colours.get(c.level, "#000000")))
             self.lst_review.addItem(it)
@@ -1990,7 +1988,7 @@ class RsdDock(QDockWidget):
                                             f"{n['info']} for information", MSG_INFO, 6)
 
     def _zoom_finding(self, item):
-        sta = item.data(Qt.UserRole)
+        sta = item.data(Qt.ItemDataRole.UserRole)
         if sta is None:
             return
         x, y, _ = self.store.al.point_at(sta)
@@ -2036,7 +2034,7 @@ class RsdDock(QDockWidget):
             from qgis.gui import QgsProjectionSelectionDialog
             dlg = QgsProjectionSelectionDialog(self)
             dlg.setWindowTitle("CRS of the LandXML coordinates (projected, metres)")
-            if not dlg.exec_():
+            if not dlg.exec():
                 return
             crs = dlg.crs()
         gp, _ = QFileDialog.getSaveFileName(self, "Save Road Furniture Designer project", os.path.splitext(lx)[0] + "_signs.gpkg",
@@ -2084,8 +2082,7 @@ class RsdDock(QDockWidget):
             e.setPlaceholderText("Name or initials")
             form.addRow(label, e)
             edits[key] = e
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-                              if hasattr(QDialogButtonBox, "StandardButton") else QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
         form.addRow(bb)
         if not dlg.exec():
