@@ -24,6 +24,7 @@
 
 ### Fixed
 - Feature lines for Civil 3D were slow to import: each edge was one feature line with a PI every 5 m (7,245 on a 36 km road). They are now written as Civil 3D writes its own: PIs only where the plan needs them (true arcs where an edge runs parallel to an alignment arc, straight stretches thinned to 20 mm) and the levels between them as elevation points (`Location`, thinned to 5 mm), with lines over 5 km in pieces: about 530 PIs per edge on the same road. The export message gives the counts.
+- Feature lines with curves did not import into Civil 3D: a feature-line `Curve` was written as an alignment curve (circle centre and `rot`), but Civil 3D's feature-line `Curve` is three points on the arc (`Start`, `Center` = the middle of the arc with its level, `End`) with only a `radius`, so every curve came in wrong. Curves are now written in Civil 3D's form, on layer `C-TOPO-FEAT`. Checked against the corridor feature lines Civil 3D exported for a 2.7 km road: ETW and back of kerb within 9 mm in plan and 6–8 mm in level.
 - Applying a typical section again after **Switch off** (or after loading one from a file) did not show the edges on the map: the edges layer is now written afresh and replaced in the layer tree, in the same place, instead of being edited in place.
 ### Changed
 - **QGIS 3.34 or later** is needed (was 3.28).

@@ -5,9 +5,12 @@ Civil 3D imports ``PlanFeatures/PlanFeature`` as feature lines when the PlanFeat
 from its ``site`` Property; coordinates are Northing Easting Elevation. The lines can then be used as
 corridor width / offset and elevation targets.
 
-Written as Civil 3D writes its own feature lines: the plan geometry as PIs (``Line``, and ``Curve`` where
-an edge runs parallel to an alignment arc), and the levels in between as elevation points
+Written as Civil 3D writes its own feature lines: the plan geometry as PIs (``Line``, and
+``Curve`` where an edge runs parallel to an alignment arc), and the levels in between as elevation points
 (``<Location desc="FeatureLine Elevation Point">``), which Civil 3D handles far more lightly than PIs.
+A feature-line ``Curve`` is Civil 3D's three-point arc: ``Start``, ``Center`` and ``End`` are points ON
+the arc (``Center`` its middle point, with its level) and only ``radius`` is given - not the circle's
+centre and ``rot`` of an alignment curve.
 
 Elevations: the design profile at the station plus the section's level at the offset. The section is
 the corridor's (superelevation included) or the typical section's (crown crossfall only: superelevation
@@ -29,7 +32,8 @@ from html import escape as _escape
 from .corridor import SHOULDER, TRAVELLED_WAY
 
 PAVEMENT = tuple(TRAVELLED_WAY) + tuple(SHOULDER) + ("Parking", "Crown")
-SITE = "RFD"
+SITE = "RFD"                # Civil 3D site named in the file ("" writes them siteless); the import dialog can override
+LAYER = "C-TOPO-FEAT"       # Civil 3D's default feature-line layer
 STEP = 5.0                  # m: sampling along the road
 H_TOL = 0.02                # m: plan tolerance for PIs off the arcs (Douglas-Peucker)
 V_TOL = 0.005               # m: level tolerance for elevation points (against the grade between kept points)
@@ -342,6 +346,15 @@ def _header_elements(source_path) -> Tuple[str, str]:
     return (units.group(0) if units else ""), (cs.group(0) if cs else "")
 
 
+def arc_midpoint(a, b, cx, cy, r, rot):
+    """The point half way along the arc from a to b (circle centre cx, cy, radius r, sense rot), with the
+    level half way between theirs: Civil 3D's feature-line Curve gives this as its 'Center'."""
+    a0, a1 = math.atan2(a[1] - cy, a[0] - cx), math.atan2(b[1] - cy, b[0] - cx)
+    sweep = (a1 - a0) % (2 * math.pi) if rot == "ccw" else -((a0 - a1) % (2 * math.pi))
+    am = a0 + sweep / 2
+    return (cx + r * math.cos(am), cy + r * math.sin(am), (a[2] + b[2]) / 2)
+
+
 def _ne(p, z=True):
     return f"{p[1]:.4f} {p[0]:.4f} {p[2]:.4f}" if z else f"{p[1]:.4f} {p[0]:.4f}"
 
@@ -361,7 +374,7 @@ def write_landxml(path, lines: Sequence[FLine], source_path=None, site=SITE, des
     if cs:
         out.append("  " + cs)
     out.append(f'  <Application name="Road Furniture Designer" desc={quoteattr(desc or "Road edges and widenings")}/>')
-    out.append(f"  <PlanFeatures name={quoteattr(f'Site -{site}- FeatureLines')}>")
+    out.append(f"  <PlanFeatures name={quoteattr(f'Site -{site}- FeatureLines' if site else 'Siteless FeatureLines')}>")
     n = 0
     for fl in lines:
         if len(fl.pis) < 2:
@@ -373,23 +386,25 @@ def write_landxml(path, lines: Sequence[FLine], source_path=None, site=SITE, des
                 continue
             if i in fl.arcs:
                 cx, cy, r, rot = fl.arcs[i]
-                a0, a1 = math.atan2(a[1] - cy, a[0] - cx), math.atan2(b[1] - cy, b[0] - cx)
-                sweep = (a1 - a0) % (2 * math.pi) if rot == "ccw" else (a0 - a1) % (2 * math.pi)
-                out.append(f'        <Curve rot="{rot}" radius="{r:.4f}" length="{r * sweep:.4f}">'
-                           f"<Start>{_ne(a)}</Start><Center>{cy:.4f} {cx:.4f}</Center><End>{_ne(b)}</End></Curve>")
+                mid = arc_midpoint(a, b, cx, cy, r, rot)
+                out.append(f'        <Curve radius="{r:.6f}"><Start>{_ne(a)}</Start><Center>{_ne(mid)}</Center>'
+                           f"<End>{_ne(b)}</End></Curve>")
             else:
                 out.append(f"        <Line><Start>{_ne(a)}</Start><End>{_ne(b)}</End></Line>")
         out.append("      </CoordGeom>")
         for p in fl.elev:
             out.append(f'      <Location desc="FeatureLine Elevation Point">{_ne(p)}</Location>')
         out.append('      <Feature code="FeatureLine" source="Autodesk Civil 3D">')
-        out.append(f'        <Property label="site" value={quoteattr(site)}/>')
+        if site:
+            out.append(f'        <Property label="site" value={quoteattr(site)}/>')
+        out.append(f'        <Property label="layer" value={quoteattr(LAYER)}/>')
         out.append(f'        <Property label="rfdCode" value={quoteattr(fl.code)}/>')
         out.append("      </Feature>")
         out.append("    </PlanFeature>")
         n += 1
     out.append('    <Feature code="FeatureLines" source="Autodesk Civil 3D">')
-    out.append(f'      <Property label="site" value={quoteattr(site)}/>')
+    if site:
+        out.append(f'      <Property label="site" value={quoteattr(site)}/>')
     out.append("    </Feature>")
     out += ["  </PlanFeatures>", "</LandXML>"]
     with open(path, "w", encoding="utf-8") as f:

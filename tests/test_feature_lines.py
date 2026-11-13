@@ -1,4 +1,5 @@
 """Road edges and widenings as Civil 3D feature lines (LandXML PlanFeatures)."""
+import math
 import xml.etree.ElementTree as ET  # nosec B405 - parses a file the test itself wrote
 
 import pytest
@@ -40,7 +41,8 @@ def test_export_writes_feature_lines_civil3d_reads(tmp_path):
     for f in pf:
         feat = f.find("x:Feature", NS)
         assert feat.get("code") == "FeatureLine" and feat.get("source") == "Autodesk Civil 3D"
-        assert {p.get("label"): p.get("value") for p in feat.findall("x:Property", NS)}["site"] == "RFD"
+        props = {p.get("label"): p.get("value") for p in feat.findall("x:Property", NS)}
+        assert props["site"] == "RFD" and props["layer"] == "C-TOPO-FEAT"
     etw_r = next(f for f in pf if f.get("name") == "RFD ETW R")
     first = etw_r.find("x:CoordGeom/x:Line/x:Start", NS).text.split()
     # northing easting elevation; the right edge is south of an eastward road
@@ -68,7 +70,6 @@ def test_verge_elements_take_their_own_fall():
 
 
 def test_thinning_keeps_tolerance():
-    import math
     straight = [(x, 0.0, 100 + 0.01 * x) for x in range(0, 1001, 5)]
     assert FL.simplify(straight) == [straight[0], straight[-1]]
     fl = FL.build("s", "ETW", straight)
@@ -84,7 +85,6 @@ def test_thinning_keeps_tolerance():
 
 
 def test_edges_on_alignment_arcs_are_written_as_curves(tmp_path):
-    import math
     from rfd.alignment import Arc, Line
     l1 = Line((1000.0, 5000.0), (1300.0, 5000.0))
     arc = Arc((1300.0, 5000.0), (1300.0, 5200.0), 200, True, 300)          # left turn, centre to the north
@@ -101,6 +101,11 @@ def test_edges_on_alignment_arcs_are_written_as_curves(tmp_path):
     root = ET.parse(p).getroot()  # nosec B314 - the test's own output
     pf = next(f for f in root.findall("x:PlanFeatures/x:PlanFeature", NS) if f.get("name") == "RFD ETW L")
     curve = pf.find("x:CoordGeom/x:Curve", NS)
-    assert curve.get("rot") == "ccw" and float(curve.get("radius")) == pytest.approx(196.5, abs=1e-3)
-    assert float(curve.get("length")) == pytest.approx(196.5 * 300 / 200, abs=1e-2)
-    assert [float(v) for v in curve.find("x:Center", NS).text.split()] == [5200.0, 1300.0]   # northing easting
+    # Civil 3D's three-point form: radius only; Start, Center (the middle of the arc) and End lie on the arc
+    assert curve.get("rot") is None and float(curve.get("radius")) == pytest.approx(196.5, abs=1e-3)
+    pts = [[float(v) for v in curve.find(f"x:{k}", NS).text.split()] for k in ("Start", "Center", "End")]
+    for n_, e_, z_ in pts:
+        assert math.hypot(e_ - 1300.0, n_ - 5200.0) == pytest.approx(196.5, abs=1e-3)
+    (n0, e0, _), (nm, em, _), (n1, e1, _) = pts
+    assert math.hypot(em - e0, nm - n0) == pytest.approx(math.hypot(em - e1, nm - n1), abs=1e-3)   # half way
+    assert root.find("x:PlanFeatures", NS).get("name") == "Site -RFD- FeatureLines"
