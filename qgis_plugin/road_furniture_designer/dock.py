@@ -48,6 +48,10 @@ class RsdDock(QDockWidget):
         self.btn_new = QPushButton("New project…")
         self.btn_open = QPushButton("Open…")
         row.addWidget(self.btn_new); row.addWidget(self.btn_open)
+        self.btn_undo = QPushButton("Undo"); self.btn_redo = QPushButton("Redo")
+        for b in (self.btn_undo, self.btn_redo):
+            b.setEnabled(False); b.setMaximumWidth(60)
+        row.addWidget(self.btn_undo); row.addWidget(self.btn_redo)
         lay.addLayout(row)
         self.lbl_project = QLabel("No project open")
         self.lbl_project.setWordWrap(True)
@@ -575,6 +579,21 @@ class RsdDock(QDockWidget):
                                   "here and in the report's furniture checks")
         jo = QHBoxLayout(); jo.addWidget(self.cmb_jobst, 1); jo.addWidget(self.btn_jobst)
         jl.addLayout(jo)
+        self.grp_jprops = QGroupBox("Properties of the selected item")
+        gp = QVBoxLayout(self.grp_jprops)
+        self.tbl_jprops = QTableWidget(0, 4)
+        self.tbl_jprops.setHorizontalHeaderLabels(["Parameter", "Value", "Default", "Reason"])
+        self.tbl_jprops.setToolTip("Change a value and press Apply: the item is rebuilt from its template. A value "
+                                   "away from its default (the RDM drawing or clause) is listed in the furniture "
+                                   "checks as a departure, with the reason you give")
+        self.tbl_jprops.verticalHeader().setVisible(False)
+        self.tbl_jprops.horizontalHeader().setStretchLastSection(True)
+        for col, cw in ((0, 120), (1, 60), (2, 60)):
+            self.tbl_jprops.setColumnWidth(col, cw)
+        gp.addWidget(self.tbl_jprops)
+        self.btn_jprops = QPushButton("Apply properties")
+        gp.addWidget(self.btn_jprops)
+        jl.addWidget(self.grp_jprops)
         jb = QHBoxLayout()
         self.btn_jscale = QPushButton("Apply scale to selected")
         self.btn_jdel = QPushButton("Remove selected junction")
@@ -668,6 +687,10 @@ class RsdDock(QDockWidget):
         self.cmb_jtype.currentIndexChanged.connect(self._fill_junction_pieces)
         self.btn_jdel.clicked.connect(self.remove_junction)
         self.btn_jscale.clicked.connect(self.rescale_junction)
+        self.btn_jprops.clicked.connect(self.apply_junction_properties)
+        self.lst_junctions.currentItemChanged.connect(lambda *_: self._fill_junction_properties())
+        self.btn_undo.clicked.connect(self.undo)
+        self.btn_redo.clicked.connect(self.redo)
         self.lst_junctions.itemDoubleClicked.connect(self._zoom_junction)
         self._fill_junction_types()
         self.btn_zadd.clicked.connect(self.add_speed_zone)
@@ -1135,6 +1158,7 @@ class RsdDock(QDockWidget):
     def refresh(self):
         if self.store is None:
             return
+        self._update_undo()
         rows, sl = self.store.summary()
         self.tbl.setRowCount(len(rows))
         for r, (grp, item, desc, size, n) in enumerate(rows):
@@ -1457,7 +1481,11 @@ class RsdDock(QDockWidget):
     def junction_settings(self):
         return {"kit": self.cmb_jtype.currentData(), "piece": self.cmb_jpiece.currentData() or "",
                 "scale": self.spn_jscale.value(), "guides": self.chk_jguides.isChecked(),
-                "role": self.cmb_jrole.currentData() or "main", "major": self.cmb_jmajor.currentData() or "",
+                "role": self.cmb_jrole.currentData() or "main",
+                "major": "" if str(self.cmb_jmajor.currentData() or "").startswith("layer:")
+                else self.cmb_jmajor.currentData() or "",
+                "lines_layer": str(self.cmb_jmajor.currentData() or "")[6:]
+                if str(self.cmb_jmajor.currentData() or "").startswith("layer:") else "",
                 "both": self.chk_jboth.isEnabled() and self.chk_jboth.isChecked(),
                 "splays": self.chk_jsplays.isChecked(),
                 "rbt": {"island": self.spn_rbisland.value(), "icd": self.spn_rbicd.value() or None,
@@ -1472,7 +1500,25 @@ class RsdDock(QDockWidget):
         self.cmb_jmajor.addItem("Click its direction", "")
         for a in (self.store.junctions.others() if self.store else []):
             self.cmb_jmajor.addItem(f"Alignment {a.name}", a.name)
+        for lyr in self._road_line_layers():
+            self.cmb_jmajor.addItem(f"Road layer {lyr.name()} (click its direction)", f"layer:{lyr.id()}")
         self._junction_role_changed()
+
+    def _road_line_layers(self):
+        """Line layers of the project other than the plugin's own, to snap the clicked main road to."""
+        from qgis.core import QgsProject, QgsVectorLayer, QgsWkbTypes
+        import os
+        gpkg = os.path.normcase(os.path.abspath(self.store.gpkg)) if self.store else None
+
+        def own(lyr):
+            src = lyr.source().split("|")[0]
+            return bool(gpkg) and os.path.normcase(os.path.abspath(src)) == gpkg if src else False
+        out = []
+        for lyr in QgsProject.instance().mapLayers().values():
+            if isinstance(lyr, QgsVectorLayer) and lyr.geometryType() == QgsWkbTypes.LineGeometry \
+                    and not own(lyr):
+                out.append(lyr)
+        return sorted(out, key=lambda l: l.name().lower())
 
     def _junction_role_changed(self, *_):
         minor = self.cmb_jrole.currentData() == "minor"
@@ -1615,7 +1661,88 @@ class RsdDock(QDockWidget):
     def rescale_junction(self):
         it = self.lst_junctions.currentItem()
         if self.store and it:
-            self.store.junctions.set_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.store.set_junction_scale(it.data(Qt.UserRole), self.spn_jscale.value())
+            self.refresh()
+
+    # ------------------------------------------------------------------ properties panel, undo / redo
+    def _fill_junction_properties(self):
+        self.tbl_jprops.setRowCount(0)
+        it = self.lst_junctions.currentItem()
+        if not (self.store and it and it.data(Qt.UserRole)):
+            self.grp_jprops.setTitle("Properties of the selected item")
+            return
+        rows = self.store.junctions.properties(it.data(Qt.UserRole))
+        self._jprops = rows
+        self.grp_jprops.setTitle(f"Properties: {it.text().split('  ')[0]}")
+        pieces = {r["puuid"] for r in rows}
+        for r in rows:
+            i = self.tbl_jprops.rowCount()
+            self.tbl_jprops.insertRow(i)
+            name = r["key"] if len(pieces) == 1 else f"{r['piece_name'].split(' (')[0]}: {r['key']}"
+            cells = [QTableWidgetItem(name), QTableWidgetItem(f"{r['value']:g}" if isinstance(r["value"], (int, float))
+                                                              else str(r["value"])),
+                     QTableWidgetItem(f"{r['default']:g}" if isinstance(r["default"], (int, float))
+                                      else str(r["default"])), QTableWidgetItem(r["reason"] or "")]
+            cells[0].setToolTip(r["piece_name"])
+            for c in (0, 2):
+                cells[c].setFlags(cells[c].flags() & ~Qt.ItemIsEditable)
+            if cells[1].text() != cells[2].text():
+                from qgis.PyQt.QtGui import QColor
+                cells[1].setForeground(QColor("#b9770e"))
+            for c, cell in enumerate(cells):
+                self.tbl_jprops.setItem(i, c, cell)
+
+    def apply_junction_properties(self):
+        it = self.lst_junctions.currentItem()
+        if not (self.store and it and getattr(self, "_jprops", None)):
+            return
+        changes = {}
+        for i, r in enumerate(self._jprops):
+            txt = (self.tbl_jprops.item(i, 1).text() if self.tbl_jprops.item(i, 1) else "").strip()
+            why = (self.tbl_jprops.item(i, 3).text() if self.tbl_jprops.item(i, 3) else "").strip()
+            if isinstance(r["default"], (int, float)):
+                try:
+                    val = float(txt)
+                except ValueError:
+                    self.iface.messageBar().pushMessage("Road Furniture Designer", f"{r['key']}: '{txt}' is not a "
+                                                        f"number", MSG_WARNING, 6)
+                    return
+            else:
+                val = txt
+            if val != r["value"] or why != (r["reason"] or ""):
+                changes[(r["puuid"], r["key"])] = (val, why)
+        if not changes:
+            return
+        try:
+            with _busy():
+                n = self.store.set_junction_properties(it.data(Qt.UserRole), changes)
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 8)
+            return
+        self.iface.messageBar().pushMessage("Road Furniture Designer", f"{n} piece(s) rebuilt with the new "
+                                            f"properties", MSG_INFO, 5)
+        self.refresh()
+
+    def _update_undo(self):
+        st = self.store
+        for b, can, which in ((self.btn_undo, st and st.can_undo(), "_undo"), (self.btn_redo, st and st.can_redo(), "_redo")):
+            b.setEnabled(bool(can))
+            b.setToolTip((f"{b.text()}: " + getattr(st, which)[-1][0]) if can else b.text())
+
+    def undo(self):
+        if self.store:
+            with _busy():
+                label = self.store.undo()
+            if label:
+                self.iface.messageBar().pushMessage("Road Furniture Designer", f"Undone: {label}", MSG_INFO, 4)
+            self.refresh()
+
+    def redo(self):
+        if self.store:
+            with _busy():
+                label = self.store.redo()
+            if label:
+                self.iface.messageBar().pushMessage("Road Furniture Designer", f"Redone: {label}", MSG_INFO, 4)
             self.refresh()
 
     def _zoom_junction(self, item):

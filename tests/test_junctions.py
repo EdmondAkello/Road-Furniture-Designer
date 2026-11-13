@@ -679,3 +679,18 @@ def test_signalised_crossroads():
         assert bm and all(west.pts[0][0] < x < 200 for p in bm for x, _ in p.pts)
     out = J.junction_warnings(al, [J.JunctionAt("s", "main", 200, "L", kit="SIG")])
     assert sorted((p.code, p.facing) for p in out) == [("W46", "Backward"), ("W46", "Forward")]
+
+
+def test_clicked_main_road_snaps_to_a_road_layer():
+    ours = Alignment.from_polyline("OURS", [(200, 300), (200, 3.0)])
+    road = [[(0, -6), (150, 1), (400, 13)]]                    # a QGIS road line, skewed, near the junction
+    # a careless click well off the road's direction still gives the road's heading, towards the cursor
+    pc, mc = J.place_minor(ours, 200, 2.0, 380, 40.0, lines=road)
+    h = float(pc.main_ref.split(",")[2])
+    assert math.degrees(h) == pytest.approx(math.degrees(math.atan2(12, 250)), abs=0.01)
+    pw, _ = J.place_minor(ours, 200, 2.0, 20, 30.0, lines=road)
+    assert math.degrees(float(pw.main_ref.split(",")[2])) == pytest.approx(
+        math.degrees(math.atan2(-12, -250)), abs=0.01)
+    # a road line beyond 25 m is ignored: the click decides
+    pf, _ = J.place_minor(ours, 200, 2.0, 380, 2.0, lines=[[(0, 60), (400, 60)]])
+    assert float(pf.main_ref.split(",")[2]) == pytest.approx(math.atan2(-1, 180), abs=1e-5)

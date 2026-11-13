@@ -165,12 +165,35 @@ def _angle_between(a: float, b: float) -> float:
     return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
 
 
+def snap_to_lines(px: float, py: float, x1: float, y1: float, lines=(), reach: float = 25.0) -> Optional[float]:
+    """Heading of the nearest segment of `lines` (polylines of (x, y), e.g. a QGIS road layer) passing within
+    `reach` m of the junction point, pointing the way the cursor lies. None when no line is that close."""
+    best = None
+    for pts in lines or ():
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy
+            if L2 < 1e-6:
+                continue
+            t = min(max(((px - ax) * dx + (py - ay) * dy) / L2, 0.0), 1.0)
+            d = math.hypot(ax + t * dx - px, ay + t * dy - py)
+            if d <= reach and (best is None or d < best[0]):
+                best = (d, dx, dy)
+    if best is None:
+        return None
+    _, dx, dy = best
+    if (x1 - px) * dx + (y1 - py) * dy < 0:
+        dx, dy = -dx, -dy
+    return math.atan2(dy, dx)
+
+
 def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Optional[float] = None,
-                major=None, both: bool = False, **kw):
+                major=None, both: bool = False, lines=(), **kw):
     """Our road joins another road. (x0, y0): a click on our road where it meets the main road (snapped to
     our centreline). The main road is `major` (another alignment) or the direction from that point to
     (x1, y1). With `major`, (x1, y1), when given, picks our road's leg nearest the cursor, so where our road
-    crosses the main road the user chooses the approach by moving the mouse across.
+    crosses the main road the user chooses the approach by moving the mouse across. Without `major`, the
+    clicked direction follows the nearest of `lines` (a road layer) within 25 m of the junction.
     Returns (placement, main road alignment); with both=True, (list of placements, one per leg, main)."""
     so = al.station_offset(x0, y0)
     s0 = min(max(so.station, al.sta_start), al.sta_end)
@@ -186,7 +209,9 @@ def place_minor(al, x0: float, y0: float, x1: Optional[float] = None, y1: Option
     else:
         if x1 is None or math.hypot(x1 - px, y1 - py) < 1.0:
             raise ValueError("Click a point along the main road, at least 1 m from the junction")
-        h = math.atan2(y1 - py, x1 - px)
+        h = snap_to_lines(px, py, x1, y1, lines)
+        if h is None:
+            h = math.atan2(y1 - py, x1 - px)
         main, ref = straight_road(px, py, h), f"line:{px:.3f},{py:.3f},{h:.6f}"
     mo = main.station_offset(px, py)
     if not mo.in_range:

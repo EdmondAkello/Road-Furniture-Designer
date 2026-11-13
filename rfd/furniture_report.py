@@ -88,6 +88,7 @@ KIND_TEXT = {
     "end_control": "Control at the road's end",
     "bay_visibility": "Bay visibility",
     "escape_ramp": "Escape ramps (RDM 1.3 12.7)",
+    "departure": "Departures from the defaults",
     "transverse_overlap": "Transverse items overlapping",
 }
 
@@ -647,6 +648,13 @@ def junction_checks(al, junctions) -> List[Check]:
                                               f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
                                  "check", {"distance": d}))
     out += descent_checks(al, junctions)
+    for j in junctions:                              # values set away from the RDM / template defaults
+        for d in j.get("departures") or []:
+            sta = j.get("sta") or al.sta_start
+            out.append(Check("departure", sta, sta, j.get("side") or "C",
+                             f"{j.get('kit')} at {_ch(al, sta)}, {d['piece']}: {d['key']} {d['value']} instead of "
+                             f"{d['default']}" + (f" - {d['reason']}" if d.get("reason") else " (no reason given)"),
+                             "info" if d.get("reason") else "check"))
     for j in junctions:                              # roundabouts: RDM 1.3 Chapter 10
         rb = j.get("rbt")
         if rb:

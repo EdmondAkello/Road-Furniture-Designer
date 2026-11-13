@@ -220,13 +220,13 @@ class JunctionStore(QObject):
     def place(self, x0, y0, x1, y1, kit, piece="", scale=1.0, guides=True):
         return self.add(J.place(self.al, x0, y0, x1, y1, scale=scale), kit, piece, guides)
 
-    def placement_minor(self, x0, y0, x1=None, y1=None, major="", scale=1.0, both=False):
+    def placement_minor(self, x0, y0, x1=None, y1=None, major="", scale=1.0, both=False, lines=()):
         """Our road joins another road: the main road is the alignment named `major`, or the clicked direction.
         With an alignment, (x1, y1) picks our road's leg nearest the cursor. both: a list, one per leg."""
         m = next((a for a in self.others() if a.name == major), None) if major else None
         if major and m is None:
             raise ValueError(f"No alignment {major!r} in the LandXML")
-        pl, _ = J.place_minor(self.al, x0, y0, x1, y1, major=m, scale=scale, both=both)
+        pl, _ = J.place_minor(self.al, x0, y0, x1, y1, major=m, scale=scale, both=both, lines=lines)
         return pl
 
     # ------------------------------------------------------------------ edit / rebuild
@@ -311,6 +311,108 @@ class JunctionStore(QObject):
         self.changed.emit()
         return n
 
+    # ------------------------------------------------------------------ properties (RDM defaults and departures)
+    NOT_PROPERTIES = ("bay", "speed", "reason", "crossroads", "result", "widen", "edge_add", "stations", "side",
+                      "kind", "edge_code", "origin", "heading", "rolling", "_reasons")
+
+    def properties(self, junction_id):
+        """Editable parameters of a junction's pieces: [{puuid, piece, piece_name, key, value, default, reason}].
+        Numbers (and a bed material) from the piece's template, with the value in use and the RDM default."""
+        rows, seen = [], set()
+        for f in self.layer.getFeatures():
+            if f["junction_id"] != junction_id or f["piece_uuid"] in seen:
+                continue
+            seen.add(f["piece_uuid"])
+            spec = self.templates["pieces"].get(f["piece"]) or {}
+            defaults = spec.get("params") or {}
+            try:
+                cur = json.loads(f["params"] or "{}")
+            except ValueError:
+                cur = {}
+            reasons = cur.get("_reasons") or {}
+            for k, d in defaults.items():
+                if k in self.NOT_PROPERTIES or isinstance(d, (list, dict)) or d is None:
+                    continue
+                if not isinstance(d, (int, float)) and k != "material":
+                    continue
+                rows.append({"puuid": f["piece_uuid"], "piece": f["piece"], "piece_name": spec.get("name", f["piece"]),
+                             "key": k, "value": cur.get(k, d), "default": d, "reason": reasons.get(k, "")})
+        return rows
+
+    def set_properties(self, junction_id, changes):
+        """changes: {(puuid, key): (value, reason)}. Each changed piece is rebuilt from its template with the new
+        parameters; values away from the template default keep the reason given. Returns pieces rebuilt."""
+        by_piece = {}
+        for (pu, k), vr in changes.items():
+            by_piece.setdefault(pu, {})[k] = vr
+        n = 0
+        for pu, kv in by_piece.items():
+            g = self._group(pu)
+            if not g or g[0]["junction_id"] != junction_id:
+                continue
+            try:
+                cur = json.loads(g[0]["params"] or "{}")
+            except ValueError:
+                cur = {}
+            reasons = dict(cur.get("_reasons") or {})
+            for k, (val, why) in kv.items():
+                cur[k] = val
+                if why:
+                    reasons[k] = why
+                else:
+                    reasons.pop(k, None)
+            cur["_reasons"] = reasons
+            if self._rebuild(pu, {"params": json.dumps(cur)}):
+                n += 1
+        self.layer.triggerRepaint()
+        self.changed.emit()
+        return n
+
+    def departures(self, junction_id=None):
+        """Parameters set away from the template (RDM) defaults: [(junction_id, piece_name, key, value, default,
+        reason)]."""
+        out = []
+        ids = [junction_id] if junction_id else sorted({f["junction_id"] for f in self.layer.getFeatures()})
+        for jid in ids:
+            for r in self.properties(jid):
+                v, d = r["value"], r["default"]
+                differs = (abs(float(v) - float(d)) > 1e-9) if isinstance(d, (int, float)) and \
+                    isinstance(v, (int, float)) else v != d
+                if differs:
+                    out.append((jid, r["piece_name"], r["key"], v, d, r["reason"]))
+        return out
+
+    def move_bay_end(self, piece_uuid, which, station):
+        """Drag a bay's or lane's start (which='start': the full width begins there, its far end stays) or end
+        (which='end') to an internal station. Returns True when rebuilt."""
+        g = self._group(piece_uuid)
+        if not g:
+            return False
+        f0 = g[0]
+        try:
+            P = json.loads(f0["params"] or "{}")
+            b = json.loads(f0["bay"]) if f0["bay"] else None
+        except ValueError:
+            return False
+        if not b or b.get("kind") == "escape ramp":
+            return False
+        s1, s2 = b["stations"][1], b["stations"][2]
+        dirn = 1 if s2 >= s1 else -1
+        if which == "start":
+            new_len = (s2 - station) * dirn
+            over = {"sta": station}
+        else:
+            new_len = (station - s1) * dirn
+            over = {}
+        if new_len < 5.0:
+            raise ValueError("A bay or lane must be at least 5 m long")
+        P["bay"] = round(new_len, 2)
+        over["params"] = json.dumps(P)
+        ok = self._rebuild(piece_uuid, over)
+        self.layer.triggerRepaint()
+        self.changed.emit()
+        return ok
+
     def set_scale(self, junction_id, scale):
         """Rescale every piece of a junction about its junction point."""
         for pu in {f["piece_uuid"] for f in self.layer.getFeatures() if f["junction_id"] == junction_id}:
@@ -346,7 +448,8 @@ class JunctionStore(QObject):
                 "role": f["role"] or "main", "main_ref": f["main_ref"] or "",
                 "crossing_deg": f["crossing_deg"], "scale": f["scale"], "status": f["status"],
                 "pieces": set(), "kerb_m": 0.0, "island_m2": 0.0, "widen_m2": 0.0, "paint": {}, "bay": None,
-                "sight": None, "access": None, "rbt": None, "minor_splay": None, "widen": []})
+                "sight": None, "access": None, "rbt": None, "minor_splay": None, "widen": [],
+                "departures": []})
             if f["bay"]:
                 j["bay"] = json.loads(f["bay"])
             if f["access"]:
@@ -373,6 +476,10 @@ class JunctionStore(QObject):
                 p = j["paint"].setdefault(f["code"], [0.0, 0.0])
                 p[0] += float(f["line_m"] or 0.0)
                 p[1] += float(f["paint_m2"])
+        deps = self.departures()
+        for jid, name, k, v, d, why in deps:
+            if jid in out:
+                out[jid]["departures"].append({"piece": name, "key": k, "value": v, "default": d, "reason": why})
         for j in out.values():
             # raised / flush kerb: bus bays are raised along the platform and its ramps, flush along the
             # tapers (RDM/1/3/3/01); island and roundabout kerbs are raised
