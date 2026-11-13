@@ -4,7 +4,7 @@
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
-The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.10.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.10.0)](docs/user-guide/Road_Furniture_Designer_0.10.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.11.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.11.0)](docs/user-guide/Road_Furniture_Designer_0.11.0_User_Guide.pdf) is included, and the plugin opens it from the **Guide** button on the dock or **Plugins → Road Furniture Designer → User Guide and Technical Manual**. Source and figure scripts are in `tools/guide`.
 
 ```
  Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
@@ -220,7 +220,7 @@ The Excel sheet **Widenings** is the widening table for Civil 3D: widening from,
 **Descending lanes, brake check areas and escape ramps** (types **DESC**, **BCA**, **RAMP**; RDM 1.3 6.6.4, 12.5, 12.7). **Propose from the profile** follows a loaded truck down each downgrade over 3 % (easier stretches up to 150 m are bridged), from 40 km/h, losing 1 % of the grade to rolling resistance, to 140 km/h at most:
 - **Descending lane**: where the opposite upgrade warrants a climbing lane and the downgrade is over 1000 m (with an AADT, the same thresholds as climbing lanes). Drawn like a climbing lane, I12 proposed.
 - **Brake check area**: at the top of a descent that drops 100 m, or runs 1000 m at 5 % or more, with about 500 trucks a day or more; a 100 m bay ending 100 m before the top, I15 with I14 500 m ahead, W30.
-- **Escape ramp**: on a tangent before a singular point a runaway truck cannot take (a curve too tight for its speed at f = 0.10, a town at 50 km/h or less, or the end of the road), once the road has dropped 130 m. Bed length from Eq 12.1, L = V² / (254 (R + G) / 100), with the rolling resistance of Table 12.7 (loose crushed aggregate 5 %, loose gravel 10 %, sand 15 %, pea gravel 25 %); 8 m wide, departing at 4° on the downhill traffic's left after a 50 m taper and 30 m paved entry, arrester bed 1.0 m deep and an end mound. E1 at 1000 m and 500 m, I33 at 200 m, I32 at the ramp and P14 are proposed.
+- **Escape ramp**: on a tangent before a singular point a runaway truck cannot take (a curve too tight for its speed at f = 0.10, a town at 50 km/h or less, or the end of the road), once the road has dropped 130 m. Bed length from Eq 12.1, L = V² / (254 (R + G) / 100), with the rolling resistance of Table 12.7 (loose crushed aggregate 5 %, loose gravel 10 %, sand 15 %, pea gravel 25 %); 8 m wide, departing at 4° on the downhill traffic's left after a 50 m taper and 30 m paved entry, arrester bed 1.0 m deep and an end mound. Where the road bends towards the ramp's side, the ramp leaves early enough to lie alongside the tangent and turns further from the road (up to 12°) to stay 10 m clear of the shoulder; if that is still not enough it stops short and the bed check says so (a steeper ramp where the ground rises, set in its properties, shortens the bed it needs). E1 at 1000 m and 500 m, I33 at 200 m, I32 at the ramp and P14 are proposed.
 - Each ramp is checked: on a curve, width outside 3.6–12 m, a bed shorter than Eq 12.1 needs, and a ramp site with no ramp within 500 m. The edges go to the feature-line export at the ramp grade.
 
 **Properties and departures.** Select a placed junction, bay, lane or ramp: the **Properties** table lists its dimensions (taper, depth, width, bed length, grade, material, radii ...) with the RDM drawing's value beside each. Change a value and give a reason: the item is rebuilt and the change is reported as a **departure** with its reason in the furniture checks (one without a reason is flagged).
@@ -298,7 +298,7 @@ The pages are drawn with QPainter, the same way the LandXML Road & Terrain plugi
 
 ## DXF for plan drawings
 
-On **Export to Civil 3D**, choose the plan scale (1:500 to 1:5000; default 1:2500):
+On **Export to Civil 3D (DXF)**, choose the plan scale (1:500 to 1:5000; default 1:2500):
 - **Symbols** print at 10 mm: 25 m in model space at 1:2500, 10 m at 1:1000.
 - **Callouts.** Each sign is one block inserted at its post (true coordinates). The block holds a post marker, a leader and the sign face upright beside the road, clear of the carriageway and of the neighbouring signs, with the code underneath. A sign and its plate stack; back-to-back faces sit side by side.
 - **Text** (codes, legends, chainages) prints at 1.8 mm. Chainage labels read the right way up on either side.
@@ -361,8 +361,8 @@ The inventory gains the columns **Edge Ref**, **Clear of Edge (m)**, **Grade (%)
 4. **Signs tab** (placed signs, below the palette): every sign in chainage order. Double-click a row to zoom to it. **Renumber posts by chainage** turns the post refs into P001, P002… in road order.
 5. **Outputs tab:** the inventory: live counts of sign faces by type and size, posts by type and foundations by type, plus validation checks. It also holds every export and import button, including **Feature lines for Civil 3D (LandXML)**:
    - **Export inventory:** `*_Inventory.xlsx` and a CSV. The workbook contains the named Excel Tables `RSD_Signs` (one row per face with chainage), `RSD_Posts` and `RSD_Quantities` (counts), ready to link into the QTO. It has no rates.
-   - **Export to Civil 3D:** `*_placement.json` plus a placed-signs `.dxf` for a quick check.
-   - **Import Civil 3D read-back:** applies sign moves and rotations made in the drawing, matched by UUID.
+   - **Export to Civil 3D (DXF):** the georeferenced `.dxf` to paste into the project drawing (the `*_placement.json` package for the parked Dynamo route is written beside it).
+   - The read-back import (sign moves made in the drawing, matched by UUID) belongs to the parked Dynamo route and is hidden in the dock for now; `python -m rfd reconcile` still reads one.
 
 The GeoPackage is the master record. Save the QGIS project and the plugin reopens the sign project with it.
 
@@ -389,7 +389,7 @@ The working route is the georeferenced DXF (above). The Dynamo route below is **
    - **CHECK lines:** places where the drawing's alignment and the LandXML disagree by more than 20 mm. Resolve those before placing.
 5. Set Run = True. Re-running is safe: signs are matched by UUID, existing blocks are updated, new ones are added, and nothing is deleted.
 6. Mark the input nodes "Is Input" and save the graph, so the team can run it from Dynamo Player.
-7. For read-back, build a second graph the same way with `dynamo/rsd_readback.py`. It has one input, the output JSON path. Import that JSON from the QGIS Inventory tab.
+7. For read-back, build a second graph the same way with `dynamo/rsd_readback.py`. It has one input, the output JSON path. The dock's import button is hidden while the route is parked; reconcile the JSON with `python -m rfd reconcile` (below).
 
 If the first run fails, open an issue with the error. The two places most likely to need adjusting are how the Python engine returns `ref` arguments from `Alignment.PointLocation`, and the internal-versus-displayed station when station equations are present.
 
@@ -484,4 +484,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.10.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738). Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.11.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738). Citation metadata is in `CITATION.cff`.

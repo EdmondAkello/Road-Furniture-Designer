@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 — 2026-11-13
 
 ### Added
 - **Descending lanes** (type DESC, RDM 1.3 6.6.4): proposed from the profile where the opposite upgrade warrants a climbing lane and the downgrade is over 1000 m; drawn as a climbing lane, I12 proposed.
@@ -12,6 +12,14 @@
 - **Snapping to a road layer**: a main road clicked by direction follows a chosen QGIS line layer within 25 m of the junction.
 - **Feature lines**: the kerbs of junction islands, accesses and roundabouts, and escape-ramp edges at the ramp grade, go to the Civil 3D export with the edges and widenings, named by code and chainage.
 - **Furniture checks on the Outputs tab**: run the checks without the full report; double-click a finding to zoom to it.
+
+### Changed
+- **Export to Civil 3D (DXF)** asks for the DXF file; the placement package for the parked Dynamo route is written beside it. The **Import Civil 3D read-back** button is hidden while that route is parked.
+- Escape ramps where the road bends towards the ramp's side: the ramp leaves early enough to lie alongside the tangent and turns further from the road (up to 12°, `max_angle`) to stay 10 m clear of the shoulder (`road_clear`); where that is not enough it stops short and the bed check says so.
+
+### Fixed
+- A proposal step that found nothing to propose (auto-placement on a gentle road) opened and closed an empty edit session, which could leave the GeoPackage sign layer unreadable until the project was reopened.
+- Strip diagram: the road studs row sat between the centre line and the right edge line, so the centre line looked off the middle; studs now have their row below the road.
 
 ## 0.10.0 — 2026-11-13
 
