@@ -101,11 +101,11 @@ def merge_arms(arms: List[dict], min_sep_deg: float = 15.0) -> List[dict]:
     return sorted(out, key=lambda a: a["bearing"] % (2 * math.pi))
 
 
-def _fillet(O: Pt, rc: float, A: Pt, u: Pt, m: Pt, R: float):
+def _fillet(ctr: Pt, rc: float, A: Pt, u: Pt, m: Pt, R: float):
     """Return (curb return) of radius R outside both the circle (centre O, radius rc) and the line A + t u,
     on the side of normal m. Returns (tangent point on the line, tangent point on the circle, arc points)."""
     # centre C = A + t u + R m with |C - O| = rc + R
-    px, py = A[0] + R * m[0] - O[0], A[1] + R * m[1] - O[1]
+    px, py = A[0] + R * m[0] - ctr[0], A[1] + R * m[1] - ctr[1]
     bq = 2 * (px * u[0] + py * u[1])
     cq = px * px + py * py - (rc + R) ** 2
     disc = bq * bq - 4 * cq
@@ -115,8 +115,8 @@ def _fillet(O: Pt, rc: float, A: Pt, u: Pt, m: Pt, R: float):
     t = ts[1] if ts[1] >= 0 else ts[0]
     C = (A[0] + t * u[0] + R * m[0], A[1] + t * u[1] + R * m[1])
     T1 = (A[0] + t * u[0], A[1] + t * u[1])
-    d = math.hypot(C[0] - O[0], C[1] - O[1])
-    T2 = (O[0] + rc * (C[0] - O[0]) / d, O[1] + rc * (C[1] - O[1]) / d)
+    d = math.hypot(C[0] - ctr[0], C[1] - ctr[1])
+    T2 = (ctr[0] + rc * (C[0] - ctr[0]) / d, ctr[1] + rc * (C[1] - ctr[1]) / d)
     a0 = math.atan2(T1[1] - C[1], T1[0] - C[0])
     a1 = math.atan2(T2[1] - C[1], T2[0] - C[0])
     da = math.remainder(a1 - a0, 2 * math.pi)
@@ -125,9 +125,9 @@ def _fillet(O: Pt, rc: float, A: Pt, u: Pt, m: Pt, R: float):
     return T1, T2, arc
 
 
-def _circle(O: Pt, r: float, a0: float = 0.0, a1: float = 2 * math.pi, step: float = 1.0) -> List[Pt]:
+def _circle(ctr: Pt, r: float, a0: float = 0.0, a1: float = 2 * math.pi, step: float = 1.0) -> List[Pt]:
     n = max(8, int(abs(a1 - a0) * r / step))
-    return [(O[0] + r * math.cos(a0 + (a1 - a0) * k / n), O[1] + r * math.sin(a0 + (a1 - a0) * k / n))
+    return [(ctr[0] + r * math.cos(a0 + (a1 - a0) * k / n), ctr[1] + r * math.sin(a0 + (a1 - a0) * k / n))
             for k in range(n + 1)]
 
 
@@ -140,24 +140,25 @@ def _length(pts: Sequence[Pt], closed: bool = False) -> float:
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pp, pp[1:]))
 
 
-def build(O: Pt, arms: List[dict], P: dict):
+def build(ctr: Pt, arms: List[dict], P: dict):
     """Parts [(code, pts, closed)], quantities, arm details (for signs and checks)."""
     P = dict(DEFAULTS, **{k: v for k, v in P.items() if v is not None})
     island, apron = float(P["island"]), float(P["apron"])
     icd = float(P.get("icd") or min_icd(island))
     rc, ri = icd / 2, island / 2
     parts: List[Tuple[str, List[Pt], bool]] = []
-    ring = _circle(O, ri)
+    ring = _circle(ctr, ri)
     parts.append(("KERB", ring, True))                            # central island
     if apron > 0:
-        parts.append(("APRON", _circle(O, ri + apron), True))   # mountable apron edge
+        parts.append(("APRON", _circle(ctr, ri + apron), True))   # mountable apron edge
     detail, mouths = [], []
     ws, we, wx = float(P["splitter"]), float(P["entry"]), float(P["exit"])
     for arm in arms:
         b = (math.cos(arm["bearing"]), math.sin(arm["bearing"]))
         n = (-b[1], b[0])
         h = float(arm.get("half") or 3.5)
-        W = lambda s, o: (O[0] + s * b[0] + o * n[0], O[1] + s * b[1] + o * n[1])
+        def W(s, o):
+            return (ctr[0] + s * b[0] + o * n[0], ctr[1] + s * b[1] + o * n[1])
         sf = rc + float(P["flare"])                                # end of the flare, back on the approach
         edges = {}
         for side, o_m, R in ((-1, -(ws / 2 + we), float(P["entry_r"])), (1, ws / 2 + wx, float(P["exit_r"]))):
@@ -167,7 +168,7 @@ def build(O: Pt, arms: List[dict], P: dict):
             L = math.hypot(Bp[0] - A[0], Bp[1] - A[1])
             u = ((Bp[0] - A[0]) / L, (Bp[1] - A[1]) / L)
             m = (side * n[0], side * n[1])                       # away from the arm's centreline
-            f = _fillet(O, rc, A, u, m, R)
+            f = _fillet(ctr, rc, A, u, m, R)
             if f is None:
                 raise ValueError("A return radius does not fit this arm; reduce it or enlarge the ICD")
             T1, T2, arc = f
@@ -189,7 +190,8 @@ def build(O: Pt, arms: List[dict], P: dict):
             parts.append(("HM07", [W(s, -w), W(s - 0.8, w)], False))
         parts.append(("LM24", [W(s2, 0.0), W(s2 + LM24_LENGTH, 0.0)], False))
         # give way line across the entry lane and the exit line across the exit, on the circle
-        on_circle = lambda o: W(math.sqrt(max(rc * rc - o * o, 0.0)), o)
+        def on_circle(o):
+            return W(math.sqrt(max(rc * rc - o * o, 0.0)), o)
         parts.append(("TM07", [on_circle(-ws / 2), on_circle(-(ws / 2 + we))], False))
         parts.append(("TM04", [on_circle(ws / 2), on_circle(ws / 2 + wx)], False))
         # BM07 triangle centred in the entry lane, apex towards the give way line
@@ -206,14 +208,14 @@ def build(O: Pt, arms: List[dict], P: dict):
         if len(ms) == 1:
             break
         nb, ne = ms[(i + 1) % len(ms)]
-        a0 = math.atan2(e[1][1] - O[1], e[1][0] - O[0])          # exit side of this arm (+n, ccw)
-        a1 = math.atan2(ne[-1][1] - O[1], ne[-1][0] - O[0])      # entry side of the next arm
+        a0 = math.atan2(e[1][1] - ctr[1], e[1][0] - ctr[0])          # exit side of this arm (+n, ccw)
+        a1 = math.atan2(ne[-1][1] - ctr[1], ne[-1][0] - ctr[0])      # entry side of the next arm
         gap = (nb - bear) % (2 * math.pi) or 2 * math.pi         # between the two arms' centrelines
         arc = (a1 - a0) % (2 * math.pi)
         if arc > gap:                                            # the returns cross: nothing left between
             overlaps += 1
             continue
-        parts.append(("RBEDGE", _circle(O, rc, a0, a0 + arc), False))
+        parts.append(("RBEDGE", _circle(ctr, rc, a0, a0 + arc), False))
     q = {"icd": round(icd, 2), "width": round(rc - ri - apron, 2), "overlaps": overlaps,
          "kerb_m": round(sum(_length(p, c) for code, p, c in parts if code in ("KERB", "RBEDGE")), 1),
          "island_m2": round(sum(_area(p) for code, p, c in parts if code == "KERB"), 1)}
@@ -298,7 +300,7 @@ def _catmull_rom(pts: Sequence[Pt], step: float = 0.5) -> List[Pt]:
     return out
 
 
-def entry_paths(O: Pt, arms: List[dict], P: dict, q: dict, window: float = 25.0) -> List[dict]:
+def entry_paths(ctr: Pt, arms: List[dict], P: dict, q: dict, window: float = 25.0) -> List[dict]:
     """The entry path radius of the ahead movement at each entry (RDM 1.3 10.6.3.5, Figure 10.14), on a
     simplified fastest path: a smooth curve from 50 m back on the approach, 1 m off the centre line, through
     1 m off the nearside kerb at the give way line, 1.5 m outside the central island midway to the exit most
@@ -319,11 +321,11 @@ def entry_paths(O: Pt, arms: List[dict], P: dict, q: dict, window: float = 25.0)
         def frame(t):
             b = (math.cos(t), math.sin(t))
             n = (-b[1], b[0])
-            return lambda s, o: (O[0] + s * b[0] + o * n[0], O[1] + s * b[1] + o * n[1])
+            return lambda s, o: (ctr[0] + s * b[0] + o * n[0], ctr[1] + s * b[1] + o * n[1])
         We, Wx = frame(th), frame(tx)
         m = th - gap / 2
         ctrl = [We(rc + 50.0, -1.0), We(rc, -(ws / 2 + we) + 1.0),
-                (O[0] + (ri + 1.5) * math.cos(m), O[1] + (ri + 1.5) * math.sin(m)),
+                (ctr[0] + (ri + 1.5) * math.cos(m), ctr[1] + (ri + 1.5) * math.sin(m)),
                 Wx(rc, ws / 2 + wx - 1.0), Wx(rc + 50.0, 1.0)]
         path = _catmull_rom(ctrl)
         # chainage along the path; the give way point is the second control point

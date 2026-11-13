@@ -57,4 +57,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install bandit
-      - run: bandit -q -r rfd qgis_plugin tools -x qgis_plugin/road_furniture_designer/ext_libs,qgis_plugin/road_furniture_designer/rfd
+      # the built plugin, as plugins.qgis.org scans it: no config files, so any finding fails
+      - run: python tools/build_plugin.py
+      - run: bandit -r qgis_plugin/road_furniture_designer

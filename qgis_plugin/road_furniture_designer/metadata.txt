@@ -3,7 +3,7 @@ name=Road Furniture Designer
 qgisMinimumVersion=3.44
 qgisMaximumVersion=4.99
 description=Road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, markings and road studs, safety barriers, traffic calming, crossings and speed limit zones, placed by hand or proposed from the geometry, with a live inventory, reports and a georeferenced DXF for Civil 3D.
-version=0.12.0
+version=0.12.1
 author=Edmond Akello
 email=francenicklaus@gmail.com
 about=Design road furniture in QGIS next to the road alignment.
@@ -23,7 +23,10 @@ about=Design road furniture in QGIS next to the road alignment.
     Runs on QGIS 3.44 and QGIS 4 (Qt5 and Qt6).
 
     Licensed under the GNU General Public License version 2 or later.
-changelog=0.12.0
+changelog=0.12.1
+    - No bundled libraries: Excel workbooks and DXF drawings are written by the plugin itself (same content as before), so the ZIP passes the plugin repository's security scan without configuration files; the DXF export is also about three times faster.
+    - Broken markings show their dashes in Civil 3D (linetype generation on the marking polylines).
+    0.12.0
     - QGIS 4 (Qt6): runs on QGIS 3.44 to 4.x; QGIS 3.34 to 3.42 are no longer supported.
     - Much faster auto-placement: Propose no longer rebuilds the inventory once per sign (850 signs on a 36 km road: 317 s to 2 s); barrier proposals and points on spirals are faster too.
     - Busy cursor while Propose runs; the vendored Qt viewers of ezdxf and fontTools are left out of the plugin.

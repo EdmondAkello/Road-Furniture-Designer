@@ -81,7 +81,7 @@ class RoadFurnitureDesignerPlugin:
         try:
             QgsProject.instance().readProject.disconnect(self._project_loaded)
         # Not connected (plugin loaded without a project); nothing to undo.
-        except Exception:  # nosec B110
+        except (TypeError, RuntimeError):
             pass
         if self.dock:
             self.iface.removeDockWidget(self.dock)

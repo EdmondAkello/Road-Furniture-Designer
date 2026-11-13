@@ -95,6 +95,10 @@ def test_inventory_and_dxf_linear(tmp_path, cat, al):
     msp = doc.modelspace()
     lm28 = msp.query('LWPOLYLINE[layer=="RSD-MARK-LM28"]')
     assert len(lm28) == 2 and {e.dxf.linetype for e in lm28} == {"BYLAYER", "RSD_3_9"}
+    # a broken line has a vertex every 2 m, shorter than its 3 m mark: without linetype generation (flag
+    # 128) CAD restarts the pattern at every vertex and draws it solid
+    assert all(e.dxf.flags & 128 for e in lm28)
+    assert [t.value for t in doc.linetypes.get("RSD_3_9").pattern_tags.tags if t.code in (40, 49)] == [12.0, 3.0, -9.0]
     assert len(msp.query('CIRCLE[layer=="RSD-STUD-RRS-C"]')) == 11
     assert len(msp.query('LWPOLYLINE[layer=="RSD-BARRIER-GR-W"]')) == 2
     ys = sorted(e.get_points("xy")[0][1] for e in lm28)     # 0.1 m apart (gap) + 0.1 m line width

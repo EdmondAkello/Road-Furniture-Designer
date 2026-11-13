@@ -1,7 +1,6 @@
 """Static Qt6 / QGIS 4 checks on the plugin's own code (the same kinds of issue plugins.qgis.org's
 Qt6 check reports): scoped enums only, exec() not exec_(), PyQt only through qgis.PyQt, no QVariant
-field types, and none of the vendored Qt add-ons in the package (a
-vendored module may still import Qt inside a function RFD never calls)."""
+field types, and no third-party package in the plugin."""
 import os
 import re
 
@@ -63,24 +62,39 @@ def test_metadata_targets_qgis4():
     assert not cp.has_option("general", "supportsQt6")      # removed by QGIS; the maximum version decides
 
 
-def test_vendored_qt_addons_pruned(tmp_path, monkeypatch):
+def test_plugin_uses_no_third_party_package():
+    """The plugin ships nothing but its own code: every import is the standard library, QGIS / PyQt, or
+    the plugin itself (Excel and DXF are written by rfd/xlsx.py and rfd/dxfw.py)."""
+    import ast
+    import sys
+    std = set(getattr(sys, "stdlib_module_names", ())) or {"os", "sys", "math", "re", "json", "csv"}
+    allowed = std | {"qgis", "road_furniture_designer", "rfd", "__future__"}
+    bad = []
+    for base in (PLUG, os.path.join(ROOT, "rfd")):
+        for d, _, files in os.walk(base):
+            if "__pycache__" in d or os.sep + "rfd" + os.sep + "rfd" in d:
+                continue
+            for f in files:
+                if not f.endswith(".py") or f in ("cli.py", "__main__.py"):
+                    continue
+                p = os.path.join(d, f)
+                tree = ast.parse(open(p, encoding="utf-8").read())
+                for n in ast.walk(tree):
+                    mods = []
+                    if isinstance(n, ast.Import):
+                        mods = [a.name for a in n.names]
+                    elif isinstance(n, ast.ImportFrom) and not n.level:
+                        mods = [n.module or ""]
+                    bad += [f"{os.path.relpath(p, ROOT)}: {m}" for m in mods if m.split(".")[0] not in allowed]
+    assert not bad, bad
+
+
+def test_built_plugin_has_no_vendored_libraries(tmp_path, monkeypatch):
     import importlib.util
     spec = importlib.util.spec_from_file_location("build_plugin", os.path.join(ROOT, "tools", "build_plugin.py"))
     bp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bp)
+    (tmp_path / "ext_libs" / "old").mkdir(parents=True)          # left by a build before 0.12.1
     monkeypatch.setattr(bp, "PLUG", str(tmp_path))
-    bp.sync_vendor()
-    ext = tmp_path / "ext_libs"
-    if not ext.is_dir():
-        pytest.skip("no vendor/ext_libs in this checkout")
-    for rel in bp.QT_ADDONS:
-        assert not (ext / rel).exists(), rel
-    hits = []
-    for d, _, files in os.walk(ext):
-        for f in files:
-            if f.endswith(".py"):
-                with open(os.path.join(d, f), encoding="utf-8", errors="ignore") as fh:
-                    src = fh.read()
-                if re.search(r"^(from|import)\s+(PyQt[56]|PySide[26])\b", src, re.M):
-                    hits.append(os.path.relpath(os.path.join(d, f), ext))
-    assert not hits, hits
+    bp.clean_vendor()
+    assert not (tmp_path / "ext_libs").exists()

@@ -1091,8 +1091,8 @@ class RsdDock(QDockWidget):
                 self.iface.messageBar().pushMessage(
                     "Road Furniture Designer", f"This project uses criteria '{crit}', which is not available here; "
                     f"add its file on the Auto tab.", MSG_WARNING, 8)
-        store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
-                                                                            MSG_LEVELS.get(l, MSG_INFO), 5))
+        store.message.connect(lambda t, lin: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
+                                                                            MSG_LEVELS.get(lin, MSG_INFO), 5))
         self._fill_project_info()
         self._fill_typical_section()
         al = store.al
@@ -1117,7 +1117,8 @@ class RsdDock(QDockWidget):
         self.cmb_cat.clear(); self.cmb_cat.addItem("All categories"); self.cmb_cat.addItems(cats)
         self.cmb_cat.blockSignals(False)
         import re
-        key = lambda c: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", c)]
+        def key(c):
+            return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", c)]
         for sd in sorted(self.store.cat.signs.values(), key=lambda s: (cats.index(s.category), key(s.code))):
             it = QListWidgetItem(QIcon(sd.svg()), f"{sd.code}\n{sd.name}")
             it.setData(Qt.ItemDataRole.UserRole, sd.code)
@@ -1525,7 +1526,7 @@ class RsdDock(QDockWidget):
             if isinstance(lyr, QgsVectorLayer) and lyr.geometryType() == Qgis.GeometryType.Line \
                     and not own(lyr):
                 out.append(lyr)
-        return sorted(out, key=lambda l: l.name().lower())
+        return sorted(out, key=lambda lin: lin.name().lower())
 
     def _junction_role_changed(self, *_):
         minor = self.cmb_jrole.currentData() == "minor"
@@ -1797,7 +1798,8 @@ class RsdDock(QDockWidget):
         from .rfd.alignment import format_station
         self.lst_zones.clear()
         for z in self.store.speed_zones():
-            ch = lambda s: format_station(self.store.al.display_station(s), 0)
+            def ch(s):
+                return format_station(self.store.al.display_station(s), 0)
             it = QListWidgetItem(f"{ch(z['start'])} – {ch(z['end'])}  {z['limit'] or '?'} km/h  "
                                  f"({len(z['signs'])} signs, {z['status']})")
             it.setData(Qt.ItemDataRole.UserRole, z["id"])
@@ -2066,10 +2068,10 @@ class RsdDock(QDockWidget):
             return
         self.set_store(st)
 
-    def _need_libs(self, ex):
+    def _write_failed(self, ex):
         QMessageBox.warning(self, "Road Furniture Designer",
-                            f"{ex}\n\nThe plugin bundles openpyxl and ezdxf in its ext_libs folder; "
-                            "reinstall the plugin from the ZIP if that folder is missing.")
+                            f"Could not write the file:\n{ex}\n\nIf it is open in Excel or CAD, close it and "
+                            "try again, or choose another folder.")
 
     def _report_signatories(self):
         """Prepared / checked / approved by for the title blocks; kept with the project."""
@@ -2116,8 +2118,8 @@ class RsdDock(QDockWidget):
             pngs = write_pngs(stem + "_sheets", d, sheet_len=1000.0)
         try:
             write_xlsx(stem + ".xlsx", d)
-        except ImportError as ex:
-            return self._need_libs(ex)
+        except OSError as ex:
+            return self._write_failed(ex)
         self.iface.messageBar().pushMessage(
             "Road Furniture Designer", f"Report: {n} PDF pages, {len(pngs)} PNG sheets and an Excel workbook → "
             f"{os.path.dirname(p)}", MSG_SUCCESS, 8)
@@ -2129,8 +2131,8 @@ class RsdDock(QDockWidget):
             return
         try:
             sl = self.store.export_inventory(p)
-        except ImportError as ex:
-            return self._need_libs(ex)
+        except OSError as ex:
+            return self._write_failed(ex)
         self.iface.messageBar().pushMessage(
             "Road Furniture Designer", f"Inventory: {len(sl.faces)} faces, {len(sl.installations)} posts → {p}",
             MSG_SUCCESS, 6)
@@ -2152,8 +2154,8 @@ class RsdDock(QDockWidget):
         try:
             with _busy():
                 sl = self.store.export_civil3d(p, dxf, plan_scale=plan_scale)
-        except ImportError as ex:
-            return self._need_libs(ex)
+        except OSError as ex:
+            return self._write_failed(ex)
         except ValueError as ex:
             QMessageBox.warning(self, "Road Furniture Designer", str(ex))
             return

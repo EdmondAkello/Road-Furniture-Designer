@@ -34,9 +34,7 @@ HEADER_ROW = 4
 FIRST_ROW = HEADER_ROW + 1
 # --------------------------------------------------------------------------- template
 def make_template(path: str, cat: Catalogue, alignment_name: str = "", project: str = ""):
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment as XAlign, Font, PatternFill
-    from openpyxl.worksheet.datavalidation import DataValidation
+    from .xlsx import Alignment as XAlign, DataValidation, Font, PatternFill, Workbook
 
     wb = Workbook()
     ws = wb.active
@@ -105,7 +103,7 @@ def make_template(path: str, cat: Catalogue, alignment_name: str = "", project: 
 # --------------------------------------------------------------------------- reading
 def read_signlist(path: str, al: Alignment, cat: Catalogue, write_back: bool = True) -> SignList:
     import shutil
-    from openpyxl import load_workbook
+    from .xlsx import load_workbook
     wb = load_workbook(path)
     ws = wb["Signs"]
     keys = [k for _, k, _ in COLUMNS]

@@ -1,6 +1,0 @@
-[bandit]
-# ext_libs/ holds third-party libraries shipped unmodified (openpyxl, et_xmlfile,
-# ezdxf, fontTools, pyparsing, typing_extensions) so the plugin works where pip is
-# blocked. Their findings (asserts, XML parsing inside openpyxl/et_xmlfile) belong
-# to those upstream projects. Road Furniture Designer's own code is scanned in full.
-exclude = ext_libs,./ext_libs,*/ext_libs/*

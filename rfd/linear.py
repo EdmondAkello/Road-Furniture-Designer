@@ -269,8 +269,10 @@ def pattern(al, run: Run, bars: int = 6, bar_width: float = 0.3) -> List[List[Tu
     if run.length <= 0 or not (getattr(run, "width", None) and run.side == "C"):
         return []
     h, c, a, b = run.width / 2.0, run.offset, run.sta_start, run.sta_end
-    P = lambda s, o: al.point_at(s, c + o)[:2]
-    rect = lambda s0, s1, o0, o1: [P(s0, o0), P(s1, o0), P(s1, o1), P(s0, o1), P(s0, o0)]
+    def P(s, o):
+        return al.point_at(s, c + o)[:2]
+    def rect(s0, s1, o0, o1):
+        return [P(s0, o0), P(s1, o0), P(s1, o1), P(s0, o1), P(s0, o0)]
     code = run.code
     if code in ZEBRA:
         out, o = [], -h

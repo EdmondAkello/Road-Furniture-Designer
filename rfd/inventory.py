@@ -11,15 +11,11 @@ import csv
 import datetime as dt
 from collections import OrderedDict
 
-from openpyxl import Workbook
-from openpyxl.styles import Font
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
-
 from .alignment import format_station
 from .catalogue import Catalogue
 from .legend import summary as legend_summary
 from .records import SignList
+from .xlsx import Font, Table, TableStyleInfo, Workbook, get_column_letter
 
 SIGN_COLS = ["Sign No", "Post Ref", "Chainage", "Chainage (m)", "Side", "Offset (m)", "Facing",
              "Sign Code", "Description", "Category", "Shape", "Size", "Variant", "Legend", "Edge Ref",

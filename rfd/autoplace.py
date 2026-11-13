@@ -278,8 +278,10 @@ def no_overtaking_zones(al, cfg: AutoConfig):
     if len(st) < 2:
         return {"Forward": [], "Backward": []}
     crit = cfg.crit
-    v_of = lambda s: al.speed_at(s) or 80.0
-    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
+    def v_of(s):
+        return al.speed_at(s) or 80.0
+    def psd_of(s):
+        return crit.psd(v_of(s), cfg.psd_reduced)
     max_need = max(psd_of(s) for s in st) + cfg.step
     z = sight_profile(pr, st) if pr is not None else None
     pts = [al.point_at(s)[:2] for s in st] if cfg.sight_offset > 0 else None
@@ -318,9 +320,14 @@ def analyse(al, cfg: AutoConfig) -> List[Finding]:
                                    f"R={c.radius:.0f} m, e={c.e_pct:.1f}%: curve speed {c.v_curve:.0f} km/h "
                                    f"vs {c.v_approach:.0f} km/h design (drop {drop:.0f})",
                                    {"group": c, "drop": drop}))
-    v_of = lambda s: al.speed_at(s) or 80.0
     crit = cfg.crit
-    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
+
+    def v_of(s):
+        return al.speed_at(s) or 80.0
+
+    def psd_of(s):
+        return crit.psd(v_of(s), cfg.psd_reduced)
+
     if cfg.no_overtaking:
         for direction, zs in no_overtaking_zones(al, cfg).items():
             for a, b in zs:
@@ -343,9 +350,6 @@ def analyse(al, cfg: AutoConfig) -> List[Finding]:
                     out.append(Finding(f"grade_{label}", a, b, direction,
                                        f"{label} steeper than {thr:.0f}% for {b - a:.0f} m (max {worst:.1f}%)",
                                        {"max": worst}))
-    v_of = lambda s: al.speed_at(s) or 80.0
-    crit = cfg.crit
-    psd_of = lambda s: crit.psd(v_of(s), cfg.psd_reduced)
     # report-only checks on the vertical curves: K against the criteria tables where given
     # (RDM 1.3 Tables 6.1 / 6.4), else from the SSD with the headlight / eye-object formulas
     h_eye, h_obj = crit.eye_height, crit.object_height
@@ -397,7 +401,8 @@ def _bend_mirror(turns_left: bool) -> bool:
 def propose(al, cfg: AutoConfig) -> Tuple[List[Proposal], List[Finding]]:
     findings = analyse(al, cfg)
     props: List[Proposal] = []
-    in_range = lambda s: al.sta_start <= s <= al.sta_end
+    def in_range(s):
+        return al.sta_start <= s <= al.sta_end
 
     # ---- curves: warnings (single or series), chevrons
     curves = [f for f in findings if f.kind == "curve"]
@@ -499,8 +504,9 @@ def space_out(props: List[Proposal], existing: List[Tuple[float, str, str]], spe
     taken = list(existing)    # (station, side, facing, code)
     out = []
     dropped = set()
-    there = lambda p, tol: any(c == p.code and sd == p.side and fc == p.facing and abs(s - p.station) < tol
-                               for s, sd, fc, c in existing)
+    def there(p, tol):
+        return any(c == p.code and sd == p.side and fc == p.facing and abs(s - p.station) < tol
+                   for s, sd, fc, c in existing)
     for p in sorted(props, key=lambda p: (p.station, p.code in PLATE_CODES)):
         if p.code in PLATE_CODES:
             if (p.group and p.group in dropped) or there(p, 1.0):

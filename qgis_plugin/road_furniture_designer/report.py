@@ -213,7 +213,8 @@ def draw_sheet(p: QPainter, d: ReportData, s0: float, s1: float, page: int, page
     draw_frame(p, d, d.title, f"Signage long section {rng}", page, pages,
                f"H 1:{(s1 - s0) * 1000 / ((W - 2 * M - 130) * 0.2625):,.0f}")
     left, right = M + 120, W - M - 10
-    xs = lambda s: left + (s - s0) / max(s1 - s0, 1e-9) * (right - left)
+    def xs(s):
+        return left + (s - s0) / max(s1 - s0, 1e-9) * (right - left)
 
     bands = {"fwd": QRectF(left, TOP, right - left, 140), "prof": QRectF(left, TOP + 150, right - left, 460),
              "bwd": QRectF(left, TOP + 620, right - left, 140), "horz": QRectF(left, TOP + 770, right - left, 90),
@@ -257,7 +258,8 @@ def draw_sheet(p: QPainter, d: ReportData, s0: float, s1: float, page: int, page
         zmin, zmax = min(allz), max(allz)
         pad = max((zmax - zmin) * 0.15, 2.0)
         zmin, zmax = zmin - pad, zmax + pad
-        ys = lambda z: r.bottom() - (z - zmin) / (zmax - zmin) * r.height()
+        def ys(z):
+            return r.bottom() - (z - zmin) / (zmax - zmin) * r.height()
         # findings bands
         for f in d.findings:
             a, b = max(f.start, s0), min(f.end, s1)
@@ -485,7 +487,8 @@ def pages(d, sheet_len):
     wins = sheet_windows(d.al, sheet_len)
     sched = schedule_rows(d)
     finds = finding_rows(d)
-    chunks = lambda rows: [rows[i:i + ROWS_PER_PAGE] for i in range(0, max(len(rows), 1), ROWS_PER_PAGE)]
+    def chunks(rows):
+        return [rows[i:i + ROWS_PER_PAGE] for i in range(0, max(len(rows), 1), ROWS_PER_PAGE)]
     out = []
     if d.plan_scale:
         plans = plan_pages(d.al, d.plan_scale, W, PLAN_RECT)
@@ -574,10 +577,7 @@ def write_pngs(folder, d, sheet_len=1000.0, scale=1.5, sheets_only=True):
 def write_xlsx(path, d):
     """Report workbook: Signs (incl. proposals and why), Findings, Horizontal curves, Vertical curves, and the
     road furniture sheets: Markings, Barriers, Features, Furniture quantities, Furniture checks."""
-    from openpyxl import Workbook
-    from openpyxl.styles import Font
-    from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.table import Table, TableStyleInfo
+    from .rfd.xlsx import Font, Table, TableStyleInfo, Workbook, get_column_letter
     crit = d.cfg.crit
     al = d.al
     wb = Workbook()
@@ -659,8 +659,10 @@ def write_xlsx(path, d):
 def _furniture_sheets(wb, d, sheet):
     from .rfd.furniture_report import KIND_TEXT
     al = d.al
-    disp = lambda s: round(al.display_station(s), 3)
-    ch = lambda s: format_station(al.display_station(s), 0)
+    def disp(s):
+        return round(al.display_station(s), 3)
+    def ch(s):
+        return format_station(al.display_station(s), 0)
     fr = d.fr
     ws = wb.create_sheet("Markings")
     sheet(ws, "RFD_Markings", ["Code", "Description", "Category", "From", "To", "From (m)", "To (m)", "Length (m)",

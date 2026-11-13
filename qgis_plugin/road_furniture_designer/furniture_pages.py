@@ -55,7 +55,8 @@ def draw_strip_page(p, d, windows, page, pages):
 def _draw_strip(p, d, lanes, s0, s1, top):
     al = d.al
     left, right = M + 130, W - M - 10
-    xs = lambda s: left + (s - s0) / STRIP_LEN * (right - left)
+    def xs(s):
+        return left + (s - s0) / STRIP_LEN * (right - left)
     end_x = xs(s1)
     y = top
     rows = []

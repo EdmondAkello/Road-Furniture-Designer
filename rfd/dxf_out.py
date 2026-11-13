@@ -11,9 +11,7 @@ import math
 import os
 import shutil
 
-import ezdxf
-from ezdxf.enums import TextEntityAlignment
-
+from . import dxfw
 from .alignment import Alignment, format_station
 from .catalogue import BLOCK_LIBRARY, Catalogue
 from .legend import summary as legend_summary
@@ -25,21 +23,16 @@ ATTRS = ["SIGN_CODE", "LEGEND", "DESCRIPTION", "SIZE", "CHAINAGE", "OFFSET", "SI
 VISIBLE = {"SIGN_CODE", "LEGEND"}
 
 
-LEGEND_STYLE = "RSD_LEGEND"
+LEGEND_STYLE = "RSD_LEGEND"        # Arial (in the template), so legend text width matches the plate
+TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "RSD_template.dxf")
 
 
 def _layers(doc):
-    if APPID not in doc.appids:
-        doc.appids.new(APPID)
-    if LEGEND_STYLE not in doc.styles:            # legend text in Arial so its width matches the plate
-        doc.styles.add(LEGEND_STYLE, font="arial.ttf")
+    # the RSD application id and the text styles are in the template.
+    # Reference geometry is for checking only: it never plots, so pasting it by mistake is harmless.
     for lay, col in (("RSD-SIGN", 1), ("RSD-SIGN-TEXT", 7), ("RSD-SIGN-LEADER", 7), ("RSD-ALIGN", 4),
                      ("RSD-ALIGN-OTHER", 3), ("RSD-REF-NOTES", 8)):
-        if lay not in doc.layers:
-            doc.layers.add(lay, color=col)
-    # reference geometry is for checking only: it never plots, so pasting it by mistake is harmless
-    for lay in REFERENCE_LAYERS:
-        doc.layers.get(lay).dxf.plot = 0
+        doc.add_layer(lay, color=col, plot=lay not in REFERENCE_LAYERS)
 
 
 REFERENCE_LAYERS = ("RSD-ALIGN", "RSD-ALIGN-OTHER", "RSD-REF-NOTES")
@@ -49,30 +42,27 @@ EDGE_COLOURS = {"ETW": 7, "EPS": 2, "Hinge": 30, "Ditch_In": 5, "Ditch_Out": 5, 
 def _edge_layer(doc, code, assumed=False):
     """RSD-EDGE-<code>; RSD-EDGE-TS-<code> for edges from a typical section (assumed, not a corridor)."""
     lay = ("RSD-EDGE-TS-" if assumed else "RSD-EDGE-") + "".join(c if c.isalnum() or c in "-_" else "_" for c in code)
-    if lay not in doc.layers:
-        doc.layers.add(lay, color=EDGE_COLOURS.get(code, 8))
-        doc.layers.get(lay).dxf.plot = 0
+    doc.add_layer(lay, color=EDGE_COLOURS.get(code, 8), plot=False)
     return lay
 
 
 def _georef_header(doc, crs, source, alignment_name):
     """World coordinates: metres, angles CCW from east, plus the CRS and source recorded in the file."""
-    doc.units = ezdxf.units.M
-    h = doc.header
-    h["$INSUNITS"] = 6           # metres
-    h["$MEASUREMENT"] = 1        # metric
-    h["$LUNITS"] = 2             # decimal
-    h["$LUPREC"] = 3
-    h["$AUNITS"] = 0             # decimal degrees
-    h["$ANGBASE"] = 0.0          # 0 deg = east
-    h["$ANGDIR"] = 0             # counter-clockwise
+    for var, code, v in (("$INSUNITS", 70, "6"),        # metres
+                         ("$MEASUREMENT", 70, "1"),     # metric
+                         ("$LUNITS", 70, "2"),          # decimal
+                         ("$LUPREC", 70, "3"),
+                         ("$AUNITS", 70, "0"),          # decimal degrees
+                         ("$ANGBASE", 50, "0.0"),       # 0 deg = east
+                         ("$ANGDIR", 70, "0")):         # counter-clockwise
+        doc.set_header(var, (code, v))
     crs = crs or {}
     label = " ".join(x for x in (f"EPSG:{crs['epsg']}" if crs.get("epsg") else "", crs.get("name", "")) if x)
     for k, v in (("RSD_CRS", label or "as LandXML (not declared)"), ("RSD_MAP_ZONE", crs.get("map_zone", "")),
                  ("RSD_SOURCE_LANDXML", os.path.basename(source or "")), ("RSD_ALIGNMENT", alignment_name),
                  ("RSD_COORDINATES", "World E,N in metres exactly as in the LandXML; paste with PASTEORIG")):
         if v:
-            h.custom_vars.append(k, str(v))
+            doc.custom.append((k, str(v)))
     return label
 
 
@@ -80,38 +70,39 @@ _LIBRARY_CACHE = {}
 
 
 def _library(path):
-    """The block library, read once per session (it is 8 MB; the importer only reads from it)."""
+    """{block name: [entity tags]} of the block library, read once per session (it is 8 MB)."""
     key = (os.path.abspath(path), os.path.getmtime(path))
-    doc = _LIBRARY_CACHE.get(key)
-    if doc is None:
+    blocks = _LIBRARY_CACHE.get(key)
+    if blocks is None:
         _LIBRARY_CACHE.clear()
-        doc = _LIBRARY_CACHE[key] = ezdxf.readfile(path)
-    return doc
+        blocks = _LIBRARY_CACHE[key] = dxfw.blocks_of(dxfw.read_tags(path))
+    return blocks
 
 
 def import_blocks(doc, names, library=BLOCK_LIBRARY):
     """Copy the named sign blocks from the library into doc; returns names not found."""
-    from ezdxf.addons import importer
-    names = [n for n in set(names) if n not in doc.blocks]
+    names = [n for n in set(names) if not doc.has_block(n)]
     if not names:
         return []
     src = _library(library)
-    have = [n for n in names if n in src.blocks]
-    imp = importer.Importer(src, doc)
-    imp.import_blocks(have)
-    imp.finalize()
+    have = [n for n in names if n in src]
+    for n in have:
+        blk = doc.new_block(n)
+        for e in src[n]:
+            blk.add(dxfw.Entity.copy_of(e))
+            if e[0][1] == "ATTDEF":
+                doc._blocks_with_attdefs.add(n)
     return sorted(set(names) - set(have))
 
 
 def _fallback_block(doc, name, code):
-    blk = doc.blocks.new(name, base_point=(0, 0))
+    blk = doc.new_block(name)
     blk.add_circle((0, 0), 0.06)
     blk.add_line((-0.35, 0.12), (0.35, 0.12))
     blk.add_lwpolyline([(-0.45, 0.5), (0.45, 0.5), (0.45, 1.4), (-0.45, 1.4)], close=True)
-    blk.add_text(code, height=0.15, dxfattribs={"insert": (-0.4, 0.9)})
+    blk.add_text(code, (-0.4, 0.9), 0.15)
     for i, tag in enumerate(ATTRS):
-        a = blk.add_attdef(tag, insert=(0.7, 0.9 - 0.18 * i), height=0.15, dxfattribs={"layer": "RSD-SIGN-TEXT"})
-        a.is_invisible = tag not in VISIBLE
+        blk.add_attdef(tag, (0.7, 0.9 - 0.18 * i), 0.15, layer="RSD-SIGN-TEXT", invisible=tag not in VISIBLE)
 
 
 # ---------------------------------------------------------------- plan sizing
@@ -140,15 +131,16 @@ def label_block(doc, base: str, sd, face) -> str:
         return base
     name = f"{base}_{'_'.join(lines)}"
     name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:60]
-    if name in doc.blocks:
+    if doc.has_block(name):
         return name
-    blk = doc.blocks.new(name, base_point=(0, 0))
+    blk = doc.new_block(name)
     it = iter(lines)
-    for e in src:
-        c = e.copy()
-        if c.dxftype() == "TEXT":
-            c.dxf.text = next(it, c.dxf.text)
-        blk.add_entity(c)
+    for e in src.entities:
+        c = blk.add_entity(e)
+        if c.dxftype == "TEXT":
+            c.set(1, next(it, c.get(1)))
+        elif c.dxftype == "ATTDEF":
+            doc._blocks_with_attdefs.add(name)
     return name
 
 
@@ -156,16 +148,17 @@ def legend_block_name(face) -> str:
     return f"RSD_{face.code}_{face.face_uuid[:8]}"
 
 
-_HEX = lambda h: tuple(int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+def _HEX(h):
+    return tuple(int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
 
 
 def make_legend_block(doc, name, sd, text, road_class="A"):
     """Directional face / text plate as a block with real text, so it reads on plan drawings.
     Geometry in sign units: face height ~0.32 per line, centred at (0, 0.95) like the sign blocks."""
     from .legend import PLATE_COLOURS, SCHEMES, ordered, parse
-    if name in doc.blocks:
+    if doc.has_block(name):
         return
-    blk = doc.blocks.new(name, base_point=(0, 0))
+    blk = doc.new_block(name)
     blk.add_circle((0, 0), 0.06)
     blk.add_line((-0.35, 0.12), (0.35, 0.12))
     blk.add_line((0, 0), (0, 0.12))
@@ -175,11 +168,11 @@ def make_legend_block(doc, name, sd, text, road_class="A"):
         sc = SCHEMES.get(road_class or "A", SCHEMES["A"])
         bg, fg, rc = _HEX(sc["bg"]), _HEX(sc["fg"]), _HEX(sc["route"])
         lines = ordered(parse(text))
-        rows = [(l.arrow, l.place, l.route, l.distance) for l in lines]
+        rows = [(lin.arrow, lin.place, lin.route, lin.distance) for lin in lines]
     else:
         bg = _HEX(PLATE_COLOURS.get(sd.plate_style[0], "#ffffff"))
         fg = _HEX(PLATE_COLOURS.get(sd.plate_style[1], "#111111")); rc = fg
-        rows = [(None, l.strip(), "", "") for l in text.splitlines() if l.strip()]
+        rows = [(None, lin.strip(), "", "") for lin in text.splitlines() if lin.strip()]
     rows = rows or [(None, sd.code, "", "")]
     name_w = max(len(r[1]) for r in rows) * cw
     route_w = max((len(r[2]) for r in rows), default=0) * cw + (0.25 if any(r[2] for r in rows) else 0)
@@ -191,9 +184,8 @@ def make_legend_block(doc, name, sd, text, road_class="A"):
     x0, y0 = -w / 2, 0.95 - h / 2 + 0.5 * 0       # centred where the sign artwork sits
     y0 = max(y0, 0.2)
     rect = [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]
-    hatch = blk.add_hatch(); hatch.set_solid_fill(); hatch.rgb = bg
-    hatch.paths.add_polyline_path(rect, is_closed=True)
-    border = blk.add_lwpolyline(rect, close=True); border.rgb = fg
+    blk.add_solid_hatch(rect, rgb=bg)
+    blk.add_lwpolyline(rect, close=True, rgb=fg)
     for i, (arrow, place, route, dist) in enumerate(rows):
         yb = y0 + h - pad - rh * (i + 1) + (rh - th) / 2
         x = x0 + pad
@@ -208,24 +200,21 @@ def make_legend_block(doc, name, sd, text, road_class="A"):
             else:
                 pts = [(ax + s, yb + s / 2), (ax + s / 2, yb + s), (ax + s / 2, yb + s * 0.65), (ax, yb + s * 0.65),
                        (ax, yb + s * 0.35), (ax + s / 2, yb + s * 0.35), (ax + s / 2, yb)]
-            hh = blk.add_hatch(); hh.set_solid_fill(); hh.rgb = fg
-            hh.paths.add_polyline_path(pts, is_closed=True)
+            blk.add_solid_hatch(pts, rgb=fg)
         if arrow in ("ahead", "left"):
             arrow_poly(arrow, x)
         x += arrow_w
-        t = blk.add_text(place, height=th, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = fg
+        blk.add_text(place, (x, yb), th, style=LEGEND_STYLE, rgb=fg)
         x += name_w + 0.15
         if route:
-            t = blk.add_text(route, height=th * 0.9, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = rc
+            blk.add_text(route, (x, yb), th * 0.9, style=LEGEND_STYLE, rgb=rc)
         x += route_w
         if dist:
-            t = blk.add_text(dist, height=th * 0.9, dxfattribs={"insert": (x, yb), "style": LEGEND_STYLE}); t.rgb = fg
+            blk.add_text(dist, (x, yb), th * 0.9, style=LEGEND_STYLE, rgb=fg)
         if arrow == "right":
             arrow_poly("right", x0 + w - pad - th)
     for i, tag in enumerate(ATTRS):
-        a = blk.add_attdef(tag, insert=(w / 2 + 0.2, 0.9 - 0.32 * i), height=0.3,
-                           dxfattribs={"layer": "RSD-SIGN-TEXT"})
-        a.is_invisible = tag not in VISIBLE
+        blk.add_attdef(tag, (w / 2 + 0.2, 0.9 - 0.32 * i), 0.3, layer="RSD-SIGN-TEXT", invisible=tag not in VISIBLE)
 
 
 def _draw_alignment(msp, al, layer, tick, text_h, label_name=False):
@@ -234,21 +223,20 @@ def _draw_alignment(msp, al, layer, tick, text_h, label_name=False):
     for k in range(n + 1):
         x, y, _ = al.point_at(al.sta_start + al.length * k / n)
         pts.append((x, y))
-    msp.add_lwpolyline(pts, dxfattribs={"layer": layer})
+    msp.add_lwpolyline(pts, layer=layer)
     s = math.ceil(al.sta_start / tick) * tick
     while s <= al.sta_end + 1e-6:
         x, y, h = al.point_at(s)
         nx, ny = math.sin(h), -math.cos(h)
         tl = text_h * 0.8
-        msp.add_line((x - tl * nx, y - tl * ny), (x + tl * nx, y + tl * ny), dxfattribs={"layer": layer})
+        msp.add_line((x - tl * nx, y - tl * ny), (x + tl * nx, y + tl * ny), layer=layer)
         rot = (math.degrees(h) - 90.0) % 360.0             # text runs outward along the tick (right side)
-        align = TextEntityAlignment.MIDDLE_LEFT
+        align = "MIDDLE_LEFT"
         if 90.0 < rot <= 270.0:                            # would read upside down: turn it, keep it on the right
             rot = (rot + 180.0) % 360.0
-            align = TextEntityAlignment.MIDDLE_RIGHT
-        msp.add_text(format_station(al.display_station(s), 0), height=text_h,
-                     dxfattribs={"layer": layer, "rotation": rot}
-                     ).set_placement((x + 1.5 * tl * nx, y + 1.5 * tl * ny), align=align)
+            align = "MIDDLE_RIGHT"
+        msp.add_text(format_station(al.display_station(s), 0), (x + 1.5 * tl * nx, y + 1.5 * tl * ny), text_h,
+                     layer=layer, rotation=rot, align=align)
         s += tick
     if label_name:
         x, y, h = al.point_at(al.sta_start + al.length / 2)
@@ -256,8 +244,8 @@ def _draw_alignment(msp, al, layer, tick, text_h, label_name=False):
         if 90.0 < rot <= 270.0:
             rot = (rot + 180.0) % 360.0
         nx, ny = math.sin(h), -math.cos(h)
-        msp.add_text(al.name, height=text_h * 1.4, dxfattribs={"layer": layer, "rotation": rot}).set_placement(
-            (x - nx * text_h * 3, y - ny * text_h * 3), align=TextEntityAlignment.MIDDLE_CENTER)
+        msp.add_text(al.name, (x - nx * text_h * 3, y - ny * text_h * 3), text_h * 1.4, layer=layer,
+                     rotation=rot, align="MIDDLE_CENTER")
 
 
 def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
@@ -280,10 +268,10 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     """
     from .corridor import edge_polylines
     from .plan_layout import callouts_by_post
-    doc = ezdxf.new("R2018", setup=True)
+    doc = dxfw.Drawing(TEMPLATE)
     _layers(doc)
     crs_label = _georef_header(doc, crs, source, al.name)
-    msp = doc.modelspace()
+    msp = doc.modelspace
     if symbol_scale is None:
         symbol_scale = symbol_scale_for(plan_scale)
     S = symbol_scale
@@ -300,27 +288,26 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
     for a in [al] + list(others or []):
         assumed = getattr(a, "edge_source", "") == "typical section"
         for code, side, pts in edge_polylines(a):
-            msp.add_lwpolyline(pts, dxfattribs={"layer": _edge_layer(doc, code, assumed)})
+            msp.add_lwpolyline(pts, layer=_edge_layer(doc, code, assumed))
 
     # coordinate check point at the start of the alignment (non-plotting)
     x0, y0, _ = al.point_at(al.sta_start)
-    msp.add_point((x0, y0), dxfattribs={"layer": "RSD-REF-NOTES"})
+    msp.add_point((x0, y0), layer="RSD-REF-NOTES")
     cross = text_h * 2
-    msp.add_line((x0 - cross, y0), (x0 + cross, y0), dxfattribs={"layer": "RSD-REF-NOTES"})
-    msp.add_line((x0, y0 - cross), (x0, y0 + cross), dxfattribs={"layer": "RSD-REF-NOTES"})
+    msp.add_line((x0 - cross, y0), (x0 + cross, y0), layer="RSD-REF-NOTES")
+    msp.add_line((x0, y0 - cross), (x0, y0 + cross), layer="RSD-REF-NOTES")
     note = (f"RFD CHECK POINT  {al.name} CH {format_station(al.display_station(al.sta_start))}\\P"
             f"E {x0:.3f}  N {y0:.3f}\\P{crs_label or 'CRS as LandXML'}\\P"
             f"World coordinates from {os.path.basename(source) if source else 'the LandXML'} (m). "
             f"Copy layer RSD-SIGN with base point 0,0 and PASTEORIG.")
-    msp.add_mtext(note, dxfattribs={"layer": "RSD-REF-NOTES", "char_height": text_h,
-                                    "insert": (x0 + cross * 1.5, y0 - cross * 1.5)})
+    msp.add_mtext(note, (x0 + cross * 1.5, y0 - cross * 1.5), text_h, layer="RSD-REF-NOTES")
 
     def block_box(name):                       # face extents in block units (no post stand, no attributes)
         if name not in boxes:
-            from ezdxf import bbox as _bb
-            ext = _bb.extents(e for e in doc.blocks.get(name) if e.dxftype() != "ATTDEF")
-            boxes[name] = (ext.extmin.x, ext.extmin.y, ext.extmax.x, ext.extmax.y) if ext.has_data \
-                else (-0.5, 0.5, 0.5, 1.4)
+            blk = doc.blocks.get(name)
+            ext = dxfw.extents([[(0, e.dxftype)] + e.tags for e in blk.entities if e.dxftype != "ATTDEF"]) \
+                if blk else None
+            boxes[name] = ext or (-0.5, 0.5, 0.5, 1.4)
         return boxes[name]
 
     boxes, prep = {}, []
@@ -360,32 +347,25 @@ def write_dxf(path: str, sl: SignList, al: Alignment, cat: Catalogue,
         if callout:
             ref = _callout_insert(doc, msp, f, fb, sc, block_box(fb), centres[i], text_h, S)
         else:
-            ref = msp.add_blockref(bname, (f.x, f.y), dxfattribs={
-                "layer": "RSD-SIGN", "rotation": f.rotation_deg, "xscale": sc, "yscale": sc, "zscale": sc})
-        ref.add_auto_attribs(attrs)
+            ref = msp.add_blockref(bname, (f.x, f.y), layer="RSD-SIGN", rotation=f.rotation_deg, scale=sc)
+        doc.add_attribs(ref, attrs)
         if not callout:
             upside_down = 90.0 < (f.rotation_deg % 360.0) <= 270.0
             for a in ref.attribs:             # readable on the printed plan whatever the block library says
-                if a.dxf.tag in VISIBLE:
-                    a.dxf.height = text_h
+                if a.get_tag() in VISIBLE:
+                    a.set(40, repr(float(text_h)))
                     if upside_down:
-                        a.dxf.rotation = (a.dxf.get("rotation", 0.0) + 180.0) % 360.0
+                        a.set_rotation((float(a.get(50, 0.0)) + 180.0) % 360.0)
         ref.set_xdata(APPID, [(1000, "rsd/0.1"), (1000, f.face_uuid), (1000, f.install_uuid)])
     if linear:
         write_linear(doc, msp, al, *linear)
     if junctions:
         write_junctions(doc, msp, junctions)
-    try:
-        from ezdxf import bbox
-        # the drawn lines, and the sign blocks by their insertion points (recursing into every block is slow)
-        ext = bbox.extents((e for e in msp if e.dxftype() != "INSERT"), fast=True)
-        ext.extend(e.dxf.insert for e in msp if e.dxftype() == "INSERT")
-        if ext.has_data:
-            msp.reset_extents(ext.extmin, ext.extmax)          # sets $EXTMIN/$EXTMAX for Zoom Extents
-            doc.header["$EXTMIN"], doc.header["$EXTMAX"] = ext.extmin, ext.extmax
-    # Extents are a convenience for Zoom Extents; the DXF is valid without them.
-    except Exception:  # nosec B110
-        pass
+    # extents for Zoom Extents: the drawn lines, and the sign blocks by their insertion points
+    ext = dxfw.extents([[(0, e.dxftype)] + e.tags for e in msp.entities])
+    if ext:
+        doc.set_header("$EXTMIN", (10, repr(ext[0])), (20, repr(ext[1])), (30, "0.0"))
+        doc.set_header("$EXTMAX", (10, repr(ext[2])), (20, repr(ext[3])), (30, "0.0"))
     doc.saveas(path)
 
 
@@ -393,21 +373,22 @@ def face_only_block(doc, name: str) -> str:
     """Copy of a sign block without its post stand (circle + stem at the origin), for callouts:
     the callout draws the post where it really is and a leader to the symbol."""
     fname = name + "_F"
-    if fname in doc.blocks:
+    if doc.has_block(fname):
         return fname
     src = doc.blocks.get(name)
     if src is None:
         return name
-    blk = doc.blocks.new(fname, base_point=(0, 0))
-    for e in src:
-        t = e.dxftype()
+    blk = doc.new_block(fname)
+    for e in src.entities:
+        t = e.dxftype
         if t == "ATTDEF":
             continue
-        if t == "CIRCLE" and abs(e.dxf.center.x) < 1e-6 and abs(e.dxf.center.y) < 1e-6 and e.dxf.radius < 0.1:
+        if t == "CIRCLE" and abs(float(e.get(10, 0))) < 1e-6 and abs(float(e.get(20, 0))) < 1e-6 \
+                and float(e.get(40, 1)) < 0.1:
             continue
-        if t == "LINE" and max(e.dxf.start.y, e.dxf.end.y) <= 0.13:
+        if t == "LINE" and max(float(e.get(20, 0)), float(e.get(21, 0))) <= 0.13:
             continue
-        blk.add_entity(e.copy())
+        blk.add_entity(e)
     return fname
 
 
@@ -425,31 +406,29 @@ def _callout_insert(doc, msp, f, face_block, sc, bx, centre, text_h, S):
     from .plan_layout import leader_tip
     r = math.radians(f.rotation_deg)
     cr, sr = math.cos(-r), math.sin(-r)
-    loc = lambda wx, wy: (wx * cr - wy * sr, wx * sr + wy * cr)    # world offset -> block coordinates
+    def loc(wx, wy):    # world offset -> block coordinates
+        return (wx * cr - wy * sr, wx * sr + wy * cr)
     w, h = (bx[2] - bx[0]) * sc, (bx[3] - bx[1]) * sc
     lab = 2.6 * text_h
     cx, cy = centre[0] - f.x, centre[1] - f.y + lab / 2               # face centre relative to the post
     ins = (cx - (bx[0] + bx[2]) / 2 * sc, cy - (bx[1] + bx[3]) / 2 * sc)
     name = callout_block_name(f)
-    if name in doc.blocks:
-        doc.blocks.delete_block(name, safe=False)
-    blk = doc.blocks.new(name, base_point=(0, 0))
+    doc.delete_block(name)
+    blk = doc.new_block(name)
     rp = max(0.05 * S, 0.3)
-    blk.add_circle((0, 0), rp, dxfattribs={"layer": "RSD-SIGN-LEADER"})
+    blk.add_circle((0, 0), rp, layer="RSD-SIGN-LEADER")
     tip = leader_tip(0.0, 0.0, (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
     d = math.hypot(*tip)
     if d > rp:
-        blk.add_line(loc(tip[0] * rp / d, tip[1] * rp / d), loc(*tip), dxfattribs={"layer": "RSD-SIGN-LEADER"})
-    blk.add_blockref(face_block, loc(*ins), dxfattribs={
-        "rotation": -f.rotation_deg, "xscale": sc, "yscale": sc, "zscale": sc})
+        blk.add_line(loc(tip[0] * rp / d, tip[1] * rp / d), loc(*tip), layer="RSD-SIGN-LEADER")
+    blk.add_blockref(face_block, loc(*ins), rotation=-f.rotation_deg, scale=sc)
     # attribute definitions: code (and legend) under the face, upright; the rest hidden
     for i, tag in enumerate(ATTRS):
         row = i if tag in VISIBLE else 0
         pos = loc(cx, cy - h / 2 - 0.3 * text_h - 1.25 * text_h * row)
-        a = blk.add_attdef(tag, height=text_h, dxfattribs={"layer": "RSD-SIGN-TEXT", "rotation": -f.rotation_deg})
-        a.set_placement(pos, align=TextEntityAlignment.TOP_CENTER)
-        a.is_invisible = tag not in VISIBLE
-    return msp.add_blockref(name, (f.x, f.y), dxfattribs={"layer": "RSD-SIGN", "rotation": f.rotation_deg})
+        blk.add_attdef(tag, pos, text_h, layer="RSD-SIGN-TEXT", rotation=-f.rotation_deg,
+                       invisible=tag not in VISIBLE, align="TOP_CENTER")
+    return msp.add_blockref(name, (f.x, f.y), layer="RSD-SIGN", rotation=f.rotation_deg)
 
 
 def write_block_library(path: str, cat: Catalogue = None):
@@ -457,32 +436,41 @@ def write_block_library(path: str, cat: Catalogue = None):
     shutil.copyfile(BLOCK_LIBRARY, path)
 
 
-def sign_block_of(doc, insert):
-    """(sign block name, symbol scale) of a placed sign: the nested face of a callout block, or the insert itself."""
-    name = insert.dxf.name
-    if name.startswith("RSDC_") and name in doc.blocks:
-        for e in doc.blocks.get(name):
-            if e.dxftype() == "INSERT":
-                n = e.dxf.name
-                return (n[:-2] if n.endswith("_F") else n), e.dxf.xscale
-    return name, insert.dxf.xscale
+def sign_block_of(blocks: dict, name: str, scale: float = 1.0):
+    """(sign block name, symbol scale) of a placed sign: the nested face of a callout block, or the insert
+    itself (with its own scale). blocks: {name: [entity tags]} (dxfw.blocks_of); name: the placed block's name."""
+    if name.startswith("RSDC_") and name in blocks:
+        for e in blocks[name]:
+            if e[0][1] == "INSERT":
+                n = dxfw.value(e, 2)
+                return (n[:-2] if n.endswith("_F") else n), dxfw.fvalue(e, 41, 1.0)
+    return name, scale
 
 
 def readback_dxf(path: str) -> dict:
-    """Read RSD sign blocks from a DXF into the same structure the Dynamo read-back writes."""
-    doc = ezdxf.readfile(path)
+    """Read RSD sign blocks from an ASCII DXF (as written here, or saved from Civil 3D) into the same
+    structure the Dynamo read-back writes."""
+    tags = dxfw.read_tags(path)
+    blocks = dxfw.blocks_of(tags)
+    ents = dxfw.split_entities(dxfw.sections(tags).get("ENTITIES", []))
     signs = []
-    for e in doc.modelspace().query("INSERT"):
-        if not e.has_xdata(APPID):
+    for i, e in enumerate(ents):
+        if e[0][1] != "INSERT" or dxfw.value(e, 67) == "1":        # model space inserts only
             continue
-        xd = [t.value for t in e.get_xdata(APPID)]
+        xd = [v for _c, v in dxfw.xdata(e, APPID)]
         if len(xd) < 3:
             continue
+        attrs = {}
+        for a in ents[i + 1:]:
+            if a[0][1] != "ATTRIB":
+                break
+            attrs[dxfw.Entity.copy_of(a).get_tag()] = dxfw.value(a, 1, "")
+        name = dxfw.value(e, 2)
         signs.append({
-            "face_uuid": xd[1], "installation_uuid": xd[2], "block_name": sign_block_of(doc, e)[0],
-            "x": e.dxf.insert.x, "y": e.dxf.insert.y,
-            "rotation_deg": e.dxf.get("rotation", 0.0) % 360.0, "handle": e.dxf.handle,
-            "attributes": {a.dxf.tag: a.dxf.text for a in e.attribs}})
+            "face_uuid": xd[1], "installation_uuid": xd[2], "block_name": sign_block_of(blocks, name)[0],
+            "x": dxfw.fvalue(e, 10), "y": dxfw.fvalue(e, 20),
+            "rotation_deg": dxfw.fvalue(e, 50) % 360.0, "handle": dxfw.value(e, 5),
+            "attributes": attrs})
     return {"schema_version": "0.1", "source": "dxf", "drawing": path, "signs": signs}
 
 
@@ -494,8 +482,7 @@ def _linear_layer(doc, it) -> str:
     kind = {"Marking": "MARK", "Road stud": "STUD", "Barrier": "BARRIER", "Transverse marking": "MARK",
             "Traffic calming": "CALM"}.get(it.category, "LINEAR")
     lay = f"RSD-{kind}-" + "".join(c if c.isalnum() or c in "-_" else "_" for c in it.code)
-    if lay not in doc.layers:
-        doc.layers.add(lay, color=LINEAR_COLOURS.get(it.colour, 6))
+    doc.add_layer(lay, color=LINEAR_COLOURS.get(it.colour, 6))
     return lay
 
 
@@ -511,29 +498,25 @@ def write_junctions(doc, msp, parts):
     codes = load_templates()["codes"]
     for code, sta, lines in parts:
         lay = f"RSD-JN-{code}"
-        if lay not in doc.layers:
+        if not doc.has_layer(lay):
             col = JUNCTION_COLOURS.get(code, LINEAR_COLOURS.get(codes.get(code, {}).get("colour"), 6))
-            doc.layers.add(lay, color=col)
-            if code == "GUIDE" and "DASHED" in doc.linetypes:
-                doc.layers.get(lay).dxf.linetype = "DASHED"
+            doc.add_layer(lay, color=col,
+                          linetype="DASHED" if code == "GUIDE" and doc.has_linetype("DASHED") else "Continuous")
         fill = codes.get(code, {}).get("fill")
         for pts in lines:
             if len(pts) < 2:
                 continue
             closed = len(pts) > 2 and pts[0] == pts[-1]
-            pl = msp.add_lwpolyline(pts[:-1] if closed else pts, close=closed, dxfattribs={"layer": lay})
-            pl.set_xdata(APPID, [(1000, "rsd-junction/0.1"), (1000, code), (1040, float(sta or 0.0))])
+            pl = msp.add_lwpolyline(pts[:-1] if closed else pts, close=closed, layer=lay)
+            pl.set_xdata(APPID, [(1000, "rsd-junction/0.1"), (1000, code), (1040, repr(float(sta or 0.0)))])
             if fill and closed:                             # arrows: solid filled, as painted
-                h = msp.add_hatch(dxfattribs={"layer": lay})
-                h.set_solid_fill()
-                h.paths.add_polyline_path(pts[:-1], is_closed=True)
+                msp.add_solid_hatch(pts[:-1], layer=lay)
 
 
 def _dash_linetype(doc, mark: float, gap: float) -> str:
     """A linetype in world metres (LTSCALE 1) for a broken marking."""
     name = f"RSD_{mark:g}_{gap:g}".replace(".", "p")
-    if name not in doc.linetypes:
-        doc.linetypes.add(name, pattern=[mark + gap, mark, -gap], description=f"RSD {mark:g} m mark / {gap:g} m gap")
+    doc.add_linetype(name, [mark + gap, mark, -gap], f"RSD {mark:g} m mark / {gap:g} m gap")
     return name
 
 
@@ -548,18 +531,16 @@ def write_linear(doc, msp, al, runs, cat):
         lay = _linear_layer(doc, it)
         v = al.speed_at((r.sta_start + r.sta_end) / 2)
         xd = [(1000, "rsd-line/0.1"), (1000, r.uuid), (1000, r.code),
-              (1040, r.sta_start), (1040, r.sta_end), (1000, r.side)]
+              (1040, repr(float(r.sta_start))), (1040, repr(float(r.sta_end))), (1000, r.side)]
         if it.transverse:
             from .linear import CALMING_FILL, pattern
             for pts in geometry(al, r):                              # footprint
-                pl = msp.add_lwpolyline(pts[:-1], close=True, dxfattribs={"layer": lay})
+                pl = msp.add_lwpolyline(pts[:-1], close=True, layer=lay)
                 pl.set_xdata(APPID, xd)
             for pts in pattern(al, r, it.bars, it.bar_width):         # painted bars / triangles, solid filled
                 if r.code in CALMING_FILL:
                     continue
-                h = msp.add_hatch(dxfattribs={"layer": lay})
-                h.set_solid_fill()
-                h.paths.add_polyline_path(pts[:-1], is_closed=True)
+                msp.add_solid_hatch(pts[:-1], layer=lay)
             continue
         if it.is_point_series:
             q = run_quantities(r, it, v)
@@ -570,16 +551,13 @@ def write_linear(doc, msp, al, runs, cat):
                 if o is None:
                     continue
                 x, y, _ = al.point_at(s, o)
-                c = msp.add_circle((x, y), STUD_RADIUS, dxfattribs={"layer": lay})
+                c = msp.add_circle((x, y), STUD_RADIUS, layer=lay)
                 c.set_xdata(APPID, xd)
             continue
         from .linear import painted_lines
         for parts, broken, d in painted_lines(al, r, it, step=2.0):
-            attrs = {"layer": lay}
-            if broken:
-                attrs["linetype"] = _dash_linetype(doc, float(d["mark"]), float(d["gap"]))
+            lt = _dash_linetype(doc, float(d["mark"]), float(d["gap"])) if broken else None
+            cw = float(d["width"]) if it.is_marking and d.get("width") else None
             for pts in parts:
-                pl = msp.add_lwpolyline(pts, dxfattribs=attrs)
-                if it.is_marking and d.get("width"):
-                    pl.dxf.const_width = float(d["width"])
+                pl = msp.add_lwpolyline(pts, layer=lay, linetype=lt, const_width=cw)
                 pl.set_xdata(APPID, xd)

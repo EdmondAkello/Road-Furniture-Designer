@@ -177,9 +177,12 @@ def centre_states(al, cfg: MarkingConfig):
         z = no_overtaking_zones(al, cfg.auto)
         return _segments(lo, hi, [list(r) for r in z["Forward"]], [list(r) for r in z["Backward"]]), lo, hi, note
     crit = cfg.crit
-    v_of = lambda s: al.speed_at(s) or 80.0
-    vis_at = lambda s: crit.marking_visibility(v_of(s), cfg.road_class)[0]
-    crt_at = lambda s: crit.marking_visibility(v_of(s), cfg.road_class)[1]
+    def v_of(s):
+        return al.speed_at(s) or 80.0
+    def vis_at(s):
+        return crit.marking_visibility(v_of(s), cfg.road_class)[0]
+    def crt_at(s):
+        return crit.marking_visibility(v_of(s), cfg.road_class)[1]
     mv = crit.data.get("marking_visibility") or {}
     h_eye = float(mv.get("eye_height", crit.eye_height))
     h_tgt = float(mv.get("target_height", h_eye))
@@ -286,12 +289,14 @@ def propose_markings(al, cfg: MarkingConfig = None) -> Tuple[List[Run], List[Fin
             edge = "LM27" if higher else "LM26"
             if has_edge:
                 shoulder = any(c in ("EPS", "EOS", "ESH", "Shoulder") for c, _ in e.data)
-                where = lambda side, extra=0.0: dict(side=side, edge_ref=cfg.edge_code, offset=extra)
+                def where(side, extra=0.0):
+                    return dict(side=side, edge_ref=cfg.edge_code, offset=extra)
                 sides = [x for x in "LR" if (cfg.edge_code, x) in e.data]
             else:
                 shoulder = False
                 half = cfg.carriageway / 2.0
-                where = lambda side, extra=0.0: dict(side=side, offset=half + extra)
+                def where(side, extra=0.0):
+                    return dict(side=side, offset=half + extra)
                 sides = ["L", "R"]
                 findings.append(Finding("marking_note", lo, hi, "Both",
                                         f"no '{cfg.edge_code}' corridor edge in the LandXML: edge lines placed "

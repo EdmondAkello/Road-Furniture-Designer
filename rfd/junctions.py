@@ -265,7 +265,7 @@ class Frame:
             raise ValueError("The minor road runs almost along the main road (skew under 10 degrees)")
         self.sigma = 1 if cross > 0 else -1             # +1: minor road on the left of the chainage direction
         self.side = "L" if self.sigma > 0 else "R"
-        self.l = (-self.d[1], self.d[0])                 # left of the minor road direction
+        self.left = (-self.d[1], self.d[0])                 # left of the minor road direction
         self.sin = abs(cross)
         self.e = pl.edge if pl.edge is not None else self._edge()
         self.u_edge = self.e / self.sin                  # junction point to the main edge, along the minor road
@@ -286,8 +286,8 @@ class Frame:
     def minor(self, u: float, v: float) -> Pt:
         """u from the main edge along the minor road, v left of it (scaled)."""
         uu = self.u_edge + u * self.s
-        return (self.p0[0] + uu * self.d[0] + v * self.s * self.l[0],
-                self.p0[1] + uu * self.d[1] + v * self.s * self.l[1])
+        return (self.p0[0] + uu * self.d[0] + v * self.s * self.left[0],
+                self.p0[1] + uu * self.d[1] + v * self.s * self.left[1])
 
     def corner_dir(self, corner: str) -> Tuple[float, float]:
         """Unit vector along the main edge, away from the minor road, on the given corner."""
@@ -462,9 +462,12 @@ def arrow_shapes(kind: str, L: float) -> List[List[Pt]]:
     hs, hl = 0.075 * k, 1.0 * k                         # 150 mm stem, 1.0 m head at 3.5 m
     bend = 0.55 * L
     c, sn = math.cos(math.radians(45)), math.sin(math.radians(45))
-    branch = lambda sg: [(0.0, 0.0), (bend, 0.0), (bend + 0.45 * L * c, sg * 0.45 * L * sn)]
-    turn = lambda sg, from_bend: _arrow_outline(branch(sg)[1 if from_bend else 0:], hs, hl * 0.85, 0.35 * k)
-    straight = lambda w: _arrow_outline([(0.0, 0.0), (L, 0.0)], hs, hl, w * k)
+    def branch(sg):
+        return [(0.0, 0.0), (bend, 0.0), (bend + 0.45 * L * c, sg * 0.45 * L * sn)]
+    def turn(sg, from_bend):
+        return _arrow_outline(branch(sg)[1 if from_bend else 0:], hs, hl * 0.85, 0.35 * k)
+    def straight(w):
+        return _arrow_outline([(0.0, 0.0), (L, 0.0)], hs, hl, w * k)
     return {"straight": lambda: [straight(0.25)],
             "turn": lambda: [turn(1, False)],
             "both_turns": lambda: [turn(1, False), turn(-1, True)],
@@ -585,7 +588,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
             loc.append(("WIDEN", pts, False, fr))
         area_side = w / 2 * ((X1 - X0) + (t0 + t1) / 2) * F.s
         q["widen_m2"] = round(2 * area_side, 2)
-        sta = lambda X: pl.station - F.sigma * X * F.s
+        def sta(X):
+            return pl.station - F.sigma * X * F.s
         rows = []
         for ys, side in ((1, F.side), (-1, "R" if F.side == "L" else "L")):
             st4 = sorted(sta(X) for X in stations)
@@ -716,7 +720,8 @@ def three_centred_return(p0: Pt, d: Pt, sgn: int, r2: float, step: float = 0.5) 
     turn = math.remainder(math.atan2(d[1], d[0]) - th, 2 * math.pi)
     st = 1.0 if turn > 0 else -1.0
     pts, pos = [(0.0, 0.0)], (0.0, 0.0)
-    nl = lambda a: (-math.sin(a), math.cos(a))
+    def nl(a):
+        return (-math.sin(a), math.cos(a))
     for k, share in THREE_CENTRED:
         R, dl = k * r2, abs(turn) * share
         c = (pos[0] + st * R * nl(th)[0], pos[1] + st * R * nl(th)[1])
@@ -774,7 +779,8 @@ def _guides(F: Frame, spec, P, piece) -> Piece:
             # the widened edges and their tapers back to the road edges
             taper = float(P.get("slip_taper", 30.0)) * s
             x0 = curve[0][0]
-            st_ = lambda x: F.al.station_offset(*W(x, 0.0)).station
+            def st_(x):
+                return F.al.station_offset(*W(x, 0.0)).station
             ss = sorted((st_(x0 + sgn * taper), st_(x0), st_(0.0)))
             rows.append({"road": "main", "side": F.side, "stations": [ss[0], ss[1], ss[2], ss[2]] if sgn < 0 else
                          [ss[0], ss[0], ss[1], ss[2]], "entry": round(taper, 1), "exit": 0.0, "depth": round(wid, 2),
@@ -835,24 +841,27 @@ def _signal_crossroads(F: Frame, spec, P, piece, T) -> Piece:
     carriageways: kerb returns on the four corners (guides), and on every arm a pedestrian crossing in BM02
     blocks where the kerb runs straight, the TM01 stop line across the approach half behind it, an LM24 centre
     line leading in and an AM07 arrow in the approach lane. Not scaled; the signals are designed separately."""
-    O, t, d = F.p0, F.t, F.d
+    ctr, t, d = F.p0, F.t, F.d
     e = F.e                                   # main road half-width (edge offset)
     w = float(P.get("minor_half", 3.5))       # minor road half-width
     R = float(P.get("return_radius", 12.0))
     cw = float(P.get("crossing", 3.0))        # BM02: 3 m blocks along the road
     gap = float(P.get("stop_gap", 1.5))       # stop line this far behind the crossing
     L_cl = float(P.get("centre_line", 30.0))
-    nl = lambda u: (-u[1], u[0])
-    add = lambda a, b, k=1.0: (a[0] + k * b[0], a[1] + k * b[1])
-    cross2 = lambda a, b: a[0] * b[1] - a[1] * b[0]
+    def nl(u):
+        return (-u[1], u[0])
+    def add(a, b, k=1.0):
+        return (a[0] + k * b[0], a[1] + k * b[1])
+    def cross2(a, b):
+        return a[0] * b[1] - a[1] * b[0]
     nm, nd = nl(t), nl(d)
     parts: List[Part] = []
     reach = {}                               # arm -> distance of the furthest kerb tangent from O along it
     for sm in (1, -1):
         for sd in (1, -1):
             # fillet centre: R outside both edges of the corner (main edge sm, minor edge sd)
-            A = add(O, nm, sm * (e + R))
-            B = add(O, nd, sd * (w + R))
+            A = add(ctr, nm, sm * (e + R))
+            B = add(ctr, nd, sd * (w + R))
             den = cross2(t, d)
             lam = cross2((B[0] - A[0], B[1] - A[1]), d) / den
             C = add(A, t, lam)
@@ -864,10 +873,10 @@ def _signal_crossroads(F: Frame, spec, P, piece, T) -> Piece:
             parts.append(Part("GUIDE", [(C[0] + R * math.cos(a0 + da * k / 24), C[1] + R * math.sin(a0 + da * k / 24))
                                         for k in range(25)]))
             # this corner's road edges, on from its tangent points
-            parts.append(Part("GUIDE", [T1, add(T1, t, (1 if (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1] > 0 else -1) * 40.0)]))
-            parts.append(Part("GUIDE", [T2, add(T2, d, (1 if (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1] > 0 else -1) * 40.0)]))
-            km = (T1[0] - O[0]) * t[0] + (T1[1] - O[1]) * t[1]
-            kd = (T2[0] - O[0]) * d[0] + (T2[1] - O[1]) * d[1]
+            parts.append(Part("GUIDE", [T1, add(T1, t, (1 if (T1[0] - ctr[0]) * t[0] + (T1[1] - ctr[1]) * t[1] > 0 else -1) * 40.0)]))
+            parts.append(Part("GUIDE", [T2, add(T2, d, (1 if (T2[0] - ctr[0]) * d[0] + (T2[1] - ctr[1]) * d[1] > 0 else -1) * 40.0)]))
+            km = (T1[0] - ctr[0]) * t[0] + (T1[1] - ctr[1]) * t[1]
+            kd = (T2[0] - ctr[0]) * d[0] + (T2[1] - ctr[1]) * d[1]
             for arm, k in ((("m", 1 if km > 0 else -1), abs(km)), (("d", 1 if kd > 0 else -1), abs(kd))):
                 reach[arm] = max(reach.get(arm, 0.0), k)
     L_arrow = arrow_length(F.al.speed_at(F.pl.station) or 50.0)
@@ -877,19 +886,19 @@ def _signal_crossroads(F: Frame, spec, P, piece, T) -> Piece:
         # BM02 blocks across the full width, 0.5 m wide, 0.5 m apart
         o = -half + 0.25
         while o + 0.5 <= half - 0.25 + 1e-6:
-            q = [add(add(O, u, sg * x0), n_, o), add(add(O, u, sg * (x0 + cw)), n_, o),
-                 add(add(O, u, sg * (x0 + cw)), n_, o + 0.5), add(add(O, u, sg * x0), n_, o + 0.5)]
+            q = [add(add(ctr, u, sg * x0), n_, o), add(add(ctr, u, sg * (x0 + cw)), n_, o),
+                 add(add(ctr, u, sg * (x0 + cw)), n_, o + 0.5), add(add(ctr, u, sg * x0), n_, o + 0.5)]
             parts.append(Part("BM02", q, True))
             o += 1.0
         # traffic arriving on this arm heads -sg*u and keeps left: its lane is on the -sg side of n_
         xs = x0 + cw + gap
         side = -sg
-        parts.append(Part("TM01", [add(add(O, u, sg * xs), n_, 0.0), add(add(O, u, sg * xs), n_, side * half)]))
-        parts.append(Part("LM24", [add(O, u, sg * xs), add(O, u, sg * (xs + L_cl))]))
+        parts.append(Part("TM01", [add(add(ctr, u, sg * xs), n_, 0.0), add(add(ctr, u, sg * xs), n_, side * half)]))
+        parts.append(Part("LM24", [add(ctr, u, sg * xs), add(ctr, u, sg * (xs + L_cl))]))
         lane_c = side * half / 2
         for poly in arrow_shapes("all", L_arrow):
             # arrow x runs tail -> tip towards the junction
-            parts.append(Part("AM07", [add(add(O, u, sg * (xs + 2.0 + L_arrow - x)), n_, lane_c - sg * y)
+            parts.append(Part("AM07", [add(add(ctr, u, sg * (xs + 2.0 + L_arrow - x)), n_, lane_c - sg * y)
                                        for x, y in poly], True))
     q: Dict[str, float] = {}
     codes = T["codes"]
@@ -1076,11 +1085,11 @@ def _roundabout(F: Frame, spec, P, piece) -> Piece:
     from .features import visible_from
     al, pl = F.al, F.pl
     arms = roundabout_arms(al, pl, P)
-    O = F.p0
-    raw, q, detail, PP = RB.build(O, arms, P)
+    ctr = F.p0
+    raw, q, detail, PP = RB.build(ctr, arms, P)
     parts = [Part(code, pts, closed) for code, pts, closed in raw]
     notes = RB.checks(arms, PP, q)
-    paths = RB.entry_paths(O, arms, PP, q)
+    paths = RB.entry_paths(ctr, arms, PP, q)
     v_here = al.speed_at(pl.station) or 80.0
     compact = RB.COMPACT_ICD[0] <= q["icd"] <= RB.COMPACT_ICD[1] and v_here <= 70.0
     notes += RB.entry_path_checks(paths, q, compact)
@@ -1262,9 +1271,11 @@ def base_edge(al, side: str, lo: float, hi: float, code: str = "ETW", threshold:
         return (lambda s: e.offset(code, side, s)), False
     if a is None or b is None:
         c = (a or b)[1]
-        line = lambda s: c
+        def line(s):
+            return c
     else:
-        line = lambda s: a[1] + (b[1] - a[1]) * (s - a[0]) / (b[0] - a[0])
+        def line(s):
+            return a[1] + (b[1] - a[1]) * (s - a[0]) / (b[0] - a[0])
     widened = any(o - line(st) > threshold for st, o in inside)
     if widened:
         return line, True
@@ -1368,7 +1379,8 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     lo, hi = max(lo, al.sta_start), min(hi, al.sta_end)
     n = max(2, int((hi - lo) / 1.0))
     ss = sorted(set([lo + (hi - lo) * i / n for i in range(n + 1)] + [x for x in (s1, s2) if lo < x < hi]))
-    pt = lambda s, o: al.point_at(s, sg * o)[:2]
+    def pt(s, o):
+        return al.point_at(s, sg * o)[:2]
     kerb = [pt(s, edge(s) + widen(s)) for s in ss]
     if lane:
         # RDM/1/3/3/02: the widened pavement edge with its tapers, the edge line along it, and the broken
@@ -1419,7 +1431,8 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
         h = 1.25 if v <= 50 else 2.5
         boxes = max(1, int(abs(b1 - b0) // 15.0))
         box = abs(b1 - b0) / boxes
-        o_mid = lambda st: edge(st) + depth / 2
+        def o_mid(st):
+            return edge(st) + depth / 2
         first = b0 if dirn > 0 else b1
         for k in range(boxes):
             centre = first + dirn * box * (k + 0.5)
@@ -1489,7 +1502,8 @@ def _escape_ramp(F: Frame, spec, P, piece) -> Piece:
     ur = (math.cos(hr), math.sin(hr))
     inner0 = (x0, y0)
     outer0 = (x0 + W * nl[0], y0 + W * nl[1])
-    along = lambda p, d: (p[0] + d * ur[0], p[1] + d * ur[1])
+    def along(p, d):
+        return (p[0] + d * ur[0], p[1] + d * ur[1])
     # where the road bends towards the ramp's side, a straight ramp would run back across it: the ramp first
     # turns further from the road, 1 degree at a time up to `max_angle`, and only then stops short, keeping
     # `road_clear` m off the road edge (the bed check then asks for a steeper ramp or another site)

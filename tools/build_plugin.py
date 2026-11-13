@@ -11,26 +11,10 @@ def sync_core():
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "cli.py", "__main__.py"))
 
 
-# Qt viewers and browsers in the vendored libraries: RFD never imports them (ezdxf and fontTools only
-# load them from their own GUI commands), and they import PyQt directly with Qt5 enums, which fails
-# plugins.qgis.org's Qt6 check. Paths are relative to ext_libs/.
-QT_ADDONS = ("ezdxf/addons/xqt.py", "ezdxf/addons/browser", "ezdxf/addons/acisbrowser",
-             "ezdxf/addons/drawing/pyqt.py", "ezdxf/addons/drawing/qtviewer.py", "ezdxf/addons/hpgl2/viewer.py",
-             "fontTools/pens/qtPen.py")
-
-
-def sync_vendor():
-    src = os.path.join(ROOT, "vendor", "ext_libs")
-    dst = os.path.join(PLUG, "ext_libs")
-    shutil.rmtree(dst, ignore_errors=True)
-    if os.path.isdir(src):
-        shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyx"))
-        for rel in QT_ADDONS:
-            p = os.path.join(dst, *rel.split("/"))
-            if os.path.isdir(p):
-                shutil.rmtree(p)
-            elif os.path.exists(p):
-                os.remove(p)
+def clean_vendor():
+    """Up to 0.12.0 the plugin bundled openpyxl and ezdxf in ext_libs/; it now writes Excel and DXF itself.
+    Remove a copy left in the plugin folder by an older build so it is not packaged."""
+    shutil.rmtree(os.path.join(PLUG, "ext_libs"), ignore_errors=True)
 
 
 def sync_license():
@@ -69,7 +53,7 @@ def make_zip(out):
 
 if __name__ == "__main__":
     sync_core()
-    sync_vendor()
+    clean_vendor()
     sync_license()
     sync_guide()
     if len(sys.argv) > 1:

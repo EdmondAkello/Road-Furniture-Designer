@@ -187,11 +187,15 @@ def test_junction_templates_in_a_project(tmp_path):
     # the corner islands' bellmouths go to Civil 3D as widenings, and the Junctions sheet keeps its items
     wid = list(load_workbook(tmp_path / "j.xlsx")["Widenings"].iter_rows(min_row=2, values_only=True))
     assert "bellmouth behind a corner island" in {r[1] for r in wid}
-    from road_furniture_designer.rfd.dxf_out import write_junctions
+    from road_furniture_designer.rfd import dxfw
+    from road_furniture_designer.rfd.dxf_out import TEMPLATE, write_junctions
+    doc = dxfw.Drawing(TEMPLATE)
+    write_junctions(doc, doc.modelspace, st.junctions.parts())
+    assert all(doc.has_layer(n) for n in ("RSD-JN-KERB", "RSD-JN-GUIDE", "RSD-JN-TM07"))
+    doc.saveas(str(tmp_path / "j.dxf"))
     import ezdxf
-    doc = ezdxf.new()
-    write_junctions(doc, doc.modelspace(), st.junctions.parts())
-    assert {"RSD-JN-KERB", "RSD-JN-GUIDE", "RSD-JN-TM07"} <= {l.dxf.name for l in doc.layers}
+    jd = ezdxf.readfile(tmp_path / "j.dxf")
+    assert not jd.audit().errors and jd.layers.get("RSD-JN-GUIDE").dxf.linetype == "DASHED"
     # removing a junction removes all its pieces
     assert st.junctions.remove(js[1]["id"]) > 0
     assert [j["kit"] for j in st.junctions.junctions()] == ["A-2"]
