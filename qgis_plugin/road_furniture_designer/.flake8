@@ -1,0 +1,7 @@
+[flake8]
+# Third-party libraries shipped unmodified in ext_libs/ are not ours to restyle.
+exclude = ext_libs
+max-line-length = 120
+# Style choices in this code base: short lambdas for local helpers (E731) and
+# engineering symbols such as l for length (E741); line breaks around operators.
+extend-ignore = E731, E741, E501, W503, W504

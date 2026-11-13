@@ -726,7 +726,6 @@ class MovePieceTool(QgsMapToolEmitPoint):
             g.translate(x1 - x0, y1 - y0)
             g.transform(xf)
             self.band.addGeometry(g, None)
-        from .rfd.alignment import format_station
         self.hover.emit(f"Move {d:+.1f} m along the road - click to place")
 
     def keyPressEvent(self, e):
