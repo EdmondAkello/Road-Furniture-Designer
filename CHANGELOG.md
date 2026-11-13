@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+- README front page: a one-line summary, three figures from the demonstration road and the highlights before the details; test counts brought up to date; the 0.12.0 DOI added to the citation and `CITATION.cff`.
+
 ## 0.12.1 — 2026-11-13
 
 A patch for the QGIS plugin repository; not tagged (the citation and DOI stay with 0.12.0).

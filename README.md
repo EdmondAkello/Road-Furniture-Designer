@@ -2,6 +2,27 @@
 
 [![tests](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml/badge.svg)](https://github.com/EdmondAkello/Road-Furniture-Designer/actions/workflows/tests.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24162212.svg)](https://doi.org/10.5281/zenodo.24162212)
 
+> **Road signs, markings, barriers, traffic calming and junction layouts along a Civil 3D LandXML alignment, designed to the Kenya Road Design Manual (2025) in QGIS, with A3 reports, an inventory for the QTO and a georeferenced DXF for Civil 3D.**
+
+<p align="center">
+  <img src="docs/user-guide/figures/fig_map_junction.png" alt="Junction island with its widening, arrows and visibility splay, and a proposed warning sign, on the QGIS map" width="40%">
+  <img src="docs/user-guide/figures/fig_report_plan.png" alt="A3 road furniture plan sheet from the report" width="40%">
+  <img src="docs/user-guide/figures/fig_dock_auto.png" alt="The plugin's dock, Auto tab" width="15%">
+</p>
+<p align="center"><sub>A junction on the map · an A3 plan sheet from the report · the dock (Auto tab). All from the synthetic demonstration road in the user guide.</sub></p>
+
+**Highlights**
+
+- **Proposed from the geometry:** curve and grade warnings, chevrons, no-overtaking signs and lines (passing sight distance), edge and centre lines, road studs and embankment barriers, from the alignment, profile and corridor (RDM 6.1, 6.2 and 1.3).
+- **Placed by the designer where it is a design decision:** speed limit zones, humps and crossings (RDM 6.4), junction islands with their widenings and visibility splays, roundabouts, private accesses, bus and truck bays, climbing and descending lanes, brake check areas and escape ramps. Chainage, offset, side and facing follow every move.
+- **Outputs:** a live inventory (Excel Tables and CSV) for the QTO; an A3 report with plans, long sections, a strip diagram, schedules and checks (PDF, PNG, Excel); a georeferenced DXF that pastes into Civil 3D at true coordinates; road edges and widenings as LandXML feature lines.
+- **Open criteria:** Kenya RDM (2025) by default and AASHTO 2011 included, as data files you can extend; 251 RDM 6.2 signs plus supplementary signs from WSCM/84/2/01.
+- **Nothing to install:** QGIS 3.44 to 4.x (Qt5 and Qt6), Python standard library only.
+
+[User guide](docs/user-guide/user-guide.html) · [Install](#install-the-qgis-plugin) · [Changelog](CHANGELOG.md) · [Cite](#citation)
+
+## About
+
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
 The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.12.1** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.12.1)](docs/user-guide/Road_Furniture_Designer_0.12.1_User_Guide.pdf) is included and ships inside the plugin, which opens it from the **Guide** button on the dock or **Plugins → Road Furniture Designer → User Guide and Technical Manual**. Source and figure scripts are in `tools/guide`.
@@ -26,7 +47,7 @@ The dock's project summary shows which of these were found.
 
 ## Compatibility and validation
 
-- **QGIS 3.44 to 4.x (Qt5 and Qt6):** 380 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 66 headless QGIS tests run on QGIS 3.44 and 4.2 (offscreen), and a static check keeps the plugin code Qt6-clean (scoped enums, `exec()`, no `QVariant` field types). Bandit passes. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. Junctions, accesses, bays, climbing lanes and roundabouts were placed on three of them and run through the report, inventory and DXF. Auto-placement of 850 signs on a 36 km road takes about 2 s. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
+- **QGIS 3.44 to 4.x (Qt5 and Qt6):** 391 core tests pass, including randomly generated roads run through signs and markings (60), embankments and barriers (40), traffic calming (30), speed limit zones (30) and the report checks (30), and a check that refuses LandXML files declaring a DOCTYPE or entities. 74 headless QGIS tests run on QGIS 3.44 and 4.2 (offscreen), and a static check keeps the plugin code Qt6-clean (scoped enums, `exec()`, no `QVariant` field types). Bandit finds nothing in the built plugin with no configuration, as plugins.qgis.org scans it. Nine alignments from private Civil 3D exports (Arc 1960 / UTM 36S and 37S; up to 59 MB with TIN surfaces and corridor sections, loading in about 0.6 s; project names withheld) were run through signs, markings, barriers, features, speed zones, the report (up to 97 pages for a 36 km road in about 2 s), the inventory and the DXF with no failures, and RFD's own proposals pass its furniture checks. Junctions, accesses, bays, climbing lanes and roundabouts were placed on three of them and run through the report, inventory and DXF. Auto-placement of 850 signs on a 36 km road takes about 2 s. `tools/sweep_landxml.py <folder>` runs the same invariants over your own files.
 - **Civil 3D:** the georeferenced DXF pasted with COPYBASE 0,0 and PASTEORIG lands on the alignment in a project drawing. The Dynamo route is parked (kept in `dynamo/`, not run in Civil 3D).
 - **Catalogue:** RDM 6.2 (2025), 251 signs with codes, names and artwork taken from the manual's figures, plus 19 supplementary signs from the Ministry's standard drawings WSCM/84/2/01 (see "Sign catalogue" and "Supplementary signs"). Post and foundation types are generic and project-defined.
 
@@ -458,7 +479,7 @@ Next:
 
 ## Install the development plugin
 
-Run `python tools/build_plugin.py` from the repository root; it copies the core (`rfd`) and the bundled libraries into `qgis_plugin/road_furniture_designer`. Copy or link that folder into your QGIS profile's `python/plugins` folder (**Settings → User Profiles → Open Active Profile Folder**), restart QGIS and enable **Road Furniture Designer**. `python tools/build_plugin.py road_furniture_designer.zip` builds an installable ZIP.
+Run `python tools/build_plugin.py` from the repository root; it copies the core (`rfd`) into `qgis_plugin/road_furniture_designer`. Copy or link that folder into your QGIS profile's `python/plugins` folder (**Settings → User Profiles → Open Active Profile Folder**), restart QGIS and enable **Road Furniture Designer**. `python tools/build_plugin.py road_furniture_designer.zip` builds an installable ZIP.
 
 To try it without project data: `python tools/guide/make_guide_road.py guide_road.xml` writes the synthetic demonstration road used for the guide (4.4 km, Arc 1960 / UTM 37S, with a profile, design speeds, superelevation and corridor sections).
 
@@ -483,4 +504,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.12.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738; 0.11.1: https://doi.org/10.5281/zenodo.24200468; 0.11.2: https://doi.org/10.5281/zenodo.24200735). Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.12.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738; 0.11.1: https://doi.org/10.5281/zenodo.24200468; 0.11.2: https://doi.org/10.5281/zenodo.24200735; 0.12.0: https://doi.org/10.5281/zenodo.24203270). Citation metadata is in `CITATION.cff`.
