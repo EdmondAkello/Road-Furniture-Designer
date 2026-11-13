@@ -675,3 +675,35 @@ def test_section_tab_applies_and_switches_off(tmp_path):
     assert "Row 2" in str(iface.messageBar().pushMessage.call_args)
     d.switch_off_typical_section()
     assert not st.al.edges and d.cmb_ref.count() == 1 and not d.btn_toff.isEnabled()
+
+
+def test_descents_proposed_from_a_steep_profile(tmp_path):
+    """A 1.2 km road falling 12 % all the way: a descending lane (the opposite climb warrants a climbing lane
+    and is over 1000 m), and an escape ramp on the last tangent after the 130 m drop, with their signs."""
+    QgsProject.instance().clear()
+    els = build()
+    L = sum(e.length for e in els)
+    prof = ('<Profile name="DEMO"><ProfAlign name="FRL"><PVI>0 300</PVI><PVI>%.3f %.3f</PVI></ProfAlign></Profile>'
+            % (L, 300 - 0.12 * L))
+    xml = tmp_path / "steep.xml"
+    xml.write_text(to_landxml(els, extra=prof + corridor_xml(L)))
+    st = SignStore.create(str(tmp_path / "s.gpkg"), str(xml), "DEMO-RD", CRS, "Test")
+    st.add_to_project()
+    n, notes = st.propose_descents(aadt=5000, trucks=600)
+    kinds = sorted(j["kit"] for j in st.junctions.junctions())
+    assert "DESC" in kinds and "RAMP" in kinds, (kinds, notes)
+    ramp = next(j for j in st.junctions.junctions() if j["kit"] == "RAMP")
+    assert ramp["bay"]["kind"] == "escape ramp" and ramp["bay"]["side"] == "L"
+    codes = {f["code"] for f in st.junctions.layer.getFeatures()}
+    assert {"RAMP", "RAMPBED", "RAMPMOUND", "BAYEDGE"} <= codes
+    signs = {f["sign_code"] for f in st.signs.getFeatures() if f["status"] == "proposed"}
+    assert {"E1", "I33", "I32", "P14"} <= signs          # (the lane starts at the road start: no room for I12)
+    assert any("Equation 12.1" in t for t in notes)
+    # ramp edges in the feature lines, rising at the ramp grade from the road edge
+    n, _ = st.export_feature_lines(str(tmp_path / "fl.xml"))
+    txt = (tmp_path / "fl.xml").read_text()
+    assert "RFD RAMP 1 inner" in txt and "RFD RAMP 1 outer" in txt
+    # and checked in the report: the bed is long enough for the runaway speed
+    from road_furniture_designer.rfd import furniture_report as FR
+    ch = FR.descent_checks(st.al, st.junctions.junctions())
+    assert any(c.level == "info" and "arrester bed" in c.text for c in ch), [c.text for c in ch]

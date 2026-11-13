@@ -589,6 +589,8 @@ def build_piece(al, pl: Placement, piece: str, corner: str = "", params: Optiona
         loc.append(("LM24", [(P["start"], 0.0), (P["start"] + P["length"], 0.0)], False, fr))
     elif piece == "guides":
         return _guides(F, spec, P, piece)
+    elif piece == "escape_ramp":
+        return _escape_ramp(F, spec, P, piece)
     elif piece in BAY_PIECES:
         return _bus_bay(F, spec, P, piece)
     elif piece == "splays":
@@ -1166,8 +1168,11 @@ def _access(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "access", "", parts, q, P)
 
 
-BAY_PIECES = ("bus_bay", "truck_bay", "climbing_lane")
-BAY_KINDS = {"bus_bay": "bus bay", "truck_bay": "truck parking bay", "climbing_lane": "climbing lane"}
+BAY_PIECES = ("bus_bay", "truck_bay", "climbing_lane", "descending_lane", "brake_check", "escape_ramp")
+BAY_KINDS = {"bus_bay": "bus bay", "truck_bay": "truck parking bay", "climbing_lane": "climbing lane",
+             "descending_lane": "descending lane", "brake_check": "brake check area", "escape_ramp": "escape ramp"}
+BAY_KITS = ("BUS", "TRUCK", "CLIMB", "DESC", "BCA", "RAMP")     # placed with two clicks along the road
+LANE_KITS = ("CLIMB", "DESC")
 
 
 def bay_stations(al, pl: Placement, P: dict, sigma: int):
@@ -1314,7 +1319,7 @@ def word_strokes(word: str, h: float) -> List[List[Pt]]:
 def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     al, sg = F.al, (-1 if F.sigma > 0 else 1)                  # sg: sign of offsets on the bay's side (+ right)
     s0, s1, s2, s3, dirn, A = bay_stations(al, F.pl, P, F.sigma)
-    lane, truck = piece == "climbing_lane", piece == "truck_bay"
+    lane, truck = piece in ("climbing_lane", "descending_lane"), piece in ("truck_bay", "brake_check")
     straight = P.get("taper") == "straight"
     # the edge before the widening: the corridor's ETW, or the line under it where the re-imported corridor
     # already carries the widening (so the bay does not widen twice)
@@ -1355,7 +1360,7 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
              "LM03_m": round(lm["LM03"], 2),
              "paint_m2": round((lm["LM26"] + lm["LM03"]) * 0.1, 3)}
         P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
-                 kind="climbing lane", edge_code=ecode)
+                 kind=BAY_KINDS[piece], edge_code=ecode)
         return Piece(piece, spec["name"], "lane", "", parts, q, P)
     widen_area = sum((widen(a) + widen(b)) / 2 * (b - a) for a, b in zip(ss, ss[1:]))
     sep = []                                   # separation line along the carriageway edge, 1 m marks, 1 m gaps
@@ -1411,6 +1416,62 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     P = dict(P, entry=A, stations=[round(x, 3) for x in (s0, s1, s2, s3)], side="L" if sg < 0 else "R",
              kind="bus bay", edge_code=ecode)
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
+
+
+def _escape_ramp(F: Frame, spec, P, piece) -> Piece:
+    """Truck escape ramp (RDM 1.3 12.7, Figure 12.12), horizontal layout. It departs from the carriageway edge
+    on the downhill traffic's left (Kenya drives on the left) at a small angle to the direction of travel,
+    straight: the road edge widens to the ramp width over `taper` m before the departure point; `entry` m of
+    paved entry, then the arrester bed to the end (`bay` m in all) and the end mound."""
+    from .descents import MATERIALS
+    al = F.al
+    sg = -1 if F.sigma > 0 else 1                               # offsets on the ramp's side (+ right)
+    dirn = 1 if F.sigma > 0 else -1                             # travel direction in chainage
+    side = "L" if sg < 0 else "R"
+    s1 = F.pl.station
+    W, Ltot, Le, A = float(P["width"]), float(P["bay"]), float(P.get("entry", 30.0)), float(P.get("taper", 50.0))
+    th = math.radians(float(P.get("angle", 4.0)))
+    ecode = edge_code(al, side, P.get("edge_code")) or "ETW"
+    e = getattr(al, "edges", None)
+
+    def edge(s):
+        o = e.offset(ecode, side, s) if e else None
+        return abs(o) if o is not None else F.e
+    x0, y0, h = al.point_at(s1, sg * edge(s1))
+    ht = h if dirn > 0 else h + math.pi                         # direction of travel
+    hr = ht + th                                                # turned towards the traffic's left
+    nl = (math.cos(ht + math.pi / 2), math.sin(ht + math.pi / 2))   # left of travel
+    ur = (math.cos(hr), math.sin(hr))
+    inner0 = (x0, y0)
+    outer0 = (x0 + W * nl[0], y0 + W * nl[1])
+    along = lambda p, d: (p[0] + d * ur[0], p[1] + d * ur[1])
+    inner, outer = [inner0, along(inner0, Ltot)], [outer0, along(outer0, Ltot)]
+    # the road edge widening to the ramp over the taper, ending at the outer edge's start
+    s0 = s1 - dirn * A
+    lo, hi = sorted((s0, s1))
+    lo, hi = max(lo, al.sta_start), min(hi, al.sta_end)
+    n = max(2, int((hi - lo) / 1.0))
+    ss = [lo + (hi - lo) * i / n for i in range(n + 1)]
+    taper = [al.point_at(s, sg * (edge(s) + W * min(1.0, max(0.0, (s - s0) * dirn / A))))[:2] for s in ss]
+    if dirn < 0:
+        taper = taper[::-1]
+    bed = [along(inner0, Le), along(outer0, Le), along(outer0, Ltot), along(inner0, Ltot)]
+    mound = [along(inner0, Ltot), along(outer0, Ltot)]
+    parts = [Part("BAYEDGE", taper), Part("RAMP", inner), Part("RAMP", outer), Part("RAMPBED", bed, True),
+             Part("RAMPMOUND", mound)]
+    Lbed = max(0.0, Ltot - Le)
+    depth = float(P.get("bed_depth", 1.0))
+    # the bed deepens from 75 mm over its first 45 m (12.7.3 item 5: 30-60 m)
+    ramp_in = min(45.0, Lbed)
+    vol = W * (ramp_in * (0.075 + depth) / 2 + (Lbed - ramp_in) * depth)
+    rolling = MATERIALS.get(P.get("material"), 10.0)
+    q = {"edge_m": round(length(taper) + 2 * Ltot, 2), "ramp_m2": round(W * Ltot, 1),
+         "bed_m2": round(W * Lbed, 1), "bed_m3": round(vol, 1), "widen_m2": round(W * A / 2, 1)}
+    P = dict(P, stations=[round(x, 3) for x in (s0, s1, s1, s1)], side=side, kind=BAY_KINDS[piece],
+             edge_code=ecode, origin=[round(x0, 3), round(y0, 3)], heading=round(hr, 6), rolling=rolling,
+             paved=Le, entry=A, exit=0.0, depth=W, bay=Ltot, taper="straight", width=W,
+             angle=math.degrees(th))
+    return Piece(piece, spec["name"], "ramp", "", parts, q, P)
 
 
 GRADE_LIMITS = [(4.0, 900.0), (5.0, 800.0), (6.0, 700.0), (7.0, 600.0), (8.0, 500.0)]   # RDM 1.3 Table 6.6

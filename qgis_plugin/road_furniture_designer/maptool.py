@@ -7,6 +7,7 @@ from qgis.core import (QgsCoordinateTransform, QgsGeometry, QgsPointXY, QgsProje
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 
 from .compat import GEOM_LINE, GEOM_POINT
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 
 
 class PlaceSignTool(QgsMapToolEmitPoint):
@@ -381,7 +382,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
             return None
         sta = so.station
         s = self._settings()
-        if s.get("role") == "minor" and s.get("kit") not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT"):
+        if s.get("role") == "minor" and s.get("kit") not in J_BAY_KITS + ("ACCESS", "RBT"):
             # our road joining another road usually ends there: near an end, snap to it (as place_minor does)
             from .rfd.junctions import END_SNAP
             if sta - st.al.sta_start < END_SNAP:
@@ -451,7 +452,7 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
     def _placement(self, lp):
         from .rfd import junctions as J
         st, s = self._store(), self._settings()
-        if s.get("kit") in ("BUS", "TRUCK", "CLIMB"):
+        if s.get("kit") in J_BAY_KITS:
             pl, B = J.place_bay(st.al, self.p0[1], self.p0[2], lp.x(), lp.y())
             self._params = {"bay": B}
             return pl, st.al
@@ -604,8 +605,9 @@ class PlaceJunctionTool(QgsMapToolEmitPoint):
                                  + (f" and {len(self._rb_arms)} on other alignments" if self._rb_arms else "")
                                  + " - click any other arm, then right-click or Enter to place")
                 return None
-            nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK")
-                   else "now click where the full-width lane ends" if s.get("kit") == "CLIMB"
+            nxt = ("now click where the bay ends" if s.get("kit") in ("BUS", "TRUCK", "BCA")
+                   else "now click where the full-width lane ends" if s.get("kit") in ("CLIMB", "DESC")
+                   else "now click a point further along: the ramp runs that far" if s.get("kit") == "RAMP"
                    else "now click a point along the main road" if s.get("role") == "minor" and not s.get("major")
                    else ("click again to place both legs" if s.get("both") else
                          "move the mouse to the side of our road's leg, then click to place")

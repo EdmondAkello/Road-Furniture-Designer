@@ -36,7 +36,11 @@ FIELDS = [
     ("sight", QVariant.String), ("access", QVariant.String), ("rbt", QVariant.String),
 ]
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
-NO_PAINT = ("KERB", "GUIDE", "WIDEN", "BAYEDGE", "SPLAY-A", "SPLAY-S", "SPLAY-M", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON")
+# kept with a bay / lane / ramp record (Widenings table, checks, feature lines)
+BAY_KEYS = ("stations", "side", "entry", "exit", "depth", "kind", "bay", "width", "paved", "grade", "material",
+            "rolling", "speed", "reason", "origin", "heading", "angle", "bed_depth")
+NO_PAINT = ("KERB", "GUIDE", "WIDEN", "BAYEDGE", "SPLAY-A", "SPLAY-S", "SPLAY-M", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON",
+            "RAMP", "RAMPBED", "RAMPMOUND")
 STYLE = {   # code -> (colour, width mm, dashed)
     "KERB": ("40,40,40", 0.6, False), "GUIDE": ("120,120,120", 0.2, True),
     "HM07": ("230,180,0", 0.25, False), "HM14": ("230,180,0", 0.4, False), "LM24": ("230,180,0", 0.4, False),
@@ -48,6 +52,7 @@ STYLE = {   # code -> (colour, width mm, dashed)
     "RBEDGE": ("40,40,40", 0.6, False), "APRON": ("90,90,90", 0.4, True),
     "TM04": ("70,110,170", 0.4, True),
     "ACCESS": ("60,60,60", 0.5, False), "ACCESS-P": ("110,110,110", 0.25, False), "PIPE": ("40,90,200", 0.4, False), "SHELTER": ("120,120,120", 0.3, True),
+    "RAMP": ("40,40,40", 0.6, False), "RAMPBED": ("160,110,50", 0.5, True), "RAMPMOUND": ("160,110,50", 0.9, False),
 }
 
 
@@ -136,9 +141,8 @@ class JunctionStore(QObject):
                     "paint_m2": (round(sum(J.area(p.pts) for p in parts), 3) if codes[code].get("fill")
                                  else round(ln * codes[code]["width"], 3)) if code not in NO_PAINT else None,
                     "widen_m2": pc.quantities.get("widen_m2") if code == next(iter(by_code)) else None,
-                    "bay": json.dumps(dict({k: pc.params[k] for k in ("stations", "side", "entry", "exit", "depth", "kind")
-                                            if k in pc.params}, edge_code=pc.params.get("edge_code"),
-                                           taper=pc.params.get("taper")))
+                    "bay": json.dumps(dict({k: pc.params[k] for k in BAY_KEYS if k in pc.params},
+                                           edge_code=pc.params.get("edge_code"), taper=pc.params.get("taper")))
                     if piece in J.BAY_PIECES else None,
                     "sight": json.dumps({k: pc.params[k] for k in ("speed_used", "speed_assumed", "ref", "splays",
                                                                      "criteria_has")})

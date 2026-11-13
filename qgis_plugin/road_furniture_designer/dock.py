@@ -14,6 +14,7 @@ from qgis.core import QgsCoordinateReferenceSystem, QgsProject
 
 from .compat import MSG_INFO, MSG_LEVELS, MSG_SUCCESS, MSG_WARNING
 from .maptool import PlaceJunctionTool, PlaceSignTool
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 from .rfd.alignment import alignment_names, format_station
 from .rfd.legend import SCHEMES, summary as legend_summary
 from .store import SignStore
@@ -544,8 +545,12 @@ class RsdDock(QDockWidget):
         self.spn_jaadt = QDoubleSpinBox(); self.spn_jaadt.setRange(0, 200000); self.spn_jaadt.setDecimals(0)
         self.spn_jaadt.setSingleStep(500); self.spn_jaadt.setSpecialValueText("AADT not given")
         self.spn_jaadt.setSuffix(" pcu (year 10)")
+        self.spn_jtrucks = QDoubleSpinBox(); self.spn_jtrucks.setRange(0, 100000); self.spn_jtrucks.setDecimals(0)
+        self.spn_jtrucks.setSingleStep(100); self.spn_jtrucks.setSpecialValueText("Trucks per day not given")
+        self.spn_jtrucks.setSuffix(" trucks / day")
+        self.spn_jtrucks.setToolTip("Brake check areas are recommended at about 500 trucks a day (RDM 1.3 12.5)")
         self.btn_jclimb = QPushButton("Propose climbing lanes from the profile")
-        jl.addWidget(self.spn_jaadt); jl.addWidget(self.btn_jclimb)
+        jl.addWidget(self.spn_jaadt); jl.addWidget(self.spn_jtrucks); jl.addWidget(self.btn_jclimb)
         self.lbl_jhover = QLabel("Click the junction point on the main road, then a point up the minor road.")
         self.lbl_jhover.setWordWrap(True)
         jl.addWidget(self.lbl_jhover)
@@ -1352,7 +1357,7 @@ class RsdDock(QDockWidget):
         self.cmb_jpiece.clear()
         if not k:
             return
-        bus = k in ("BUS", "TRUCK", "CLIMB")
+        bus = k in J_BAY_KITS
         acc = k == "ACCESS"
         rbt = k == "RBT"
         for lab, w in self._rbt_rows:
@@ -1380,7 +1385,32 @@ class RsdDock(QDockWidget):
             return
         self.cmb_jmajor.setEnabled(not bus and self.cmb_jrole.currentData() == "minor")
         self.chk_jboth.setEnabled(self.cmb_jmajor.isEnabled())
-        self.btn_jclimb.setVisible(k == "CLIMB"); self.spn_jaadt.setVisible(k == "CLIMB")
+        prof = k in ("CLIMB", "DESC", "BCA", "RAMP")
+        self.btn_jclimb.setVisible(prof); self.spn_jaadt.setVisible(k in ("CLIMB", "DESC"))
+        self.spn_jtrucks.setVisible(k == "BCA")
+        self.btn_jclimb.setText({"CLIMB": "Propose climbing lanes from the profile",
+                                 "DESC": "Propose descending lanes from the profile",
+                                 "BCA": "Propose brake check areas from the profile",
+                                 "RAMP": "Propose escape ramps from the profile"}.get(k, "Propose from the profile"))
+        if k == "DESC":
+            self.cmb_jpiece.addItem("Descending lane with its tapers, lines and sign", "")
+            self.lbl_jhover.setText("Propose from the profile (RDM 1.3 6.6.4: where the opposite upgrade warrants a "
+                                    "climbing lane and is over 1000 m), or click where the full-width lane starts on "
+                                    "the downhill traffic's side, then where it ends. 100 m tapers; I12 is proposed.")
+            return
+        if k == "BCA":
+            self.cmb_jpiece.addItem("Brake check area with its tapers, line and signs", "")
+            self.lbl_jhover.setText("Propose from the profile (top of long, steep descents; RDM 1.3 12.5), or click "
+                                    "where the bay starts on the downhill traffic's side, then where it ends. 60 m "
+                                    "tapers (indicative); I14, I15 and W30 are proposed.")
+            return
+        if k == "RAMP":
+            self.cmb_jpiece.addItem("Truck escape ramp (horizontal layout) with its signs", "")
+            self.lbl_jhover.setText("Propose from the profile (RDM 1.3 12.7: on a tangent, after a 130 m drop, before "
+                                    "a curve a runaway truck cannot take, a town or the road's end; bed length from "
+                                    "Equation 12.1), or click the departure point on the downhill traffic's side, "
+                                    "then a point as far along as the ramp runs. E1, I33, I32 and P14 are proposed.")
+            return
         if k == "CLIMB":
             self.cmb_jpiece.addItem("Climbing lane with its tapers, lines and signs", "")
             self.lbl_jhover.setText("Propose from the profile (RDM 1.3 Table 6.6), or click where the full-width "
@@ -1435,8 +1465,7 @@ class RsdDock(QDockWidget):
     def _junction_role_changed(self, *_):
         minor = self.cmb_jrole.currentData() == "minor"
         self.cmb_jmajor.setEnabled(minor)
-        self.chk_jboth.setEnabled(minor and self.cmb_jtype.currentData() not in ("BUS", "TRUCK", "CLIMB", "ACCESS",
-                                                                                 "RBT"))
+        self.chk_jboth.setEnabled(minor and self.cmb_jtype.currentData() not in J_BAY_KITS + ("ACCESS", "RBT"))
         self.lbl_jhover.setText(
             "Click our road where it meets the main road, then a point along the main road. When the main road "
             "is an alignment, move the mouse to the side of the leg you want (the preview follows) and click; "
@@ -1548,6 +1577,17 @@ class RsdDock(QDockWidget):
 
     def propose_climbing_lanes(self):
         if self.store is None:
+            return
+        k = self.cmb_jtype.currentData()
+        if k in ("DESC", "BCA", "RAMP"):
+            with _busy():
+                n, notes = self.store.propose_descents(aadt=self.spn_jaadt.value() or None,
+                                                       trucks=self.spn_jtrucks.value() or None,
+                                                       lanes=k == "DESC", checks=k == "BCA", ramps=k == "RAMP")
+            what = {"DESC": "descending lane(s)", "BCA": "brake check area(s)", "RAMP": "escape ramp(s)"}[k]
+            self.lbl_jhover.setText(f"{n} {what} proposed" + (": " + "; ".join(notes) if notes else
+                                    " - no descent on the profile calls for one"))
+            self.refresh()
             return
         n, notes = self.store.propose_climbing_lanes(self.spn_jaadt.value() or None)
         self.lbl_jhover.setText(f"{n} climbing lane(s) proposed" + (": " + "; ".join(notes) if notes else

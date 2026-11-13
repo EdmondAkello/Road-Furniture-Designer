@@ -21,10 +21,11 @@ def at(al, angle, side=1, sta=200.0, **kw):
 
 def test_templates_are_consistent():
     assert set(T["kits"]) == set(T["types"]) == {"A-1", "A-2", "B", "B-Mod", "C", "BUS", "TRUCK", "CLIMB", "ACCESS",
-                                                 "RBT", "SIG"}
+                                                 "RBT", "SIG", "DESC", "BCA", "RAMP"}
     for k, items in T["kits"].items():
         assert items[0]["piece"] == {"BUS": "bus_bay", "TRUCK": "truck_bay", "CLIMB": "climbing_lane", "ACCESS": "access",
-                                     "RBT": "roundabout", "SIG": "signal_crossroads"}.get(k, "guides")
+                                     "RBT": "roundabout", "SIG": "signal_crossroads", "DESC": "descending_lane",
+                                     "BCA": "brake_check", "RAMP": "escape_ramp"}.get(k, "guides")
         for it in items:
             p = T["pieces"][it["piece"]]
             assert k in p["types"], (k, it["piece"])
@@ -41,7 +42,7 @@ def test_every_kit_builds_square_and_skewed_on_both_sides():
     for side in (1, -1):
         for ang in (90, 70):
             pl = at(al, ang, side)
-            for k in [k for k in T["kits"] if k not in ("BUS", "TRUCK", "CLIMB", "ACCESS", "RBT", "SIG")]:
+            for k in [k for k in T["kits"] if k not in J.BAY_KITS + ("ACCESS", "RBT", "SIG")]:
                 pcs = J.build_kit(al, pl, k)
                 assert len(pcs) == len(T["kits"][k])
                 for pc in pcs:

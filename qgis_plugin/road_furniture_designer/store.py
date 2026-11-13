@@ -25,6 +25,7 @@ from .compat import (GEOM_CIRCLE, PROP_ENABLED, PROP_OFFSET, FW_CREATE_FILE, FW_
                      PROP_ANGLE, PROP_NAME, PROP_SIZE, QUADRANT_RIGHT, WKB_LINESTRING, WKB_NOGEOM, WKB_POINT,
                      make_field)
 from .rfd import typical_section as _ts
+from .rfd.junctions import BAY_KITS as J_BAY_KITS
 from .rfd.alignment import format_station, landxml_crs, parse_landxml
 from .rfd.corridor import edge_polylines
 from .rfd.catalogue import SIGNS_DIR, Catalogue, size_for_speed
@@ -799,7 +800,7 @@ class SignStore(QObject):
         which sit beside the carriageway)."""
         names = {"RBT": "the roundabout", "ACCESS": "the private access"}
         return [(lo, hi, f"{names.get(kit, 'the type ' + str(kit) + ' junction')} at {self._ch(lo)}")
-                for lo, hi, _j, kit in self.junctions.footprints() if kit not in ("BUS", "TRUCK", "CLIMB")]
+                for lo, hi, _j, kit in self.junctions.footprints() if kit not in J_BAY_KITS]
 
     def furniture_blocks(self, skip_rule=None):
         """Chainage ranges that a feature's approach bar sets must keep off: junction kits, bays and
@@ -1024,9 +1025,27 @@ class SignStore(QObject):
                 s0, s1, s2, _s3 = b["stations"]
                 kind = b.get("kind")
                 lane = kind == "climbing lane"
+                dirn = 1 if s1 >= s0 else -1
+                ahead = lambda d: s0 - dirn * d
                 if lane:
                     todo = [("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)", 0.0),
                             ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)", b["depth"])]
+                elif kind == "descending lane":
+                    todo = [("I12", s0, "Slow lane: trucks keep to the descending lane (RDM 1.3 6.6.4; RDM 6.2 I12)", 0.0)]
+                elif kind == "brake check area":
+                    s3 = b["stations"][3]
+                    todo = [("I15", s0, "Brake check area at the start of the entry taper (RDM 1.3 12.5; lay-by sign "
+                                        "RDM 6.2 6.4.1.1)", 0.0),
+                            ("I14", ahead(500.0), "Brake check area ahead, 500 m; advise drivers in advance "
+                                                  "(RDM 1.3 12.5)", 0.0),
+                            ("W30", s3, "Steep descent ahead, after the brake check area (RDM 6.2 4.6.4)", 0.0)]
+                elif kind == "escape ramp":
+                    todo = [("E1", ahead(1000.0), "Escape ramp 1 km ahead (RDM 6.2 6.7, Figure 6.5; distance "
+                                                  "indicative)", 0.0),
+                            ("E1", ahead(500.0), "Escape ramp 500 m ahead (RDM 6.2 6.7; distance indicative)", 0.0),
+                            ("I33", ahead(200.0), "Direction of ramp (RDM 6.2 Figure 6.33)", 0.0),
+                            ("I32", s1, "Escape ramp at the ramp (RDM 6.2 Figure 6.32)", 0.0),
+                            ("P14", s1, "No stopping at the ramp entrance (RDM 1.3 12.7.3 item 8)", 0.0)]
                 elif kind == "truck parking bay":
                     back = s0 - (s1 - s0) / abs(s1 - s0) * self.TRUCK_I14_AHEAD
                     todo = [("I15", s0, "Lay-by at the start of the entry taper, facing oncoming traffic "
@@ -1038,6 +1057,8 @@ class SignStore(QObject):
                     todo = [("WSCM-I3", s1, "Bus stop at the start of the bay (WSCM/84/2/01; not in RDM 6.2)",
                              b["depth"])]
                 for code, at, why, wide in todo:
+                    if not self.al.sta_start <= at <= self.al.sta_end:
+                        continue
                     off = (self.al.edges.offset("ETW", b["side"], at) if self.al.edges else None) or 3.5
                     off += wide + 1.5
                     x, y, _ = self.al.point_at(at, off if b["side"] == "R" else -off)
@@ -1197,6 +1218,47 @@ class SignStore(QObject):
                          f"{'left' if c['side'] == 'L' else 'right'}: {c['note']}")
         return n, notes
 
+    def propose_descents(self, aadt=None, trucks=None, ramps=True, lanes=True, checks=True):
+        """Descending lanes (RDM 1.3 6.6.4), brake check areas (12.5) and escape ramps (12.7) the profile asks
+        for, placed as proposals. Returns (count, notes)."""
+        from .rfd import descents as D
+        from .rfd import junctions as J
+        n, notes = 0, []
+        tag = lambda side: "left" if side == "L" else "right"
+        if lanes:
+            for c in D.descending_lanes(self.al, aadt):
+                pl, L = J.place_lane(self.al, c["start"], c["end"], c["side"])
+                self.add_junction(pl, "DESC", params={"bay": L})
+                n += 1
+                notes.append(f"Descending lane, {tag(c['side'])}: {c['note']}")
+        if checks:
+            for b in D.brake_check_sites(self.al, trucks):
+                P = J.load_templates()["pieces"]["brake_check"]["params"]
+                d = 1 if b["side"] == "L" else -1
+                start = b["end"] - d * P["bay"]                     # the bay's full width starts here
+                if not self.al.sta_start <= start <= self.al.sta_end:
+                    continue
+                pl, _ = J.place_lane(self.al, start, b["end"], b["side"])
+                self.add_junction(pl, "BCA", params={"bay": P["bay"]})
+                n += 1
+                notes.append(f"Brake check area, {tag(b['side'])}, before a {b['drop']:.0f} m descent at "
+                             f"{b['grade']:.1f} %: {b['note']}")
+        if ramps:
+            for r in D.escape_ramp_sites(self.al):
+                if r["station"] is None:
+                    notes.append(f"Escape ramp, {tag(r['side'])}: {r['note']}")
+                    continue
+                L = r["lengths"]["Ascending grade"] or 300.0
+                P = J.load_templates()["pieces"]["escape_ramp"]["params"]
+                pl, _ = J.place_lane(self.al, r["station"], r["station"], r["side"])
+                self.add_junction(pl, "RAMP", params={"bay": round(L + P["entry"]), "speed": r["speed"],
+                                                      "reason": r["reason"]})
+                n += 1
+                notes.append(f"Escape ramp, {tag(r['side'])}, Ch {format_station(self.al.display_station(r['station']), 0)}: "
+                             f"{r['note']}; arrester bed {L:.0f} m on a {P['grade']:.0f} % ascending ramp of loose "
+                             f"gravel (Equation 12.1)")
+        return n, notes
+
     def remove_junction(self, junction_id):
         """Remove a junction's pieces and the signs proposed with it."""
         rule = f"junction:{junction_id}"
@@ -1241,7 +1303,8 @@ class SignStore(QObject):
         """Road edges and widenings (bays, climbing lanes, junction widenings) as 3D feature lines in a
         LandXML for Civil 3D, levels from the design profile and the section. Returns (count, notes)."""
         from .rfd.feature_lines import export
-        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path)
+        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path,
+                      bays=[j["bay"] for j in self.junctions.junctions() if j.get("bay")])
 
     def import_readback(self, json_path):
         """Apply sign moves / rotations made in Civil 3D (matched by face UUID)."""

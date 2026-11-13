@@ -87,6 +87,7 @@ KIND_TEXT = {
     "roundabout": "Roundabout",
     "end_control": "Control at the road's end",
     "bay_visibility": "Bay visibility",
+    "escape_ramp": "Escape ramps (RDM 1.3 12.7)",
     "transverse_overlap": "Transverse items overlapping",
 }
 
@@ -533,6 +534,56 @@ def overlap_checks(al, runs, lcat, footprints=()) -> List[Check]:
     return out
 
 
+def descent_checks(al, junctions) -> List[Check]:
+    """Escape ramps placed (RDM 1.3 12.7): on a tangent, 3.6 - 12 m wide, an arrester bed long enough for the
+    runaway speed (Equation 12.1), a sand pile no longer than 120 m; and the descents that call for a ramp
+    without one within 500 m."""
+    from . import descents as D
+    out = []
+    ramps = [j for j in junctions if j.get("bay") and j["bay"].get("kind") == "escape ramp"]
+    arcs = D._arc_spans(al)
+    for j in ramps:
+        b = j["bay"]
+        s1 = b["stations"][1]
+        where = _ch(al, s1)
+        if any(a + 1e-6 < s1 < e - 1e-6 for a, e, _ in arcs):
+            out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where} leaves the road on a curve: "
+                             f"ramps depart from a tangent (RDM 1.3 12.7.1)", "check"))
+        w = float(b.get("width") or 0.0)
+        if not 3.6 - 1e-6 <= w <= 12.0 + 1e-6:
+            out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where} is {w:.1f} m wide: ramps are "
+                             f"3.6 to 12 m wide (RDM 1.3 12.7.3)", "issue"))
+        v = b.get("speed")
+        rolling = float(b.get("rolling") or 10.0)
+        bed = float(b.get("bay") or 0.0) - float(b.get("paved") or 0.0)
+        need = D.ramp_length(float(v), float(b.get("grade") or 0.0), rolling) if v else None
+        if need is not None and bed < need - 1.0:
+            out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where}: arrester bed {bed:.0f} m, "
+                             f"under the {need:.0f} m Equation 12.1 gives for {float(v):.0f} km/h on a "
+                             f"{float(b.get('grade') or 0):.0f} % ramp of {b.get('material', 'loose gravel').lower()} "
+                             f"(RDM 1.3 12.7.3)", "issue", {"bed": bed, "need": need}))
+        elif need is not None:
+            out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where}: arrester bed {bed:.0f} m for "
+                             f"{float(v):.0f} km/h (Equation 12.1 needs {need:.0f} m)", "info"))
+    try:
+        sites = D.escape_ramp_sites(al)
+    except (AttributeError, TypeError, ValueError):
+        sites = []
+    for s in sites:
+        if s.get("station") is None:
+            out.append(Check("escape_ramp", s["singular"], s["singular"], s["side"],
+                             f"descent before the {s['reason']}: {s['note']} (RDM 1.3 12.7)", "check"))
+            continue
+        if not any(r["bay"]["side"] == s["side"] and abs(r["bay"]["stations"][1] - s["station"]) <= 500.0
+                   for r in ramps):
+            out.append(Check("escape_ramp", s["station"], s["singular"], s["side"],
+                             f"no escape ramp before the {s['reason']} at {_ch(al, s['singular'])}: a runaway truck "
+                             f"reaches it at about {s['speed']:.0f} km/h after a {s['drop']:.0f} m descent; a ramp at "
+                             f"{_ch(al, s['station'])} needs an arrester bed of about "
+                             f"{s['lengths']['Ascending grade']:.0f} m (RDM 1.3 12.7)", "check"))
+    return out
+
+
 def junction_checks(al, junctions) -> List[Check]:
     """Junctions placed from the templates: crossing angle to RDM 1.3 9.2.3.
 
@@ -595,6 +646,7 @@ def junction_checks(al, junctions) -> List[Check]:
                                  side, f"truck parking bays {d / 1000:.1f} km apart; at most "
                                               f"{TRUCK_BAY_SPACING / 1000:.0f} km (RDM 1.3 13.2.3.1)",
                                  "check", {"distance": d}))
+    out += descent_checks(al, junctions)
     for j in junctions:                              # roundabouts: RDM 1.3 Chapter 10
         rb = j.get("rbt")
         if rb:

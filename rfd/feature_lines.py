@@ -329,6 +329,30 @@ def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[FLine]:
     return out
 
 
+def ramp_lines(al, bays: Iterable[dict], step: float = STEP) -> List[FLine]:
+    """Escape ramps: both edges as feature lines, rising (or falling) at the ramp's grade from the level of
+    the road edge at the departure point (the profile along the ramp's base line, Figure 12.12)."""
+    out = []
+    for k, b in enumerate([b for b in bays if b and b.get("kind") == "escape ramp"], 1):
+        if not b.get("origin") or b.get("heading") is None:
+            continue
+        x0, y0 = b["origin"]
+        hr = float(b["heading"])
+        ht = hr - math.radians(float(b.get("angle", 4.0)))
+        W, L, g = float(b.get("width", 8.0)), float(b.get("bay", 0.0)), float(b.get("grade", 0.0)) / 100.0
+        so = al.station_offset(x0, y0)
+        z0 = level_at(al, so.station, so.offset)
+        if z0 is None or L <= 0:
+            continue
+        nl = (math.cos(ht + math.pi / 2), math.sin(ht + math.pi / 2))
+        n = max(2, int(math.ceil(L / step)) + 1)
+        for tag, (ox, oy) in (("inner", (x0, y0)), ("outer", (x0 + W * nl[0], y0 + W * nl[1]))):
+            pts = [(ox + L * i / (n - 1) * math.cos(hr), oy + L * i / (n - 1) * math.sin(hr),
+                    z0 + g * L * i / (n - 1)) for i in range(n)]
+            out.append(build(f"RFD RAMP {k} {tag}", "RAMP", pts))
+    return out
+
+
 # ------------------------------------------------------------------ LandXML
 def _header_elements(source_path) -> Tuple[str, str]:
     """The source file's <Units>...</Units> and <CoordinateSystem .../> as text (empty when absent)."""
@@ -412,7 +436,7 @@ def write_landxml(path, lines: Sequence[FLine], source_path=None, site=SITE, des
     return n
 
 
-def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[str]]:
+def export(path, al, parts=(), source_path=None, step=STEP, bays=()) -> Tuple[int, List[str]]:
     """Road edges and widenings of an alignment to a feature-line LandXML. Returns (count, notes)."""
     notes = []
     if getattr(al, "profile", None) is None:
@@ -423,7 +447,7 @@ def export(path, al, parts=(), source_path=None, step=STEP) -> Tuple[int, List[s
     no_super = src == "typical section" and not getattr(al, "super_runs", None)
     if no_super:
         notes.append("The LandXML has no superelevation: levels on curves are at the normal crossfall.")
-    lines = edge_lines(al, step) + widening_lines(al, parts)
+    lines = edge_lines(al, step) + widening_lines(al, parts) + ramp_lines(al, bays)
     pis = sum(len(fl.pis) for fl in lines)
     arcs = sum(len(fl.arcs) for fl in lines)
     elev = sum(len(fl.elev) for fl in lines)
