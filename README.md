@@ -4,7 +4,7 @@
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
-The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.9.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.9.0)](docs/user-guide/Road_Furniture_Designer_0.9.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.10.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.10.0)](docs/user-guide/Road_Furniture_Designer_0.10.0_User_Guide.pdf) is included. Source and figure scripts are in `tools/guide`.
 
 ```
  Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
@@ -434,7 +434,6 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 Next releases:
 
-- **0.10 Centreline-only mode** (in progress): work from a LandXML with only the alignment and its profiles (existing and design), with the carriageway, shoulder and other edges from a typical section the designer sets, so every tool snaps to them as to a corridor.
 - **0.11 Descents**: descending lanes, brake check areas and truck escape ramps (horizontal layout for Civil 3D).
 - **0.12 Interaction**: handles on placed items, a properties panel, snapping between items and undo.
 - **0.13 Civil 3D geometry**: widenings and islands exported as Civil 3D-ready geometry.
@@ -475,4 +474,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.9.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; version 0.9.0 is https://doi.org/10.5281/zenodo.24190252. Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.10.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252). Citation metadata is in `CITATION.cff`.
