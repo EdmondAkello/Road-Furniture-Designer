@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Road Furniture Designer 0.11.1 — User Guide and Technical Manual</title>
+<title>Road Furniture Designer 0.11.2 — User Guide and Technical Manual</title>
 <link rel="stylesheet" href="guide.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
   <div class="hero" style="background-image: url(figures/fig_report_plan.png); background-position: 55% 30%; background-size: 160%;"></div>
   <div class="text">
     <div class="badges"><span class="badge dev">Stable release</span></div>
-    <div class="kicker">QGIS plugin · Version 0.11.1</div>
+    <div class="kicker">QGIS plugin · Version 0.11.2</div>
     <h1>Road Furniture Designer</h1>
     <div class="sub">User Guide and Technical Manual</div>
     <div class="meta">
@@ -77,7 +77,7 @@
 
 <h2 id="edition"><span class="sec">1</span>About this edition</h2>
 <div class="edition"><b>A first draft for an engineer</b>
-This guide describes version 0.11.1. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
+This guide describes version 0.11.2. Every figure comes from a synthetic demonstration road made by <code>tools/guide/make_guide_road.py</code>: a 4.4 km two-lane road with a sharp curve, a series of bends, short crests, a steep descent onto a high embankment and a 50 km/h village, written as a Civil 3D style LandXML. Treat the tool's proposals as a first draft for an engineer to review, not as a design.</div>
 <p>What has been checked:</p>
 <ul>
   <li>353 automated tests of the core library, including randomly generated roads run through signs, markings, barriers, traffic calming, speed limit zones and the report checks, the junction templates and the packaged plugin ZIP; and 66 headless QGIS tests (QGIS 3.34 and 3.44, offscreen).</li>
@@ -117,7 +117,7 @@ The dock's summary lists what was found after opening a project, and shows in re
 <ol class="steps">
   <li>Download the plugin ZIP, <code>road_furniture_designer-&lt;version&gt;.zip</code>, from the <b>Assets</b> of a release on the repository's Releases page (or, for the latest main, from <b>Actions → plugin zip → Artifacts</b>, unzipping the outer layer GitHub adds). Do not use the repository's green <b>Code → Download ZIP</b>, or the <b>Source code</b> links GitHub adds under every release's Assets: they are the source, which QGIS cannot install.</li>
   <li>In QGIS, open <b>Plugins → Manage and Install Plugins</b> and search for <b>Road Furniture Designer</b> in the official repository, or use <b>Install from ZIP</b> and choose the plugin ZIP.</li>
-  <li>Enable <b>Road Furniture Designer</b>. A dock opens, tabbed beside the Processing Toolbox at full height, with the <b>Section</b>, <b>Signs</b>, <b>Auto</b>, <b>Linear</b>, <b>Calming</b>, <b>Speed limits</b>, <b>Junctions + bays</b> and <b>Outputs</b> tabs. Each tab scrolls, so the dock fits a laptop screen beside other panels. The toolbar button shows the dock again, and brings it to the front if it is tabbed behind another panel. The <b>Guide</b> button on the dock (or <b>Plugins → Road Furniture Designer → User Guide and Technical Manual</b>) opens this guide's PDF edition for the installed version.</li>
+  <li>Enable <b>Road Furniture Designer</b>. A dock opens, tabbed beside the Processing Toolbox at full height, with the <b>Section</b>, <b>Signs</b>, <b>Auto</b>, <b>Linear</b>, <b>Calming</b>, <b>Speed limits</b>, <b>Junctions + bays</b> and <b>Outputs</b> tabs. Each tab scrolls, so the dock fits a laptop screen beside other panels. The toolbar button shows the dock again, and brings it to the front if it is tabbed behind another panel. The <b>Guide</b> button on the dock (or <b>Plugins → Road Furniture Designer → User Guide and Technical Manual</b>) opens this guide's PDF edition, which ships inside the plugin, so it works offline.</li>
   <li>Nothing else needs installing. The libraries used for exports (openpyxl, ezdxf and their dependencies) are pure Python and ship inside the plugin's <code>ext_libs</code> folder, so the plugin works where <code>pip</code> is blocked.</li>
 </ol>
 <div class="note"><b>Updating</b>Install the new ZIP over the old one and restart QGIS. Existing projects open in newer versions; missing fields and layers are added automatically.</div>

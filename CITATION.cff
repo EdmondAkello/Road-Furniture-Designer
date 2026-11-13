@@ -27,7 +27,7 @@ authors:
     given-names: "Edmond"
     email: "francenicklaus@gmail.com"
     orcid: "https://orcid.org/0009-0009-5901-4574"
-version: 0.11.1
+version: 0.11.2
 doi: "10.5281/zenodo.24162212"
 identifiers:
   - type: doi
