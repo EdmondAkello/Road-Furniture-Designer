@@ -621,6 +621,9 @@ def test_centreline_only_road_with_a_typical_section(tmp_path):
     assert bars and all(f["sta_from"] < 400 < f["sta_to"] for f in bars)
     rep = FR.build(st.al, [], st.lines.cat, [], AutoConfig())
     assert any("typical section" in n for n in rep.notes)
+    # feature lines for Civil 3D
+    n, notes = st.export_feature_lines(str(tmp_path / "fl.xml"))
+    assert n == 4 and "PlanFeature" in (tmp_path / "fl.xml").read_text()
     # stored with the project: reopening rebuilds the same edges
     st2 = SignStore.open(st.gpkg)
     assert st2.edge_source == "typical section" and st2.al.edges.offset("ETW", "R", 50.0) == pytest.approx(3.5)

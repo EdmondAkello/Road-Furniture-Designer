@@ -263,6 +263,11 @@ class RsdDock(QDockWidget):
         self.btn_tload.setToolTip("Fill the tab from a section saved from another project; then Apply")
         tfl.addWidget(self.btn_tsave); tfl.addWidget(self.btn_tload)
         tl.addLayout(tfl)
+        self.btn_tfl = QPushButton("Feature lines for Civil 3D (LandXML)…")
+        self.btn_tfl.setToolTip("Road edges and the widenings of bays, climbing lanes and junctions as 3D "
+                                "feature lines (levels from the design profile and the section), to import "
+                                "into Civil 3D as corridor targets")
+        tl.addWidget(self.btn_tfl)
         self.lbl_tinfo = QLabel("For a LandXML with only the alignment and its profiles: the edges (ETW, EPS ...) "
                                 "come from this section, so signs, markings, barriers, bays and junctions use "
                                 "them as they would a corridor's. Fill heights for barriers come from the design "
@@ -644,6 +649,7 @@ class RsdDock(QDockWidget):
         self.btn_toff.clicked.connect(self.switch_off_typical_section)
         self.btn_tsave.clicked.connect(self.save_typical_section)
         self.btn_tload.clicked.connect(self.load_typical_section)
+        self.btn_tfl.clicked.connect(self.export_feature_lines)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
@@ -746,7 +752,7 @@ class RsdDock(QDockWidget):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,
                     self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel, self.btn_tsave,
-                    self.btn_tload):
+                    self.btn_tload, self.btn_tfl):
             wdg.setEnabled(on)
         if not on:
             self.btn_toff.setEnabled(False)
@@ -957,6 +963,24 @@ class RsdDock(QDockWidget):
             sp.setValue(v)
         self.iface.messageBar().pushMessage("Road Furniture Designer",
                                             "Section loaded: check the chainages, then Apply section.", MSG_INFO, 6)
+
+    def export_feature_lines(self):
+        if not self.store:
+            return
+        base = os.path.splitext(self.store.gpkg)[0]
+        p, _ = QFileDialog.getSaveFileName(self, "Feature lines for Civil 3D", base + "_feature_lines.xml",
+                                           "LandXML (*.xml)")
+        if not p:
+            return
+        try:
+            with _busy():
+                n, notes = self.store.export_feature_lines(p)
+        except ValueError as e:
+            QMessageBox.warning(self, "Road Furniture Designer", str(e))
+            return
+        self.iface.messageBar().pushMessage(
+            "Road Furniture Designer", f"{n} feature line(s) → {p}. In Civil 3D: Insert → LandXML; they go to "
+            f"site RFD." + (" " + " ".join(notes) if notes else ""), MSG_WARNING if notes else MSG_SUCCESS, 12)
 
     def switch_off_typical_section(self):
         if not self.store:

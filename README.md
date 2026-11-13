@@ -99,7 +99,7 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 
 ## A LandXML with only the centreline (Section tab)
 
-For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
+For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** writes the edges and the widened edges of bays, lanes and junctions as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
 
 ## Auto-placement (Auto tab)
 

@@ -1220,6 +1220,12 @@ class SignStore(QObject):
                       junctions=self.junctions.parts())
         return sl
 
+    def export_feature_lines(self, path):
+        """Road edges and widenings (bays, climbing lanes, junction widenings) as 3D feature lines in a
+        LandXML for Civil 3D, levels from the design profile and the section. Returns (count, notes)."""
+        from .rfd.feature_lines import export
+        return export(path, self.al, self.junctions.parts(), source_path=self.landxml_path)
+
     def import_readback(self, json_path):
         """Apply sign moves / rotations made in Civil 3D (matched by face UUID)."""
         with open(json_path, encoding="utf-8") as fh:
