@@ -129,6 +129,16 @@ class RsdDock(QDockWidget):
         il.addWidget(QLabel("Checks"))
         self.lst_issues = QListWidget()
         il.addWidget(self.lst_issues, 1)
+        rv = QHBoxLayout()
+        rv.addWidget(QLabel("Furniture checks"))
+        self.btn_review = QPushButton("Run checks")
+        self.btn_review.setToolTip("The report's furniture checks (markings, barriers, signs, calming, junctions, bays, "
+                                   "ramps, the corridor round trip) run now; double-click one to zoom to it")
+        rv.addStretch(1); rv.addWidget(self.btn_review)
+        il.addLayout(rv)
+        self.lst_review = QListWidget()
+        self.lst_review.setWordWrap(True)
+        il.addWidget(self.lst_review, 1)
         self.btn_inv = QPushButton("Export inventory (Excel + CSV)…")
         self.btn_c3d = QPushButton("Export to Civil 3D (package + DXF)…")
         self.btn_rb = QPushButton("Import Civil 3D read-back…")
@@ -670,6 +680,8 @@ class RsdDock(QDockWidget):
         self.btn_tsave.clicked.connect(self.save_typical_section)
         self.btn_tload.clicked.connect(self.load_typical_section)
         self.btn_tfl.clicked.connect(self.export_feature_lines)
+        self.btn_review.clicked.connect(self.run_review)
+        self.lst_review.itemDoubleClicked.connect(self._zoom_finding)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
@@ -786,7 +798,7 @@ class RsdDock(QDockWidget):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,
                     self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel, self.btn_tsave,
-                    self.btn_tload, self.btn_tfl):
+                    self.btn_tload, self.btn_tfl, self.btn_review):
             wdg.setEnabled(on)
         if not on:
             self.btn_toff.setEnabled(False)
@@ -1814,8 +1826,37 @@ class RsdDock(QDockWidget):
         self.lbl_auto.setText(f"<b>{n}</b> signs proposed from <b>{len(findings)}</b> findings. "
                               "Sag/crest sight-distance findings are for the designer (no sign proposed).")
 
+    def run_review(self):
+        """The report's furniture checks, listed by level (issues first) and chainage."""
+        if not self.store:
+            return
+        from .report import ReportData
+        with _busy():
+            d = ReportData(self.store, self.auto_config(), barrier_cfg=self.barrier_config(),
+                           feature_cfg=self.feature_config())
+        fr = getattr(d, "fr", None)
+        self.lst_review.clear()
+        if fr is None:
+            return
+        colours = {"issue": "#c0392b", "check": "#b9770e", "info": "#5d6d7e"}
+        for c in fr.checks:
+            it = QListWidgetItem(f"{c.level.upper():6s} {format_station(self.store.al.display_station(c.start), 0)}  "
+                                 f"{c.text}")
+            it.setData(Qt.UserRole, c.start)
+            from qgis.PyQt.QtGui import QColor
+            it.setForeground(QColor(colours.get(c.level, "#000000")))
+            self.lst_review.addItem(it)
+        for note in fr.notes:
+            self.lst_review.addItem(QListWidgetItem(f"NOTE   {note}"))
+        n = {lv: sum(1 for c in fr.checks if c.level == lv) for lv in ("issue", "check", "info")}
+        self.iface.messageBar().pushMessage("Road Furniture Designer",
+                                            f"Furniture checks: {n['issue']} issue(s), {n['check']} to check, "
+                                            f"{n['info']} for information", MSG_INFO, 6)
+
     def _zoom_finding(self, item):
         sta = item.data(Qt.UserRole)
+        if sta is None:
+            return
         x, y, _ = self.store.al.point_at(sta)
         from qgis.core import QgsCoordinateTransform, QgsPointXY, QgsRectangle
         xf = QgsCoordinateTransform(self.store.signs.crs(), self.iface.mapCanvas().mapSettings().destinationCrs(),

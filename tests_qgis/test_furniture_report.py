@@ -707,3 +707,20 @@ def test_descents_proposed_from_a_steep_profile(tmp_path):
     from road_furniture_designer.rfd import furniture_report as FR
     ch = FR.descent_checks(st.al, st.junctions.junctions())
     assert any(c.level == "info" and "arrester bed" in c.text for c in ch), [c.text for c in ch]
+
+
+def test_outputs_tab_review_lists_the_furniture_checks(tmp_path):
+    from unittest import mock
+    from qgis.gui import QgsMapCanvas
+    from qgis.PyQt.QtWidgets import QMainWindow
+    from road_furniture_designer.dock import RsdDock
+    st, xml, auto = _project(tmp_path)
+    win = QMainWindow(); iface = mock.MagicMock()
+    iface.mapCanvas.return_value = QgsMapCanvas(); iface.mainWindow.return_value = win
+    d = RsdDock(iface, win)
+    d.set_store(st)
+    d.run_review()
+    assert d.lst_review.count() > 0
+    first = d.lst_review.item(0)
+    assert first.text().split()[0] in ("ISSUE", "CHECK", "INFO", "NOTE")
+    d._zoom_finding(first)                                   # zooms without error

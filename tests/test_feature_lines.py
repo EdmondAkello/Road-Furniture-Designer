@@ -33,11 +33,12 @@ def test_export_writes_feature_lines_civil3d_reads(tmp_path):
     bay = [(1100.0, 5000.0 - 5.5), (1115.0, 5000.0 - 9.0), (1145.0, 5000.0 - 9.0), (1160.0, 5000.0 - 5.5)]
     p = tmp_path / "fl.xml"
     n, notes = FL.export(str(p), al, parts=[("BAYEDGE", 120.0, [bay]), ("KERB", 0.0, [bay])])
-    assert n == 5 and any("superelevation" in m for m in notes)                     # 4 edges + 1 bay edge; no super
+    assert n == 6 and any("superelevation" in m for m in notes)                     # 4 edges, bay edge, kerb; no super
     assert any("PIs" in m for m in notes)
     root = ET.parse(p).getroot()  # nosec B314 - the test's own output
     pf = root.findall("x:PlanFeatures/x:PlanFeature", NS)
-    assert sorted(f.get("name") for f in pf) == ["RFD BAYEDGE 1", "RFD EPS L", "RFD EPS R", "RFD ETW L", "RFD ETW R"]
+    assert sorted(f.get("name") for f in pf) == ["RFD BAYEDGE Ch 0+120 #1", "RFD EPS L", "RFD EPS R", "RFD ETW L",
+                                                 "RFD ETW R", "RFD KERB Ch 0+000 #1"]
     for f in pf:
         feat = f.find("x:Feature", NS)
         assert feat.get("code") == "FeatureLine" and feat.get("source") == "Autodesk Civil 3D"

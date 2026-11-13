@@ -39,6 +39,8 @@ H_TOL = 0.02                # m: plan tolerance for PIs off the arcs (Douglas-Pe
 V_TOL = 0.005               # m: level tolerance for elevation points (against the grade between kept points)
 MAX_LENGTH = 5000.0         # m: a longer feature line is written in pieces
 WIDENING_CODES = ("WIDEN", "BAYEDGE")
+# kerb lines and other plan edges a corridor or grading targets: islands and bay kerbs, accesses, roundabouts
+KERB_CODES = ("KERB", "ACCESS", "RBEDGE", "APRON")
 
 Pt3 = Tuple[float, float, float]
 
@@ -313,17 +315,25 @@ def draped(al, name: str, code: str, pts: Sequence[Tuple[float, float]], step: f
     return build(name, code, out) if len(out) >= 2 else None
 
 
-def widening_lines(al, parts: Iterable, codes=WIDENING_CODES) -> List[FLine]:
-    """From junction parts [(code, sta, [polyline])]: the widened pavement edges, draped on the road."""
+def widening_lines(al, parts: Iterable, codes=WIDENING_CODES + KERB_CODES) -> List[FLine]:
+    """From junction parts [(code, sta, [polyline])]: the widened pavement edges, island and bay kerbs,
+    accesses and roundabout edges, draped on the road (the level of the road surface at the line: kerb
+    bottom). Named by code and chainage."""
     out, n = [], {}
-    for code, _sta, lines in parts:
+    for code, sta, lines in parts:
         if code not in codes:
             continue
         for ln in lines:
             if len(ln) < 2:
                 continue
             n[code] = n.get(code, 0) + 1
-            d = draped(al, f"RFD {code} {n[code]}", code, ln)
+            ch = ""
+            try:
+                from .alignment import format_station
+                ch = f" Ch {format_station(al.display_station(float(sta)), 0)}" if sta is not None else ""
+            except (TypeError, ValueError):
+                pass
+            d = draped(al, f"RFD {code}{ch} #{n[code]}", code, ln)
             if d:
                 out.append(d)
     return out
