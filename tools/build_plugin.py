@@ -19,6 +19,11 @@ def sync_vendor():
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyx"))
 
 
+def sync_license():
+    """plugins.qgis.org refuses a ZIP without a LICENSE file in the plugin folder."""
+    shutil.copyfile(os.path.join(ROOT, "LICENSE"), os.path.join(PLUG, "LICENSE"))
+
+
 def make_zip(out):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for d, _, files in os.walk(PLUG):
@@ -34,6 +39,7 @@ def make_zip(out):
 if __name__ == "__main__":
     sync_core()
     sync_vendor()
+    sync_license()
     if len(sys.argv) > 1:
         make_zip(sys.argv[1])
         print("wrote", sys.argv[1])

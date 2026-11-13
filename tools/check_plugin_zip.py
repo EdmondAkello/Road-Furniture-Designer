@@ -4,7 +4,7 @@
 
 Fails (exit 1) when:
   * the ZIP does not hold exactly one top folder, road_furniture_designer/
-  * metadata.txt, __init__.py with classFactory, the core (rfd/) or the export libraries (ext_libs/) are missing
+  * LICENSE (plugins.qgis.org requires it), metadata.txt, __init__.py with classFactory, the core (rfd/) or the export libraries (ext_libs/) are missing
   * metadata.txt lacks name, version, qgisMinimumVersion or author
   * compiled files, caches, project data or archives are inside
 """
@@ -15,7 +15,7 @@ import sys
 import zipfile
 
 TOP = "road_furniture_designer"
-REQUIRED = ("metadata.txt", "__init__.py", "plugin.py", "dock.py", "rfd/__init__.py", "rfd/data/catalogue.json",
+REQUIRED = ("LICENSE", "metadata.txt", "__init__.py", "plugin.py", "dock.py", "rfd/__init__.py", "rfd/data/catalogue.json",
             "rfd/data/junction_templates.json", "ext_libs/")
 FORBIDDEN = (".pyc", "__pycache__/", ".gpkg", ".zip", ".pytest_cache/", "_faces/")
 

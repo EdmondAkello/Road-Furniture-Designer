@@ -47,7 +47,7 @@ changelog=0.11.0
     - Design criteria from RDM 1.3 (2025) as open criteria files.
     - Catalogue: END plate for the end of no overtaking, P22, IM16-IM18, RW41 (251 signs).
     - Fixes: duplicate chevrons and plates when auto-placement is run again; plan sheets with a second alignment.
-experimental=True
+experimental=False
 deprecated=False
 category=Vector
 icon=icon.svg
