@@ -19,8 +19,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import List, Optional
-# Escapes text written into generated SVG; parses nothing.
-from xml.sax.saxutils import escape  # nosec B406
+
+
+def escape(s: str) -> str:
+    """Text for the generated SVG faces."""
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 
 # RDM 6.2 Table 2.6 (Table 5.1 lists UC under both green and white; Table 2.6 is followed)
 SCHEMES = {
@@ -66,20 +70,20 @@ def parse(text: str) -> List[LegendLine]:
 def ordered(lines: List[LegendLine]) -> List[LegendLine]:
     """RDM 5.2: group ahead/left/right; within a direction, furthest destination first."""
     rank = {"ahead": 0, "left": 1, "right": 2, None: 3}
-    def d(l):
+    def d(lin):
         try:
-            return -float(l.distance)
+            return -float(lin.distance)
         except ValueError:
             return 0.0
-    return sorted(lines, key=lambda l: (rank[l.arrow], d(l)))
+    return sorted(lines, key=lambda lin: (rank[lin.arrow], d(lin)))
 
 
 def summary(text: str) -> str:
     """One-line form for inventory cells and CAD attributes."""
     sym = {"ahead": "^", "left": "<", "right": ">", None: ""}
     parts = []
-    for l in parse(text):
-        p = " ".join(x for x in (sym[l.arrow], l.place, l.route, (l.distance + " km") if l.distance else "") if x)
+    for lin in parse(text):
+        p = " ".join(x for x in (sym[lin.arrow], lin.place, lin.route, (lin.distance + " km") if lin.distance else "") if x)
         parts.append(p)
     return " / ".join(parts)
 
@@ -101,38 +105,38 @@ def directional_svg(text: str, road_class: str = "A") -> str:
     sc = SCHEMES.get(road_class or "A", SCHEMES["A"])
     lines = ordered(parse(text)) or [LegendLine(None, "(legend)")]
     rh, pad, cw = 34, 10, 15.5                      # row height, padding, char width
-    name_w = max(len(l.place) for l in lines) * cw
-    route_w = max((len(l.route) for l in lines), default=0) * cw + (18 if any(l.route for l in lines) else 0)
-    dist_w = max((len(l.distance) for l in lines), default=0) * cw + (12 if any(l.distance for l in lines) else 0)
-    arrow_w = 34 if any(l.arrow for l in lines) else 0
+    name_w = max(len(lin.place) for lin in lines) * cw
+    route_w = max((len(lin.route) for lin in lines), default=0) * cw + (18 if any(lin.route for lin in lines) else 0)
+    dist_w = max((len(lin.distance) for lin in lines), default=0) * cw + (12 if any(lin.distance for lin in lines) else 0)
+    arrow_w = 34 if any(lin.arrow for lin in lines) else 0
     W = pad * 2 + arrow_w * 2 + name_w + route_w + dist_w
     H = pad * 2 + rh * len(lines)
     p = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} {H:.0f}" width="{W:.0f}" height="{H:.0f}">',
          f'<rect x="1.5" y="1.5" width="{W - 3:.0f}" height="{H - 3:.0f}" rx="8" fill="{sc["bg"]}" '
          f'stroke="{sc["fg"]}" stroke-width="3"/>']
     font = 'font-family="Helvetica, Arial, sans-serif" font-weight="bold"'
-    for i, l in enumerate(lines):
+    for i, lin in enumerate(lines):
         y = pad + i * rh
         base = y + rh * 0.72
         x = pad
-        if l.arrow in ("ahead", "left"):
-            p.append(_arrow(l.arrow, x, y + 5, rh - 10, sc["fg"]))
+        if lin.arrow in ("ahead", "left"):
+            p.append(_arrow(lin.arrow, x, y + 5, rh - 10, sc["fg"]))
         x += arrow_w
-        p.append(f'<text x="{x:.0f}" y="{base:.0f}" {font} font-size="25" fill="{sc["fg"]}">{escape(l.place)}</text>')
+        p.append(f'<text x="{x:.0f}" y="{base:.0f}" {font} font-size="25" fill="{sc["fg"]}">{escape(lin.place)}</text>')
         x += name_w + 12
-        if l.route:
-            rw = len(l.route) * cw + 8
+        if lin.route:
+            rw = len(lin.route) * cw + 8
             if road_class == "A":
-                p.append(f'<text x="{x:.0f}" y="{base:.0f}" {font} font-size="22" fill="{sc["route"]}">{escape(l.route)}</text>')
+                p.append(f'<text x="{x:.0f}" y="{base:.0f}" {font} font-size="22" fill="{sc["route"]}">{escape(lin.route)}</text>')
             else:
                 p.append(f'<rect x="{x - 3:.0f}" y="{y + 5:.0f}" width="{rw:.0f}" height="{rh - 10:.0f}" '
                          f'fill="none" stroke="{sc["route"]}" stroke-width="2"/>'
-                         f'<text x="{x + 1:.0f}" y="{base:.0f}" {font} font-size="20" fill="{sc["route"]}">{escape(l.route)}</text>')
+                         f'<text x="{x + 1:.0f}" y="{base:.0f}" {font} font-size="20" fill="{sc["route"]}">{escape(lin.route)}</text>')
         x += route_w
-        if l.distance:
+        if lin.distance:
             p.append(f'<text x="{x + dist_w - 12:.0f}" y="{base:.0f}" text-anchor="end" {font} font-size="22" '
-                     f'fill="{sc["fg"]}">{escape(l.distance)}</text>')
-        if l.arrow == "right":
+                     f'fill="{sc["fg"]}">{escape(lin.distance)}</text>')
+        if lin.arrow == "right":
             p.append(_arrow("right", W - pad - (rh - 10), y + 5, rh - 10, sc["fg"]))
     p.append("</svg>")
     return "\n".join(p)
@@ -141,16 +145,16 @@ def directional_svg(text: str, road_class: str = "A") -> str:
 def plate_svg(text: str, style=("white", "black")) -> str:
     bg = PLATE_COLOURS.get(style[0], style[0])
     fg = PLATE_COLOURS.get(style[1], style[1])
-    lines = [l.strip() for l in (text or "").splitlines() if l.strip()] or ["(legend)"]
+    lines = [lin.strip() for lin in (text or "").splitlines() if lin.strip()] or ["(legend)"]
     rh, pad = 32, 12
-    W = pad * 2 + max(len(l) for l in lines) * 15.5
+    W = pad * 2 + max(len(lin) for lin in lines) * 15.5
     H = pad * 2 + rh * len(lines)
     p = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} {H:.0f}" width="{W:.0f}" height="{H:.0f}">',
          f'<rect x="2" y="2" width="{W - 4:.0f}" height="{H - 4:.0f}" rx="7" fill="{bg}" stroke="{fg}" stroke-width="3"/>']
-    for i, l in enumerate(lines):
+    for i, lin in enumerate(lines):
         p.append(f'<text x="{W / 2:.0f}" y="{pad + i * rh + rh * 0.74:.0f}" text-anchor="middle" '
                  f'font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="25" fill="{fg}">'
-                 f'{escape(l)}</text>')
+                 f'{escape(lin)}</text>')
     p.append("</svg>")
     return "\n".join(p)
 
@@ -160,7 +164,7 @@ _TEXT_RE = re.compile(r"(<text\b[^>]*>)([^<]*)(</text>)")
 
 def label_lines(sign, text: str):
     """Legend lines for a 'label' sign when they map one-to-one onto the artwork's text, else None."""
-    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    lines = [lin.strip() for lin in (text or "").splitlines() if lin.strip()]
     return lines if lines and len(lines) == len(getattr(sign, "label_texts", None) or ()) else None
 
 

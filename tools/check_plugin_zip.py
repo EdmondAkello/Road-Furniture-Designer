@@ -4,7 +4,10 @@
 
 Fails (exit 1) when:
   * the ZIP does not hold exactly one top folder, road_furniture_designer/
-  * LICENSE (plugins.qgis.org requires it), .bandit and .flake8 (its scanner reads them; ext_libs is third-party), the user guide PDF for the version (doc/), metadata.txt, __init__.py with classFactory, the core (rfd/) or the export libraries (ext_libs/) are missing
+  * LICENSE (plugins.qgis.org requires it), the user guide PDF for the version (doc/), metadata.txt, __init__.py with
+    classFactory or the core (rfd/, with the DXF template and block library) are missing
+  * bundled libraries (ext_libs/) or scanner config files (.bandit, .flake8) are inside: the plugin needs
+    neither, and plugins.qgis.org scans without them
   * metadata.txt lacks name, version, qgisMinimumVersion or author
   * compiled files, caches, project data or archives are inside
 """
@@ -15,9 +18,10 @@ import sys
 import zipfile
 
 TOP = "road_furniture_designer"
-REQUIRED = ("LICENSE", ".bandit", ".flake8", "metadata.txt", "__init__.py", "plugin.py", "dock.py", "rfd/__init__.py", "rfd/data/catalogue.json",
-            "rfd/data/junction_templates.json", "ext_libs/")
-FORBIDDEN = (".pyc", "__pycache__/", ".gpkg", ".zip", ".pytest_cache/", "_faces/")
+REQUIRED = ("LICENSE", "metadata.txt", "__init__.py", "plugin.py", "dock.py", "rfd/__init__.py", "rfd/data/catalogue.json",
+            "rfd/data/junction_templates.json", "rfd/data/RSD_template.dxf", "rfd/data/RSD_SignBlocks.dxf")
+FORBIDDEN = (".pyc", "__pycache__/", ".gpkg", ".zip", ".pytest_cache/", "_faces/", "/ext_libs/", "/.bandit",
+             "/.flake8")
 
 
 def check(path: str) -> list:

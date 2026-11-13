@@ -714,7 +714,8 @@ class Lane:
 
 def strip_lanes(al, runs, lcat, signs, zones, groups) -> List[Lane]:
     """Lanes of the straight-line diagram, top (left of the road, up-chainage traffic) to bottom."""
-    L = lambda name, kind: Lane(name, kind)
+    def L(name, kind):
+        return Lane(name, kind)
     lanes = {k: L(n, t) for k, n, t in (
         ("sL", "Signs, left (→)", "ticks"), ("bL", "Barrier, left", "bars"), ("eL", "Edge line, left", "bars"),
         ("c", "Centre line", "bars"), ("eR", "Edge line, right", "bars"),
@@ -802,7 +803,8 @@ def end_control_checks(al, others, junctions, signs) -> List[Check]:
             break
         if hit is None:
             continue
-        near = lambda s: abs(s - sta) <= END_CONTROL_NEAR
+        def near(s):
+            return abs(s - sta) <= END_CONTROL_NEAR
         if any(near(j.get("sta") or -1e9) and (j.get("role") in ("minor", "roundabout") or j.get("rbt"))
                for j in junctions or []):
             continue

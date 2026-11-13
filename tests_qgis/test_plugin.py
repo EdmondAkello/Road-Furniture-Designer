@@ -258,8 +258,10 @@ def test_exports_include_legend(store, tmp_path):
     assert by["I1-A"]["block_name"].startswith("RSD_I1-A_")             # own block with the legend text
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "p.dxf")
+    from road_furniture_designer.rfd import dxfw
     from road_furniture_designer.rfd.dxf_out import sign_block_of
-    names = {sign_block_of(doc, e)[0] for e in doc.modelspace().query("INSERT")}
+    blocks = dxfw.blocks_of(dxfw.read_tags(str(tmp_path / "p.dxf")))
+    names = {sign_block_of(blocks, e.dxf.name)[0] for e in doc.modelspace().query("INSERT")}
     assert names == {by["I1-A"]["block_name"], "RSD_W20_M"}
     assert len(doc.blocks.get("RSD_W20_M").query("HATCH")) > 0          # real artwork, not a placeholder
     from openpyxl import load_workbook
@@ -387,8 +389,10 @@ def test_auto_propose_accept_and_exports(tmp_path):
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "p1.dxf")
     ins = [e for e in doc.modelspace().query("INSERT")]
+    from road_furniture_designer.rfd import dxfw
     from road_furniture_designer.rfd.dxf_out import sign_block_of
-    sc = [sign_block_of(doc, e)[1] for e in ins]
+    blocks = dxfw.blocks_of(dxfw.read_tags(str(tmp_path / "p1.dxf")))
+    sc = [sign_block_of(blocks, e.dxf.name, e.dxf.xscale)[1] for e in ins]
     assert all(v in (pytest.approx(10.0), pytest.approx(6.0), pytest.approx(7.0)) for v in sc)   # 10 mm at 1:1000 (legends 0.6x)
     # re-running the rules does not duplicate accepted signs
     n2, _ = st.auto_propose(AutoConfig(grades=False, no_overtaking=False))
@@ -416,9 +420,11 @@ def test_legend_block_and_old_project_migration(tmp_path, corridor_store):
     st.export_civil3d(str(tmp_path / "l.json"), str(tmp_path / "l.dxf"))
     import ezdxf
     doc = ezdxf.readfile(tmp_path / "l.dxf")
+    from road_furniture_designer.rfd import dxfw
     from road_furniture_designer.rfd.dxf_out import sign_block_of
-    name = [sign_block_of(doc, e)[0] for e in doc.modelspace().query("INSERT")
-            if sign_block_of(doc, e)[0].startswith("RSD_I1-A_")][0]
+    blocks = dxfw.blocks_of(dxfw.read_tags(str(tmp_path / "l.dxf")))
+    name = [sign_block_of(blocks, e.dxf.name)[0] for e in doc.modelspace().query("INSERT")
+            if sign_block_of(blocks, e.dxf.name)[0].startswith("RSD_I1-A_")][0]
     texts = [t.dxf.text for t in doc.blocks.get(name).query("TEXT")]
     assert "Nakuru" in texts and "Eldoret" in texts and "A104" in texts
     # an older project without the newer fields opens and gains them

@@ -278,7 +278,8 @@ def propose_barriers(al, cfg: BarrierConfig = None) -> Tuple[List[Run], List[Fin
     for f in rows:
         f.warrant = crit.barrier_warrant(f.height, f.slope_n)
     curves = curve_extents(al)
-    v_of = lambda s: al.speed_at(s) or 80.0
+    def v_of(s):
+        return al.speed_at(s) or 80.0
     ref = crit.ref("barrier_warrant")
     runs: List[Run] = []
     spacing = sorted({f.station for f in rows})
@@ -338,7 +339,8 @@ def propose_barriers(al, cfg: BarrierConfig = None) -> Tuple[List[Run], List[Fin
                                         f"check the working width (RDM 1.3 Table 4.17)"))
             findings.append(Finding("barrier", s, e, side, reason,
                                     {"height": worst.height, "slope_n": worst.slope_n, "runout": ro}))
-        covered = lambda st: any(r.side == side and r.sta_start <= st <= r.sta_end for r in runs)
+        def covered(st):
+            return any(r.side == side and r.sta_start <= st <= r.sta_end for r in runs)
         if not cfg.include_judgement:
             for g in _group([f.station for f in mine if f.warrant == "judgement" and not covered(f.station)],
                             max(close_gap, 2 * step)):

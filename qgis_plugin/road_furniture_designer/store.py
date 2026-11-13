@@ -249,14 +249,14 @@ class SignStore(QObject):
         def existing(lyr):
             src = os.path.normcase(os.path.abspath(lyr.source().split("|")[0]))
             name = lyr.source().split("layername=")[-1]
-            for l in project.mapLayers().values():
-                s = l.source()
-                if (l.providerType() == "ogr" and s.split("layername=")[-1] == name
+            for lin in project.mapLayers().values():
+                s = lin.source()
+                if (lin.providerType() == "ogr" and s.split("layername=")[-1] == name
                         and os.path.normcase(os.path.abspath(s.split("|")[0])) == src):
-                    return l
+                    return lin
             return None
 
-        found = {k: existing(l) for k, l in (("s", self.signs), ("c", self.chainage_layer),
+        found = {k: existing(lin) for k, lin in (("s", self.signs), ("c", self.chainage_layer),
                                               ("a", self.alignment_layer))}
         ex = existing(self.lines.layer)
         if ex is not None and ex is not self.lines.layer:
@@ -386,8 +386,8 @@ class SignStore(QObject):
         pal.xOffset = 4.5
         self.signs.setLabeling(QgsVectorLayerSimpleLabeling(pal))
         self.signs.setLabelsEnabled(True)
-        for l in (self.signs, self.alignment_layer, self.chainage_layer):
-            l.triggerRepaint()
+        for lin in (self.signs, self.alignment_layer, self.chainage_layer):
+            lin.triggerRepaint()
 
     # ------------------------------------------------------------------ geometry helpers
     def locate(self, x, y):
@@ -408,7 +408,7 @@ class SignStore(QObject):
             try:
                 info.update({k: v for k, v in landxml_crs(self.landxml_path).items() if v})
             # LandXML moved or unreadable: the CRS stays as stored.
-            except Exception:  # nosec B110
+            except (OSError, ValueError, SyntaxError):
                 pass
         return info
 
@@ -1074,10 +1074,11 @@ class SignStore(QObject):
 
     @staticmethod
     def _sig(f, skip):
+        # a fingerprint to tell changed features apart, not a security hash
         attrs = tuple(str(v) for i, v in enumerate(f.attributes()) if i != skip)
         g = f.geometry()
         wkb = bytes(g.asWkb()) if g is not None and not g.isEmpty() else b""
-        return hashlib.sha1(repr(attrs).encode("utf-8") + wkb).hexdigest()  # nosec B324 - identity, not security
+        return hashlib.sha1(repr(attrs).encode("utf-8") + wkb, usedforsecurity=False).hexdigest()
 
     def _state(self):
         """{layer index: {signature: [features]}} of the journaled layers."""
@@ -1213,7 +1214,8 @@ class SignStore(QObject):
                 kind = b.get("kind")
                 lane = kind == "climbing lane"
                 dirn = 1 if s1 >= s0 else -1
-                ahead = lambda d: s0 - dirn * d
+                def ahead(d):
+                    return s0 - dirn * d
                 if lane:
                     todo = [("WSCM-I1", s0, "Start of climbing lane at the entry taper (RDM/1/3/3/02)", 0.0),
                             ("WSCM-I2", s2, "End of climbing lane where the exit taper starts (RDM/1/3/3/02)", b["depth"])]
@@ -1284,8 +1286,8 @@ class SignStore(QObject):
         report. Returns (junctions with obstructions, obstructions)."""
         from qgis.core import QgsProject
         layers = [QgsProject.instance().mapLayer(i) for i in layer_ids]
-        layers = [l for l in layers if l is not None and l.isValid()]
-        self.set_meta(sight_layers=",".join(l.id() for l in layers))
+        layers = [lin for lin in layers if lin is not None and lin.isValid()]
+        self.set_meta(sight_layers=",".join(lin.id() for lin in layers))
         found = self.junctions.check_obstructions(layers)
         return len(found), sum(len(v) for v in found.values())
 
@@ -1295,7 +1297,7 @@ class SignStore(QObject):
         if ids:
             from qgis.core import QgsProject
             layers = [QgsProject.instance().mapLayer(i) for i in ids]
-            self.junctions.check_obstructions([l for l in layers if l is not None and l.isValid()])
+            self.junctions.check_obstructions([lin for lin in layers if lin is not None and lin.isValid()])
 
     def trim_for_roundabouts(self):
         """Our road's markings and studs stop at each roundabout: centre lines beyond the splitter's lead-in
@@ -1413,7 +1415,8 @@ class SignStore(QObject):
         from .rfd import descents as D
         from .rfd import junctions as J
         n, notes = 0, []
-        tag = lambda side: "left" if side == "L" else "right"
+        def tag(side):
+            return "left" if side == "L" else "right"
         if lanes:
             for c in D.descending_lanes(self.al, aadt):
                 pl, L = J.place_lane(self.al, c["start"], c["end"], c["side"])

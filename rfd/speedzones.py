@@ -66,7 +66,8 @@ def design_zone(al, zone: SpeedZone, repeat: Optional[float] = None, neighbours:
         raise ValueError("The speed limit zone is outside the alignment")
     out = ZoneDesign(zone)
     code, rule = LIMIT_SIGNS[zone.limit], zone.rule
-    joins = lambda s: any(abs(n.start - s) < 1.0 or abs(n.end - s) < 1.0 for n in neighbours if n.id != zone.id)
+    def joins(s):
+        return any(abs(n.start - s) < 1.0 or abs(n.end - s) < 1.0 for n in neighbours if n.id != zone.id)
     at_lo, at_hi = lo <= al.sta_start + 1e-6, hi >= al.sta_end - 1e-6
     why = f"{LIMIT_TEXT[zone.limit]} (RDM 6.2 3.5)"
     # forward traffic enters at lo, leaves at hi (left side); backward enters at hi, leaves at lo (right side)

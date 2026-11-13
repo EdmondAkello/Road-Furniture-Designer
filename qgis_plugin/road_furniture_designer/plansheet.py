@@ -105,7 +105,8 @@ def draw_plan(p, d, rect: QRectF, s0, s1, th, scale, page_w, font, colours, key_
     rad = 0.5 * (vp.width_m ** 2 + vp.height_m ** 2) ** 0.5 + 20.0
     mx, my = al.point_at(s0 + (s1 - s0) / 2)[:2]
     wb = (mx - rad, my - rad, mx + rad, my + rad)
-    inside = lambda q: wb[0] <= q[0] <= wb[2] and wb[1] <= q[1] <= wb[3]
+    def inside(q):
+        return wb[0] <= q[0] <= wb[2] and wb[1] <= q[1] <= wb[3]
 
     def poly(pts):
         """Path of the parts of a world polyline that fall inside the viewport's box."""
@@ -297,7 +298,8 @@ def _key_plan(p, d, r, s0, s1, font):
     sc = min(inner.width() / max(w, 1), inner.height() / max(h, 1))
     ox = inner.center().x() - (min(xs) + w / 2) * sc
     oy = inner.center().y() + (min(ys) + h / 2) * sc
-    Q = lambda x, y: QPointF(ox + x * sc, oy - y * sc)
+    def Q(x, y):
+        return QPointF(ox + x * sc, oy - y * sc)
     p.setPen(QPen(QColor("#c9d0da"), 1)); p.setBrush(QColor("#fafbfd")); p.drawRect(r)
     p.setPen(QColor("#1d2430")); p.setFont(font(10, True))
     p.drawText(QRectF(r.left() + 8, r.top() + 4, r.width() - 16, 14), int(Qt.AlignmentFlag.AlignLeft), "Key plan")

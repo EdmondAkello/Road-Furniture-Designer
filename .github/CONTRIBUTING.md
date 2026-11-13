@@ -35,7 +35,7 @@ pip install -r requirements.txt pytest
 python -m pytest -q tests                                     # core, no QGIS needed
 python tools/build_plugin.py                                  # copy the core into the plugin
 QT_QPA_PLATFORM=offscreen python -m pytest -q tests_qgis      # with the QGIS Python
-bandit -q -r rfd qgis_plugin -x qgis_plugin/road_furniture_designer/ext_libs,qgis_plugin/road_furniture_designer/rfd
+bandit -q -r qgis_plugin/road_furniture_designer                 # as plugins.qgis.org scans: no config, no findings
 ```
 
 `python tools/sweep_landxml.py <folder>` runs the signs, markings and barrier invariants over your own LandXML files without copying them anywhere.

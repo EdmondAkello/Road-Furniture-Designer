@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.1 — 2026-11-13
+
+A patch for the QGIS plugin repository; not tagged (the citation and DOI stay with 0.12.0).
+
+### Changed
+- **No bundled libraries.** The plugin no longer ships openpyxl, ezdxf and their dependencies (fontTools, pyparsing, typing_extensions, et_xmlfile) in `ext_libs`. Excel workbooks are written by `rfd/xlsx.py` and DXF drawings by `rfd/dxfw.py` (an R2018 writer starting from `rfd/data/RSD_template.dxf`, built by `tools/build_dxf_template.py`), both with the standard library only. The DXF for Civil 3D has the same layers, blocks, attributes, XDATA, hatches and linetypes as before (compared entity by entity on a test project), and the sign list read-back edits the workbook's cells in place, leaving its formatting as it was.
+- The plugin ZIP drops `.bandit` and `.flake8`: Bandit finds nothing in it with no configuration, so plugins.qgis.org validates it without config files. The ZIP is about 10 MB instead of 13 MB (most of it is the sign block library and the user guide).
+- The DXF export is about three times faster (850 signs: 1.0 s instead of 3.4 s).
+- Plugin code tidied for the repository's active Flake8 checks: no lambda assignments (E731) or ambiguous names (E741).
+- An export that cannot write its file (open in Excel or CAD, read-only folder) says so.
+
+### Added
+- `tests/test_xlsx.py`, `tests/test_dxfw.py`: the new writers checked with openpyxl and ezdxf (development dependencies only), including ezdxf's audit, attribute placement against ezdxf's own, editing a workbook saved by another program, and reading back a DXF saved by another program.
+- CI runs Bandit on the built plugin with no configuration, as the plugin repository does.
+
 ## 0.12.0 — 2026-11-13
 
 ### Changed

@@ -10,7 +10,7 @@ import shutil
 from dataclasses import dataclass
 from typing import List
 
-from openpyxl import load_workbook
+from .xlsx import load_workbook
 
 from .alignment import Alignment, format_station
 from .catalogue import Catalogue

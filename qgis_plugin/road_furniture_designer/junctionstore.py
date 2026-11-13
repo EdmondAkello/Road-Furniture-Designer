@@ -606,7 +606,7 @@ class JunctionStore(QObject):
                         found.setdefault(f["junction_id"], []).append(
                             {"kind": kind, "dir": "up" if i == 0 else "down", "layer": lyr.name(), "fid": o.id()})
         self.obstructions = found
-        self.obstruction_layers = [l.name() for l in layers]
+        self.obstruction_layers = [lin.name() for lin in layers]
         return found
 
     def _symbol(self, code):

@@ -4,7 +4,7 @@
 
 A QGIS plugin for designing road furniture along a Civil 3D LandXML alignment to the Kenya Road Design Manual (2025): traffic signs, road markings and studs, safety barriers, traffic calming, pedestrian crossings, speed limit zones, junction islands and markings with visibility splays, roundabouts, private accesses, bus and truck bays and climbing lanes. Written by **Edmond Akello**. Licensed under GPL-2.0-or-later. **Experimental:** treat its proposals as a first draft for an engineer to review.
 
-The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.12.0** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.12.0)](docs/user-guide/Road_Furniture_Designer_0.12.0_User_Guide.pdf) is included and ships inside the plugin, which opens it from the **Guide** button on the dock or **Plugins → Road Furniture Designer → User Guide and Technical Manual**. Source and figure scripts are in `tools/guide`.
+The **[User Guide and Technical Manual](docs/user-guide/user-guide.html)** for version **0.12.1** covers installation, every tab, the report and its checks, and the methods, with figures from a synthetic demonstration road. A [PDF edition (0.12.1)](docs/user-guide/Road_Furniture_Designer_0.12.1_User_Guide.pdf) is included and ships inside the plugin, which opens it from the **Guide** button on the dock or **Plugins → Road Furniture Designer → User Guide and Technical Manual**. Source and figure scripts are in `tools/guide`.
 
 ```
  Civil 3D LandXML ─► QGIS: signs, markings, barriers, calming, speed zones, junctions, roundabouts, bays (by hand or proposed)
@@ -93,9 +93,9 @@ Download the plugin ZIP, `road_furniture_designer-<version>.zip`:
 
 In QGIS, open **Plugins → Manage and Install Plugins → Install from ZIP** and choose that ZIP. Restart QGIS if you are replacing an older version.
 
-Do **not** use GitHub's green **Code → Download ZIP**, or the **Source code (zip)** and **Source code (tar.gz)** links that GitHub adds under every release's Assets: they are the source repository, with the plugin two folders down and without its core and libraries, which `tools/build_plugin.py` copies in. QGIS fails on them with `ModuleNotFoundError: No module named 'Road-Furniture-Designer-...'`. To build the ZIP yourself: `python tools/build_plugin.py road_furniture_designer.zip`, then `python tools/check_plugin_zip.py road_furniture_designer.zip`.
+Do **not** use GitHub's green **Code → Download ZIP**, or the **Source code (zip)** and **Source code (tar.gz)** links that GitHub adds under every release's Assets: they are the source repository, with the plugin two folders down and without its core, which `tools/build_plugin.py` copies in. QGIS fails on them with `ModuleNotFoundError: No module named 'Road-Furniture-Designer-...'`. To build the ZIP yourself: `python tools/build_plugin.py road_furniture_designer.zip`, then `python tools/check_plugin_zip.py road_furniture_designer.zip`.
 
-No pip is needed. The export libraries are bundled in the plugin's `ext_libs` folder as pure Python (openpyxl, ezdxf, fontTools, pyparsing, typing_extensions, et_xmlfile). If QGIS's own Python already has any of them, those copies are used instead.
+No pip and no extra libraries are needed: the plugin writes and reads its Excel workbooks and DXF drawings itself (`rfd/xlsx.py`, `rfd/dxfw.py`), with Python's standard library only.
 
 ## A LandXML with only the centreline (Section tab)
 
@@ -398,7 +398,7 @@ If the first run fails, open an issue with the error. The two places most likely
 The command line covers working without QGIS, from an Excel sign list:
 
 ```
-set PYTHONPATH=vendor\ext_libs        (or: python -m pip install openpyxl ezdxf)
+python -m pip install -r requirements.txt     (only for the tests; the commands need nothing extra)
 python -m rfd template SignList.xlsx --alignment NAME
 python -m rfd build SignList.xlsx road.xml --out outputs
 python -m rfd reconcile SignList.xlsx readback.json road.xml
@@ -432,7 +432,6 @@ rfd/                      core (stdlib; openpyxl/ezdxf only for exports)
   package.py, dxf_out.py  Civil 3D package, placed DXF (georeferenced, callouts), block library, DXF read-back
   signlist.py, reconcile.py, cli.py   Excel route
 qgis_plugin/road_furniture_designer/   plugin (store.py, linestore.py, junctionstore.py, maptool.py, dock.py, report.py, furniture_pages.py, plansheet.py, compat.py); core and vendor/ext_libs copied in by tools/build_plugin.py
-vendor/ext_libs/          bundled pure-Python export libraries
 dynamo/                   rsd_place.py, rsd_readback.py
   safe_xml.py             refuses LandXML files that declare a DOCTYPE or entities, before parsing
 tools/                    extract_rdm_signs.py, extract_wscm_signs.py, build_catalogue.py, build_plugin.py, sweep_landxml.py

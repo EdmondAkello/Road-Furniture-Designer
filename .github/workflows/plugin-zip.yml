@@ -2,7 +2,7 @@ name: plugin zip
 
 # Builds the ZIP that QGIS installs (Plugins > Manage and Install Plugins > Install from ZIP).
 # The repository's own "Download ZIP" is NOT installable: the plugin sits two folders down and
-# its core (rfd/) and export libraries (ext_libs/) are copied in at build time.
+# its core (rfd/) is copied in at build time.
 
 on:
   push:
