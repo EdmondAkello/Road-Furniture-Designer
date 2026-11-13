@@ -73,3 +73,52 @@ def test_escape_ramp_before_a_curve_the_runaway_cannot_take():
     # no 130 m drop: no ramp
     al.profile = VerticalProfile("p", [(0, 400.0, 0), (1600, 300.0, 0), (al.sta_end, 300.0, 0)])
     assert [s for s in D.escape_ramp_sites(al) if s["side"] == "L"] == []
+
+
+def test_escape_ramp_stops_short_where_the_road_bends_back():
+    """Trial fix: before a curve turning towards the ramp's side, a straight ramp ran back across the road."""
+    import math
+    from rfd import junctions as J
+    l1 = Line((0, 0), (1600, 0))
+    arc = Arc((1600, 0), (1600, 150), 150, True, 300)             # turns left: towards the downhill traffic's left
+    al = Alignment("E", [l1, arc], 0.0, [], [(0.0, 80.0)])
+    T = J.load_templates()
+    pl, _ = J.place_lane(al, 1500.0, 1500.0, "L")
+    P = dict(T["pieces"]["escape_ramp"]["params"], bay=420.0)
+    pc = J.build_piece(al, pl, "escape_ramp", "", P, T)
+    assert pc.params["clipped"] == pytest.approx(420.0)
+    assert pc.params["angle_used"] == pytest.approx(12.0) and pc.params["angle"] == pytest.approx(4.0)
+    L = pc.params["bay"]
+    assert 40.0 <= L < 420.0
+    # every point of both ramp edges stays on the left of the road, clear of its edge
+    for part in (p for p in pc.parts if p.code == "RAMP"):
+        (x0, y0), (x1, y1) = part.pts
+        for k in range(0, 101):
+            so = al.station_offset(x0 + (x1 - x0) * k / 100, y0 + (y1 - y0) * k / 100)
+            if so.in_range and so.station > 1520:
+                assert -so.offset > 3.5 + 1.0
+    # a gentler bend: turning a little further from the road is enough, nothing is cut
+    flat = Alignment("F", [Line((0, 0), (1600, 0)), Arc((1600, 0), (1600, 1500), 1500, True, 600)], 0.0, [],
+                     [(0.0, 80.0)])
+    plf, _ = J.place_lane(flat, 1500.0, 1500.0, "L")
+    pcf = J.build_piece(flat, plf, "escape_ramp", "", P, T)
+    assert pcf.params["clipped"] is None and 4.0 < pcf.params["angle_used"] < 12.0
+    # on a long tangent nothing is cut
+    al2 = Alignment.from_polyline("T", [(0, 0), (3000, 0)])
+    pl2, _ = J.place_lane(al2, 1500.0, 1500.0, "L")
+    pc2 = J.build_piece(al2, pl2, "escape_ramp", "", P, T)
+    assert pc2.params["clipped"] is None and pc2.params["bay"] == pytest.approx(420.0)
+    assert pc2.params["angle_used"] == pytest.approx(4.0)
+
+
+def test_escape_ramp_leaves_early_before_a_bend_towards_it():
+    """Before a curve turning to the downhill traffic's left the ramp leaves early enough to lie alongside the
+    tangent; before one turning away it stays near the tangent's end."""
+    def site(ccw):
+        arc = Arc((1600, 0), (1600, 150 if ccw else -150), 150, ccw, 200)
+        al = Alignment("E", [Line((0, 0), (1600, 0)), arc], 0.0, [], [(0.0, 80.0)])
+        al.profile = VerticalProfile("p", [(0, 400.0, 0), (1600, 240.0, 0), (al.sta_end, 240.0, 0)])
+        r, = [s for s in D.escape_ramp_sites(al) if s["side"] == "L"]
+        return r["station"]
+    assert site(False) == pytest.approx(1570.0)
+    assert site(True) == pytest.approx(1330.0, abs=1.0)        # 130 m drop at 1300 m, then 30 m in

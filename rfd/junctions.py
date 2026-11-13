@@ -1443,6 +1443,26 @@ def _bus_bay(F: Frame, spec, P, piece) -> Piece:
     return Piece(piece, spec["name"], "bay", "", parts, q, P)
 
 
+SHOULDER_CODES = ("EPS", "EOS", "Shoulder", "SHLD", "EdgeOfShoulder", "ESH")
+
+
+def _ramp_reach(al, p0, u, sg, length, entry, edge, clear, step=2.0) -> float:
+    """How far a straight ramp from p0 along unit vector u can run before the road comes back towards it. Its
+    road-side edge's clearance beyond the road's outer edge (`edge(station)`, on the ramp's side sg) may grow
+    freely, but once past the paved entry it must not fall more than 0.5 m below its best so far, nor below
+    `clear` once it has reached it. Returns the usable length (at least entry + 10 m)."""
+    d, best = entry, -1e9
+    while d <= length + 1e-9:
+        so = al.station_offset(p0[0] + d * u[0], p0[1] + d * u[1])
+        if so.in_range:
+            c = sg * so.offset - edge(so.station)
+            best = max(best, c)
+            if c < min(clear, best) - 0.5:
+                return max(entry + 10.0, d - step)
+        d += step
+    return length
+
+
 def _escape_ramp(F: Frame, spec, P, piece) -> Piece:
     """Truck escape ramp (RDM 1.3 12.7, Figure 12.12), horizontal layout. It departs from the carriageway edge
     on the downhill traffic's left (Kenya drives on the left) at a small angle to the direction of travel,
@@ -1470,6 +1490,30 @@ def _escape_ramp(F: Frame, spec, P, piece) -> Piece:
     inner0 = (x0, y0)
     outer0 = (x0 + W * nl[0], y0 + W * nl[1])
     along = lambda p, d: (p[0] + d * ur[0], p[1] + d * ur[1])
+    # where the road bends towards the ramp's side, a straight ramp would run back across it: the ramp first
+    # turns further from the road, 1 degree at a time up to `max_angle`, and only then stops short, keeping
+    # `road_clear` m off the road edge (the bed check then asks for a steeper ramp or another site)
+    th0 = th
+
+    def outer_edge(s):                                        # the shoulder where the corridor has one
+        o = edge(s)
+        for c in SHOULDER_CODES:
+            if e and e.data.get((c, side)):
+                v = e.offset(c, side, s)
+                if v is not None:
+                    o = max(o, abs(v))
+        return o
+    asked, clear = Ltot, float(P.get("road_clear", 10.0))
+    th_max = math.radians(max(float(P.get("max_angle", 12.0)), math.degrees(th)))
+    while True:
+        reach = _ramp_reach(al, inner0, ur, sg, asked, Le, outer_edge, clear)
+        if reach >= asked - 0.5 or th >= th_max - 1e-9:
+            break
+        th = min(th + math.radians(1.0), th_max)
+        hr = ht + th
+        ur = (math.cos(hr), math.sin(hr))
+    Ltot = reach
+    outer0 = (x0 - W * ur[1], y0 + W * ur[0])                   # square to the ramp
     inner, outer = [inner0, along(inner0, Ltot)], [outer0, along(outer0, Ltot)]
     # the road edge widening to the ramp over the taper, ending at the outer edge's start
     s0 = s1 - dirn * A
@@ -1494,8 +1538,8 @@ def _escape_ramp(F: Frame, spec, P, piece) -> Piece:
          "bed_m2": round(W * Lbed, 1), "bed_m3": round(vol, 1), "widen_m2": round(W * A / 2, 1)}
     P = dict(P, stations=[round(x, 3) for x in (s0, s1, s1, s1)], side=side, kind=BAY_KINDS[piece],
              edge_code=ecode, origin=[round(x0, 3), round(y0, 3)], heading=round(hr, 6), rolling=rolling,
-             paved=Le, entry=A, exit=0.0, depth=W, bay=Ltot, taper="straight", width=W,
-             angle=math.degrees(th))
+             paved=Le, entry=A, exit=0.0, depth=W, bay=round(Ltot, 2), taper="straight", width=W,
+             angle=math.degrees(th0), angle_used=round(math.degrees(th), 1), clipped=round(asked, 2) if Ltot < asked - 0.5 else None)
     return Piece(piece, spec["name"], "ramp", "", parts, q, P)
 
 

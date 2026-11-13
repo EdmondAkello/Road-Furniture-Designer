@@ -39,6 +39,7 @@ RUNAWAY_ROLLING = 0.01      # rolling resistance of a heavy vehicle on the road 
 RUNAWAY_CAP = 140.0         # km/h: RDM 1.3 12.7.3 example
 TRUCK_FRICTION = 0.10       # side friction a loaded truck can use on a curve (indicative; below cars')
 TOWN_SPEED = 50.0           # km/h: a design speed at or below this marks a populated area
+RAMP_ENTRY = 30.0           # m: paved entry before the arrester bed (template default)
 MIN_TANGENT = 60.0          # m: a ramp departs from a tangent at least this long (indicative)
 
 # RDM 1.3 Table 12.7: rolling resistance of arrester bed materials as an equivalent grade (%)
@@ -183,6 +184,18 @@ def _tangents(al, min_len=MIN_TANGENT):
     return out
 
 
+def _bends_towards_ramp(al, tan, d, look=30.0) -> bool:
+    """Does the road turn towards the downhill traffic's left (the ramp's side) where the tangent ends?
+    The heading change along the direction of travel is the same whichever way the chainage runs; a turn to
+    the traveller's left is a positive (anticlockwise) change."""
+    end = tan[1] if d > 0 else tan[0]
+    nxt = min(max(end + d * look, al.sta_start), al.sta_end)
+    if abs(nxt - end) < 1.0:
+        return False
+    h1, h2 = al.point_at(end)[2], al.point_at(nxt)[2]
+    return math.atan2(math.sin(h2 - h1), math.cos(h2 - h1)) > 1e-4
+
+
 def truck_curve_speed(radius: float, e_pct: float, f: float = TRUCK_FRICTION) -> float:
     """km/h a loaded truck can hold on a curve: V^2 = 127 R (e + f), f below cars' (indicative)."""
     return math.sqrt(max(127.0 * radius * (e_pct / 100.0 + f), 0.0))
@@ -260,17 +273,26 @@ def escape_ramp_sites(al, v0: float = RUNAWAY_START, ramp_grade: float = 10.0,
         if not singular:
             continue
         sp_at, why, _v = singular[0]                     # the first one the truck meets
-        site = None
+        site, tan = None, None
         for a, b in tangents:
             if d > 0:
                 seg = (max(a, gap_at), min(b, sp_at))
-                if seg[1] - seg[0] >= MIN_TANGENT:
-                    site = seg[1] - MIN_TANGENT / 2 if site is None or seg[1] > site else site
+                if seg[1] - seg[0] >= MIN_TANGENT and (site is None or seg[1] > site):
+                    site, tan = seg[1] - MIN_TANGENT / 2, seg
             else:
                 seg = (max(a, sp_at), min(b, gap_at))
                 if seg[1] - seg[0] >= MIN_TANGENT:
                     cand = seg[0] + MIN_TANGENT / 2
-                    site = cand if site is None or cand < site else site
+                    if site is None or cand < site:
+                        site, tan = cand, seg
+        if site is not None and _bends_towards_ramp(al, tan, d):
+            # the road beyond the tangent turns towards the ramp's side: a straight ramp leaving near its end would
+            # run back across the road, so it leaves early enough to lie alongside the tangent
+            for _ in range(2):
+                v = min(_speed_at(speeds, site, d) or v0, RUNAWAY_CAP)
+                need = (ramp_length(v, ramp_grade, rolling) or 300.0) + RAMP_ENTRY
+                site = max(tan[0] + MIN_TANGENT / 2, tan[1] - need) if d > 0 else \
+                    min(tan[1] - MIN_TANGENT / 2, tan[0] + need)
         if site is None:
             out.append({"side": ds.side, "station": None, "singular": sp_at, "reason": why,
                         "note": "no tangent of at least {:.0f} m between the 130 m drop and the {}".format(MIN_TANGENT, why)})

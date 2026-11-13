@@ -812,3 +812,18 @@ def test_clicked_main_road_snaps_to_a_road_layer(tmp_path):
     j = next(f for f in st.junctions.layer.getFeatures() if f["junction_id"] == jid)
     hm = float(j["main_ref"].split(",")[2])
     assert math.cos(hm - hr) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_nothing_to_propose_leaves_the_layers_readable(tmp_path):
+    """Scenario run: an edit session with nothing in it left the GeoPackage sign layer unreadable on a road where
+    auto-placement found nothing, and the signs placed afterwards were lost."""
+    from road_furniture_designer.rfd.autoplace import AutoConfig
+    st, xml = _fill_road(tmp_path)
+    assert st.place_proposals([]) == 0
+    assert st.signs.featureCount() == 0
+    st.auto_propose(AutoConfig())
+    n = st.signs.featureCount()
+    assert n >= 0                                                   # readable after the auto run
+    x, y, _ = st.al.point_at(500.0, -6.0)
+    st.add_sign(x, y, "W30")
+    assert st.signs.featureCount() == n + 1

@@ -38,7 +38,7 @@ FIELDS = [
 TRIGGERS = ("sta", "bearing_deg", "scale", "edge_m")
 # kept with a bay / lane / ramp record (Widenings table, checks, feature lines)
 BAY_KEYS = ("stations", "side", "entry", "exit", "depth", "kind", "bay", "width", "paved", "grade", "material",
-            "rolling", "speed", "reason", "origin", "heading", "angle", "bed_depth")
+            "rolling", "speed", "reason", "origin", "heading", "angle", "bed_depth", "clipped", "angle_used")
 NO_PAINT = ("KERB", "GUIDE", "WIDEN", "BAYEDGE", "SPLAY-A", "SPLAY-S", "SPLAY-M", "ACCESS", "ACCESS-P", "PIPE", "RBEDGE", "APRON",
             "RAMP", "RAMPBED", "RAMPMOUND")
 STYLE = {   # code -> (colour, width mm, dashed)

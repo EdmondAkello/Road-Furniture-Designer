@@ -554,7 +554,10 @@ class SignStore(QObject):
 
     def _end_batch(self):
         b, self._batch = getattr(self, "_batch", None), None
-        if b and b["started"]:
+        if b and b["started"] and not self.signs.isModified():
+            # nothing changed: committing an empty edit session can leave a GeoPackage layer unreadable
+            self.signs.rollBack()
+        elif b and b["started"]:
             self._busy = True
             try:
                 if not self.signs.commitChanges():
@@ -768,6 +771,9 @@ class SignStore(QObject):
         ref = cfg.edge_ref or self.default_edge_ref()
         hosts = {}
         added = 0
+        if not props:
+            # no edit session for nothing: an empty one can leave the GeoPackage layer unreadable
+            return 0
         nested = getattr(self, "_batch", None) is not None
         if not nested:
             self._begin_batch()
@@ -1415,9 +1421,14 @@ class SignStore(QObject):
                 self.add_junction(pl, "RAMP", params={"bay": round(L + P["entry"]), "speed": r["speed"],
                                                       "reason": r["reason"]})
                 n += 1
+                j = next((j for j in self.junctions.junctions() if j["id"] == pl.junction_id), None)
+                cut = (j or {}).get("bay", {}).get("clipped")
+                bed = (float(j["bay"]["bay"]) - P["entry"]) if cut else L
                 notes.append(f"Escape ramp, {tag(r['side'])}, Ch {format_station(self.al.display_station(r['station']), 0)}: "
                              f"{r['note']}; arrester bed {L:.0f} m on a {P['grade']:.0f} % ascending ramp of loose "
-                             f"gravel (Equation 12.1)")
+                             f"gravel (Equation 12.1)"
+                             + (f"; the road bends back towards it, so it stops short at {bed:.0f} m: steepen the "
+                                f"ramp in its properties where the ground rises, or move it" if cut else ""))
         return n, notes
 
     @journaled("Remove a junction")

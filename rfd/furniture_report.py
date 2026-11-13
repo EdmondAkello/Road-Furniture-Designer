@@ -558,11 +558,14 @@ def descent_checks(al, junctions) -> List[Check]:
         rolling = float(b.get("rolling") or 10.0)
         bed = float(b.get("bay") or 0.0) - float(b.get("paved") or 0.0)
         need = D.ramp_length(float(v), float(b.get("grade") or 0.0), rolling) if v else None
+        short = (f"; it stops short of the road where the road bends back towards it (asked {float(b['clipped']):.0f} m): "
+                 f"a steeper ascending ramp where the ground rises, a stiffer bed material or another site"
+                 if b.get("clipped") else "")
         if need is not None and bed < need - 1.0:
             out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where}: arrester bed {bed:.0f} m, "
                              f"under the {need:.0f} m Equation 12.1 gives for {float(v):.0f} km/h on a "
                              f"{float(b.get('grade') or 0):.0f} % ramp of {b.get('material', 'loose gravel').lower()} "
-                             f"(RDM 1.3 12.7.3)", "issue", {"bed": bed, "need": need}))
+                             f"(RDM 1.3 12.7.3){short}", "issue", {"bed": bed, "need": need}))
         elif need is not None:
             out.append(Check("escape_ramp", s1, s1, b["side"], f"escape ramp at {where}: arrester bed {bed:.0f} m for "
                              f"{float(v):.0f} km/h (Equation 12.1 needs {need:.0f} m)", "info"))
@@ -714,8 +717,9 @@ def strip_lanes(al, runs, lcat, signs, zones, groups) -> List[Lane]:
     L = lambda name, kind: Lane(name, kind)
     lanes = {k: L(n, t) for k, n, t in (
         ("sL", "Signs, left (→)", "ticks"), ("bL", "Barrier, left", "bars"), ("eL", "Edge line, left", "bars"),
-        ("c", "Centre line", "bars"), ("st", "Road studs", "bars"), ("eR", "Edge line, right", "bars"),
+        ("c", "Centre line", "bars"), ("eR", "Edge line, right", "bars"),
         ("bR", "Barrier, right", "bars"), ("sR", "Signs, right (←)", "ticks"),
+        ("st", "Road studs", "bars"),          # below the road, so the centre line sits midway between the edges
         ("f", "Calming / crossings", "ticks"), ("sp", "Speed limit zones", "bars"),
         ("noF", "No overtaking →  (PSD)", "bars"),
         ("noB", "No overtaking ←  (PSD)", "bars"))}

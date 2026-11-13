@@ -713,12 +713,14 @@
     "taper": 50.0,
     "width": 8.0,
     "angle": 4.0,
+    "max_angle": 12.0,
+    "road_clear": 10.0,
     "grade": 10.0,
     "material": "Gravel, loose",
     "mound": 1.0,
     "bed_depth": 1.0
    },
-   "remark": "Departs tangentially on the downhill traffic's left at a small angle (4 deg here); the road edge widens to the ramp over a 50 m taper; 30 m of paved entry, then the arrester bed and a 'last chance' mound at the end. Bed length from Equation 12.1 for the runaway speed."
+   "remark": "Departs tangentially on the downhill traffic's left at a small angle (4 deg here); the road edge widens to the ramp over a 50 m taper; where the road bends towards it the ramp turns further away (up to 12 deg) and otherwise stops short, 10 m clear of the shoulder; 30 m of paved entry, then the arrester bed and a 'last chance' mound at the end. Bed length from Equation 12.1 for the runaway speed."
   }
  },
  "kits": {

@@ -52,6 +52,12 @@ class RsdDock(QDockWidget):
         for b in (self.btn_undo, self.btn_redo):
             b.setEnabled(False); b.setMaximumWidth(60)
         row.addWidget(self.btn_undo); row.addWidget(self.btn_redo)
+        self.btn_guide = QPushButton("Guide")
+        self.btn_guide.setMaximumWidth(60)
+        self.btn_guide.setToolTip("Open the User Guide and Technical Manual (PDF) for this version")
+        from .links import open_guide
+        self.btn_guide.clicked.connect(open_guide)
+        row.addWidget(self.btn_guide)
         lay.addLayout(row)
         self.lbl_project = QLabel("No project open")
         self.lbl_project.setWordWrap(True)
@@ -144,8 +150,11 @@ class RsdDock(QDockWidget):
         self.lst_review.setWordWrap(True)
         il.addWidget(self.lst_review, 1)
         self.btn_inv = QPushButton("Export inventory (Excel + CSV)…")
-        self.btn_c3d = QPushButton("Export to Civil 3D (package + DXF)…")
+        self.btn_c3d = QPushButton("Export to Civil 3D (DXF)…")
+        self.btn_c3d.setToolTip("Georeferenced DXF of the signs, markings, barriers and junctions to paste into "
+                                "a Civil 3D drawing at the true coordinates (COPYBASE / PASTEORIG)")
         self.btn_rb = QPushButton("Import Civil 3D read-back…")
+        self.btn_rb.setVisible(False)          # parked with the Dynamo link
         self.btn_recalc = QPushButton("Recompute all chainages")
         self.btn_report = QPushButton("Road furniture report (PDF + PNG sheets + Excel)…")
         for b in (self.btn_report, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc):
@@ -747,7 +756,7 @@ class RsdDock(QDockWidget):
         "Fixed offset (else taken from the click)": "Fixed offset",
         "Guide lines (edges, kerb returns, Rc arcs)": "Guide lines",
         "Road furniture report (PDF + PNG sheets + Excel)…": "Road furniture report…",
-        "Export to Civil 3D (package + DXF)…": "Export to Civil 3D…",
+        "Export to Civil 3D (DXF)…": "Export to Civil 3D (DXF)…",
         "Remove selected feature (with its signs and markings)": "Remove selected feature",
         "Remove selected zone (with its signs)": "Remove selected zone",
         "Draw on map (start, end; one click for crossings and humps)": "Draw on map",
@@ -2130,10 +2139,12 @@ class RsdDock(QDockWidget):
 
     def export_civil3d(self):
         base = os.path.splitext(self.store.gpkg)[0]
-        p, _ = QFileDialog.getSaveFileName(self, "Civil 3D placement package", base + "_placement.json",
-                                           "JSON (*.json)")
-        if not p:
+        dxf, _ = QFileDialog.getSaveFileName(self, "DXF for Civil 3D", base + "_placement.dxf", "DXF (*.dxf)")
+        if not dxf:
             return
+        if not dxf.lower().endswith(".dxf"):
+            dxf += ".dxf"
+        p = os.path.splitext(dxf)[0] + ".json"         # the placement package beside it (for the parked Dynamo route)
         scales = ["1:500", "1:1000", "1:1250", "1:2000", "1:2500", "1:5000"]
         sc, ok = QInputDialog.getItem(self, "Plan scale", "Drawing scale for sign symbols and text "
                                       "(symbols print ~10 mm, 25 m at 1:2500):", scales, 4, False)
@@ -2142,15 +2153,15 @@ class RsdDock(QDockWidget):
         plan_scale = float(sc.split(":")[1])
         try:
             with _busy():
-                sl = self.store.export_civil3d(p, os.path.splitext(p)[0] + ".dxf", plan_scale=plan_scale)
+                sl = self.store.export_civil3d(p, dxf, plan_scale=plan_scale)
         except ImportError as ex:
             return self._need_libs(ex)
         except ValueError as ex:
             QMessageBox.warning(self, "Road Furniture Designer", str(ex))
             return
         self.iface.messageBar().pushMessage(
-            "Road Furniture Designer", f"{len(sl.faces)} signs at {sc} → {p}. In Dynamo use symbol scale "
-            f"{10 * plan_scale / 1000:g} and the exported DXF as the block source.", MSG_SUCCESS, 10)
+            "Road Furniture Designer", f"{len(sl.faces)} signs at {sc} → {dxf}. In Civil 3D open it, COPYBASE "
+            f"at 0,0 and PASTEORIG into the project drawing.", MSG_SUCCESS, 10)
 
     def import_readback(self):
         p, _ = QFileDialog.getOpenFileName(self, "Civil 3D read-back", "", "JSON (*.json)")
