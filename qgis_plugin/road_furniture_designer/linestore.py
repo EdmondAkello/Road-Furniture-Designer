@@ -11,7 +11,7 @@ from qgis.PyQt.QtCore import QObject, QVariant, pyqtSignal
 from qgis.core import (QgsCategorizedSymbolRenderer, QgsFeature, QgsFields, QgsGeometry, QgsLineSymbol, QgsPointXY,
                        QgsRendererCategory, QgsVectorLayer)
 
-from .compat import WKB_MULTILINESTRING, make_field
+from .compat import PROP_CUSTOM_DASH, WKB_MULTILINESTRING, make_field
 from .rfd.alignment import format_station
 from .rfd.linear import LinearCatalogue, Run, clamp_run, geometry, pattern, run_quantities, summarise
 
@@ -327,7 +327,7 @@ class LineStore(QObject):
         continuous line swapping sides with "flip"), broken lines dashed at their real mark / gap in metres
         (rural or urban pattern by the run's speed), a dark casing under a coloured core."""
         from qgis.core import (QgsGeometryGeneratorSymbolLayer, QgsProperty, QgsSimpleLineSymbolLayer,
-                               QgsSymbolLayer, QgsUnitTypes)
+                               QgsUnitTypes)
         from .rfd.linear import RURAL_SPEED, line_layout
         mu = getattr(QgsUnitTypes, "RenderMapUnits", None)
         try:
@@ -350,7 +350,7 @@ class LineStore(QObject):
                     ln.setCustomDashPatternUnit(mu)
                     ln.setCustomDashVector([float(d.get("mark") or du["mark"]), float(d.get("gap") or du["gap"])])
                     if (d.get("mark"), d.get("gap")) != (du.get("mark"), du.get("gap")):
-                        ln.setDataDefinedProperty(QgsSymbolLayer.Property.CustomDash, QgsProperty.fromExpression(
+                        ln.setDataDefinedProperty(PROP_CUSTOM_DASH, QgsProperty.fromExpression(
                             f"if(coalesce(\"speed_kmh\", {RURAL_SPEED:g}) >= {RURAL_SPEED:g}, "
                             f"'{d['mark']:g};{d['gap']:g}', '{du['mark']:g};{du['gap']:g}')"))
                 sub.appendSymbolLayer(ln)
