@@ -30,6 +30,8 @@ median barriers.
 """
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -203,9 +205,13 @@ def fills(al, cfg: BarrierConfig) -> Tuple[List[SideFill], str]:
                     far = line[-1][0] + 20.0
                     n = max(2, int(far / 0.5) + 1)
                     ground = []
+                    # the samples lie on the section's normal: the centre point and heading once per station
+                    # (al.point_at per sample recomputed them, integrating spirals, ~30 times per side)
+                    cx, cy, h = al.point_at(sta)
+                    nx, ny = math.sin(h) * sg, -math.cos(h) * sg
                     for k in range(n):
                         o = far * k / (n - 1)
-                        x, y, _ = al.point_at(sta, sg * o)
+                        x, y = cx + o * nx, cy + o * ny
                         z = tin.z(x, y)
                         if z is not None:
                             ground.append((o, z))

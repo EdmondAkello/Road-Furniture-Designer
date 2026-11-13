@@ -107,21 +107,46 @@ class Spiral(Element):
     def _raw_heading(self, s):
         return self.h0 + self.k0 * s + (self.k1 - self.k0) * s * s / (2.0 * self.length)
 
-    def point(self, s):
-        # Composite Simpson on cos/sin of heading; plenty accurate for road spirals.
-        if s <= 0:
-            return self.start
-        n = max(16, int(s / 0.5) * 2)
-        if n % 2:
-            n += 1
-        h = s / n
+    _STEP = 1.0                                 # m between cached points
+
+    def _simpson(self, a, b, n):
+        """Composite Simpson of (cos, sin) of the heading from a to b (n even)."""
+        h = (b - a) / n
         sx = sy = 0.0
         for i in range(n + 1):
             w = 1 if i in (0, n) else (4 if i % 2 else 2)
-            th = self._raw_heading(i * h)
+            th = self._raw_heading(a + i * h)
             sx += w * math.cos(th)
             sy += w * math.sin(th)
-        return (self.start[0] + sx * h / 3.0, self.start[1] + sy * h / 3.0)
+        return sx * h / 3.0, sy * h / 3.0
+
+    def _nodes(self):
+        """(x, y) every _STEP from the start, integrated once (Simpson, 4 samples per metre as before)."""
+        nodes = self.__dict__.get("_node_cache")
+        if nodes is None:
+            nodes = [self.start]
+            k = 0
+            while (k + 1) * self._STEP <= self.length + 1e-9:
+                dx, dy = self._simpson(k * self._STEP, (k + 1) * self._STEP, 4)
+                x, y = nodes[-1]
+                nodes.append((x + dx, y + dy))
+                k += 1
+            self.__dict__["_node_cache"] = nodes
+        return nodes
+
+    def point(self, s):
+        # Composite Simpson on cos/sin of heading, from the cached point at the metre below s: the same
+        # accuracy as integrating from the start, without redoing the whole spiral for every point.
+        if s <= 0:
+            return self.start
+        nodes = self._nodes()
+        k = min(int(s / self._STEP), len(nodes) - 1)
+        x, y = nodes[k]
+        r = s - k * self._STEP
+        if r <= 1e-12:
+            return (x, y)
+        dx, dy = self._simpson(k * self._STEP, s, 4)
+        return (x + dx, y + dy)
 
 
 # --------------------------------------------------------------------------- alignment

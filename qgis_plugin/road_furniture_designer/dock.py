@@ -1946,7 +1946,8 @@ class RsdDock(QDockWidget):
     def run_auto(self):
         if self.store.meta.get("criteria") != self.cmb_crit.currentData():
             self.store.set_meta(criteria=self.cmb_crit.currentData())
-        n, findings = self.store.auto_propose(self.auto_config(), restrict=self.chk_restrict.isChecked())
+        with _busy():
+            n, findings = self.store.auto_propose(self.auto_config(), restrict=self.chk_restrict.isChecked())
         self.lst_findings.clear()
         names = {"curve": "Curve", "grade_descent": "Steep descent", "grade_ascent": "Steep ascent",
                  "no_overtaking": "No overtaking", "sag_headlight": "Sag (headlights)",

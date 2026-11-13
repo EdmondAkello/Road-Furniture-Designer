@@ -81,14 +81,29 @@ class Tin:
     def _iy(self, y):
         return int((y - self.y0) // self.cell)
 
+    def _in(self, i, x, y):
+        p, q, r, det = self.tris[i]
+        l1 = ((q[1] - r[1]) * (x - r[0]) + (r[0] - q[0]) * (y - r[1])) / det
+        l2 = ((r[1] - p[1]) * (x - r[0]) + (p[0] - r[0]) * (y - r[1])) / det
+        l3 = 1.0 - l1 - l2
+        if l1 >= -1e-9 and l2 >= -1e-9 and l3 >= -1e-9:
+            return l1 * p[2] + l2 * q[2] + l3 * r[2]
+        return None
+
     def z(self, x: float, y: float) -> Optional[float]:
+        # samples along a section usually fall in the triangle of the one before: try it first
+        last = getattr(self, "_last", None)
+        if last is not None:
+            v = self._in(last, x, y)
+            if v is not None:
+                return v
         for i in self.grid.get((self._ix(x), self._iy(y)), ()):
-            p, q, r, det = self.tris[i]
-            l1 = ((q[1] - r[1]) * (x - r[0]) + (r[0] - q[0]) * (y - r[1])) / det
-            l2 = ((r[1] - p[1]) * (x - r[0]) + (p[0] - r[0]) * (y - r[1])) / det
-            l3 = 1.0 - l1 - l2
-            if l1 >= -1e-9 and l2 >= -1e-9 and l3 >= -1e-9:
-                return l1 * p[2] + l2 * q[2] + l3 * r[2]
+            if i == last:
+                continue
+            v = self._in(i, x, y)
+            if v is not None:
+                self._last = i
+                return v
         return None
 
 
