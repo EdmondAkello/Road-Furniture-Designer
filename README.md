@@ -99,7 +99,7 @@ No pip is needed. The export libraries are bundled in the plugin's `ext_libs` fo
 
 ## A LandXML with only the centreline (Section tab)
 
-For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** (Outputs tab) writes the edges and the widened edges of bays, lanes and junctions as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
+For rapid planning or a self-audit, the alignment with its design and existing ground profiles is enough. Give a **typical section** on the Section tab: the elements on each side from the centreline outwards (`ETW 3.5, EPS 2.0, Walkway 3.0` ...), by chainage range, or a standard single-carriageway section from RDM 1.3 Tables 4.23 / 4.24 (R4-R9, U5, U6). It produces the same edges a corridor gives, so every tool measures from and snaps to them, and embankment barriers are estimated from the profiles and a fill batter. **Feature lines for Civil 3D** (Outputs tab) writes the edges, the widened edges of bays, lanes and junctions, the kerbs of islands, accesses and roundabouts, and the edges of escape ramps as 3D feature lines in a LandXML (levels from the profile and the section) to import into Civil 3D as corridor targets. The report says the edges are assumed. Where the LandXML has a corridor it is used, unless you choose the section; the difference between the two is listed.
 
 ## Auto-placement (Auto tab)
 
@@ -216,6 +216,20 @@ The Excel sheet **Widenings** is the widening table for Civil 3D: widening from,
 - 100 m tapers. The lane is as wide as the adjacent through lane less 0.25 m where that is 3.25 m or more.
 - Draws the new edge line (LM26) and the broken lane line (LM03), and proposes WSCM-I1 at the entry taper and WSCM-I2 where the exit taper starts.
 - Lanes and bus bays share the Excel sheet **Widenings**, the widening table for Civil 3D.
+
+**Descending lanes, brake check areas and escape ramps** (types **DESC**, **BCA**, **RAMP**; RDM 1.3 6.6.4, 12.5, 12.7). **Propose from the profile** follows a loaded truck down each downgrade over 3 % (easier stretches up to 150 m are bridged), from 40 km/h, losing 1 % of the grade to rolling resistance, to 140 km/h at most:
+- **Descending lane**: where the opposite upgrade warrants a climbing lane and the downgrade is over 1000 m (with an AADT, the same thresholds as climbing lanes). Drawn like a climbing lane, I12 proposed.
+- **Brake check area**: at the top of a descent that drops 100 m, or runs 1000 m at 5 % or more, with about 500 trucks a day or more; a 100 m bay ending 100 m before the top, I15 with I14 500 m ahead, W30.
+- **Escape ramp**: on a tangent before a singular point a runaway truck cannot take (a curve too tight for its speed at f = 0.10, a town at 50 km/h or less, or the end of the road), once the road has dropped 130 m. Bed length from Eq 12.1, L = V² / (254 (R + G) / 100), with the rolling resistance of Table 12.7 (loose crushed aggregate 5 %, loose gravel 10 %, sand 15 %, pea gravel 25 %); 8 m wide, departing at 4° on the downhill traffic's left after a 50 m taper and 30 m paved entry, arrester bed 1.0 m deep and an end mound. E1 at 1000 m and 500 m, I33 at 200 m, I32 at the ramp and P14 are proposed.
+- Each ramp is checked: on a curve, width outside 3.6–12 m, a bed shorter than Eq 12.1 needs, and a ramp site with no ramp within 500 m. The edges go to the feature-line export at the ramp grade.
+
+**Properties and departures.** Select a placed junction, bay, lane or ramp: the **Properties** table lists its dimensions (taper, depth, width, bed length, grade, material, radii ...) with the RDM drawing's value beside each. Change a value and give a reason: the item is rebuilt and the change is reported as a **departure** with its reason in the furniture checks (one without a reason is flagged).
+
+**Handles.** With **Move** a bay, lane or ramp's start or end can be dragged along the road to change its length (click within 8 m of the end); elsewhere the whole item moves.
+
+**Undo / Redo** (project row, 30 steps) for placing, moving, removing and editing signs, lines, junctions, bays and lanes, and for the proposals.
+
+**Snapping to a road layer.** Where our road joins a road that is not in the LandXML, pick that road's line layer (any line layer of the project) as the **Main road**: the clicked direction follows its nearest segment within 25 m of the junction, so it doesn't have to be aimed by hand.
 
 **Guide lines** (on by default) are construction lines for sketching and fitting: the main-road edge, the minor road centreline and edges, the kerb returns (single-radius fillets, 30 m for A, 25 m for B, 15 m otherwise) and the Rc turning arcs (tangent to the main-road centreline through the splitter nose, Rc 15 m as recommended on RDM/1/3/2/01). They carry no quantities and sit on their own layer category and DXF layer (`RSD-JN-GUIDE`) so you can switch them off.
 
@@ -432,13 +446,9 @@ Build the plugin zip: `python tools/build_plugin.py road_furniture_designer.zip`
 
 ## Roadmap
 
-Next releases:
+Descents (descending lanes, brake check areas, escape ramps), interaction (properties, handles, undo, snapping to road layers) and Civil 3D geometry (widenings, islands and ramps as feature lines) came in 0.11.0.
 
-- **0.11 Descents**: descending lanes, brake check areas and truck escape ramps (horizontal layout for Civil 3D).
-- **0.12 Interaction**: handles on placed items, a properties panel, snapping between items and undo.
-- **0.13 Civil 3D geometry**: widenings and islands exported as Civil 3D-ready geometry.
-
-Later:
+Next:
 
 - Markings at junctions (breaks, splayed and hatched double lines, RDM 6.1 Figure 4.6) and lane lines on multi-lane roads.
 - Barriers for roadside obstacles (RDM 1.3 Table 12.4), median barriers and terminal flares.
@@ -474,4 +484,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.10.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252). Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.10.0) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738). Citation metadata is in `CITATION.cff`.

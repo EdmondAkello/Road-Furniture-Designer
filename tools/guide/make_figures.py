@@ -82,6 +82,8 @@ st.add_junction(J.place_roundabout(st.al, _rx, _ry), "RBT", "", False,
                 False, None)
 pl, B = J.place_bay(st.al, *P(2420.0, -5.0), *P(2490.0, -5.0))       # a truck parking bay on the straight
 st.add_junction(pl, "TRUCK", params={"bay": B})
+pl, B = J.place_bay(st.al, *P(3620.0, -5.0), *P(3780.0, -5.0))       # an escape ramp on the descent, by hand
+st.add_junction(pl, "RAMP", params={"bay": B})
 _sx, _sy, _sh = st.al.point_at(3290.0)                               # a signalised crossroads in the village
 st.add_junction(J.place(st.al, _sx, _sy, _sx + 40 * math.cos(_sh + math.pi / 2), _sy + 40 * math.sin(_sh + math.pi / 2)),
                 "SIG")
@@ -137,6 +139,10 @@ x, y = P(2080, 11)                                                    # the priv
 render_map(QgsRectangle(x - 27, y - 18, x + 27, y + 18), (1500, 1000), "fig_map_access.png")
 x, y = P(2452, 0)                                                     # the truck parking bay
 render_map(QgsRectangle(x - 75, y - 50, x + 75, y + 50), (1500, 1000), "fig_map_truckbay.png")
+_ex, _ey, _eh = st.al.point_at(3620.0, -5.0)                       # the escape ramp, along its 160 m
+_ux, _uy = math.cos(_eh + math.radians(4)), math.sin(_eh + math.radians(4))
+x, y = _ex + 70 * _ux, _ey + 70 * _uy - 8
+render_map(QgsRectangle(x - 120, y - 80, x + 120, y + 80), (1500, 1000), "fig_map_ramp.png")
 x, y = P(3290, 0)                                                     # the signalised crossroads
 render_map(QgsRectangle(x - 60, y - 40, x + 60, y + 40), (1500, 1000), "fig_map_signals.png")
 cx, cy, ch = st.al.point_at(2300.0, -14.0)                           # type A-1 junction with its widening,
