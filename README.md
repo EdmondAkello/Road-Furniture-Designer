@@ -484,4 +484,4 @@ See [CHANGELOG.md](CHANGELOG.md). The plugin began in November 2026 as RoadSign 
 
 ## Citation
 
-If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.11.1) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738; 0.11.0: https://doi.org/10.5281/zenodo.24199986). Citation metadata is in `CITATION.cff`.
+If you use the plugin in your work, please cite it: Akello, E. Road Furniture Designer (version 0.11.1) [QGIS plugin]. https://doi.org/10.5281/zenodo.24162212. This DOI covers all versions and resolves to the latest; each version also has its own DOI on Zenodo (0.9.0: https://doi.org/10.5281/zenodo.24190252; 0.10.0: https://doi.org/10.5281/zenodo.24194738; 0.11.1: https://doi.org/10.5281/zenodo.24200468). Citation metadata is in `CITATION.cff`.

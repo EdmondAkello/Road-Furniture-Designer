@@ -38,7 +38,10 @@ identifiers:
     description: "Version 0.10.0"
   - type: doi
     value: "10.5281/zenodo.24199986"
-    description: "Version 0.11.0"
+    description: "Version 0.11.0 (tagged on the 0.10 commit by mistake; superseded by 0.11.1)"
+  - type: doi
+    value: "10.5281/zenodo.24200468"
+    description: "Version 0.11.1"
 date-released: "2026-11-13"
 license: GPL-2.0-or-later
 type: software
