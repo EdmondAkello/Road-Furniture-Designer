@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (0.12.0)
+
+### Changed
+- **QGIS 4 (Qt6)**: the plugin runs on QGIS 3.44 to 4.x (`qgisMinimumVersion=3.44`, `qgisMaximumVersion=4.99`). QGIS 3.34 to 3.42 are no longer supported.
+- Qt enums are written in their scoped form throughout (`Qt.ItemDataRole.UserRole`, `QHeaderView.ResizeMode.Stretch`, ...), `exec()` replaces `exec_()`, geometry types use `Qgis.GeometryType`, layer fields use `QMetaType.Type` (PyQt6 has no `QVariant.String`), and `QAction` is imported from QtGui on Qt6.
+- The vendored ezdxf and fontTools Qt viewers and browsers (`ezdxf/addons/xqt.py`, `browser/`, `acisbrowser/`, `drawing/pyqt.py`, `drawing/qtviewer.py`, `hpgl2/viewer.py`, `fontTools/pens/qtPen.py`) are left out of the plugin; RFD never used them and they failed plugins.qgis.org's Qt6 check.
+- The QGIS 3.34 work-arounds are gone (`compat.prop()`, the pre-3.38 `make_field` branch). CI runs the QGIS tests on 3.44 and 4.2.
+
+### Added
+- `tests/test_qt6_static.py`: the plugin code has no unscoped Qt enums, `exec_()`, direct PyQt imports, `QVariant` field types or `QRegExp`; metadata targets QGIS 4; the plugin's `ext_libs` holds no module importing PyQt or PySide at top level.
+
 ## 0.11.2 — 2026-11-13
 
 ### Changed

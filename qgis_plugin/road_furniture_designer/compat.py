@@ -1,9 +1,8 @@
-"""QGIS enums and helpers for QGIS 3.34 - 3.44+ (the plugin needs 3.34 or later).
+"""QGIS enums and helpers for QGIS 3.44 - 4.x (Qt5 and Qt6; the plugin needs 3.44 or later).
 
-QGIS 3.44 enforces the scoped enums (Qgis.LabelPlacement, Qgis.WkbType, ...), and some old unscoped
-aliases (e.g. QgsPalLayerSettings.OverPoint) resolve to the wrong enum there. All the scoped forms below
-exist from QGIS 3.30, so they are used directly. QgsSymbolLayer.Property is the exception: it became
-scoped in QGIS 3.36 (Property.Name); 3.34 only has the old member names (PropertyName), so prop() tries both.
+QGIS 4 (Qt6 / PyQt6) only has the scoped enums (Qgis.LabelPlacement, Qgis.WkbType, Qt.ItemDataRole.UserRole,
+...), and some old unscoped aliases (e.g. QgsPalLayerSettings.OverPoint) resolve to the wrong enum on
+3.44. The scoped forms below exist on every supported version, so they are used directly.
 """
 from qgis.core import Qgis, QgsSimpleMarkerSymbolLayerBase, QgsSymbolLayer, QgsVectorFileWriter  # noqa: F401
 
@@ -19,19 +18,12 @@ GEOM_POINT = Qgis.GeometryType.Point
 
 
 
-def prop(name):
-    """A symbol layer data-defined property key: QgsSymbolLayer.Property.<name> on QGIS 3.36+, and
-    QgsSymbolLayer.Property<name> on 3.34."""
-    scoped = getattr(QgsSymbolLayer.Property, name, None)
-    return scoped if scoped is not None else getattr(QgsSymbolLayer, "Property" + name)
-
-
-PROP_NAME = prop("Name")
-PROP_ANGLE = prop("Angle")
-PROP_SIZE = prop("Size")
-PROP_OFFSET = prop("Offset")
-PROP_ENABLED = prop("LayerEnabled")
-PROP_CUSTOM_DASH = prop("CustomDash")
+PROP_NAME = QgsSymbolLayer.Property.Name
+PROP_ANGLE = QgsSymbolLayer.Property.Angle
+PROP_SIZE = QgsSymbolLayer.Property.Size
+PROP_OFFSET = QgsSymbolLayer.Property.Offset
+PROP_ENABLED = QgsSymbolLayer.Property.LayerEnabled
+PROP_CUSTOM_DASH = QgsSymbolLayer.Property.CustomDash
 
 MARKER_ARROWHEAD = Qgis.MarkerShape.ArrowHeadFilled
 GEOM_CIRCLE = Qgis.MarkerShape.Circle
@@ -46,11 +38,14 @@ MSG_SUCCESS = Qgis.MessageLevel.Success
 MSG_LEVELS = {0: MSG_INFO, 1: MSG_WARNING, 2: Qgis.MessageLevel.Critical}
 
 
-def make_field(name, qvariant_type):
-    """A QgsField from a QVariant type: through QMetaType on QGIS 3.38+, where the QVariant form is
-    deprecated, and the old constructor before it."""
+def make_field(name, meta_type):
+    """A QgsField from a QMetaType.Type (QMetaType.Type.QString, .Double, .Int); the QVariant type
+    form is deprecated on QGIS 3.x and gone with PyQt6."""
     from qgis.core import QgsField
-    if Qgis.versionInt() >= 33800:
-        from qgis.PyQt.QtCore import QMetaType
-        return QgsField(name, QMetaType.Type(int(qvariant_type)))
-    return QgsField(name, qvariant_type)
+    return QgsField(name, meta_type)
+
+
+try:                                    # Qt6 moved QAction from QtWidgets to QtGui
+    from qgis.PyQt.QtGui import QAction  # noqa: F401
+except ImportError:
+    from qgis.PyQt.QtWidgets import QAction  # noqa: F401
