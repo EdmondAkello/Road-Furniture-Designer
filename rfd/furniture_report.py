@@ -759,6 +759,13 @@ def build(al, runs, lcat, signs, auto_cfg, barrier_cfg=None, feature_cfg=None, w
     from .features import FeatureConfig
     from .linear import summarise
     notes = []
+    if getattr(al, "edge_source", "") == "typical section":
+        notes.append("Road edges are from the typical section (assumed), not a Civil 3D corridor; embankment "
+                     "fill heights are estimated from the design and existing ground profiles at the centreline "
+                     "and the section's batter. Re-check when the corridor is exported.")
+    elif not getattr(al, "edges", None):
+        notes.append("The LandXML has no corridor and no typical section is set: edges, clearances and "
+                     "embankment barriers were not assessed.")
     zones = no_overtaking_zones(al, auto_cfg)
     if vfindings is None:
         vfindings = analyse(al, auto_cfg)

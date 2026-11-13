@@ -190,6 +190,69 @@ class RsdDock(QDockWidget):
         al_.addLayout(ar)
         tabs.addTab(aw, "Auto")
 
+        # ---------------- Section tab: typical section for a centreline-only LandXML
+        tw = QWidget(); tl = QVBoxLayout(tw)
+        self.lbl_tsource = QLabel("Road edges: —"); self.lbl_tsource.setWordWrap(True)
+        tl.addWidget(self.lbl_tsource)
+        tsr = QHBoxLayout()
+        self.cmb_tstd = QComboBox()
+        from .rfd.typical_section import STANDARD
+        for k, v in STANDARD.items():
+            self.cmb_tstd.addItem(k, k)
+            self.cmb_tstd.setItemData(self.cmb_tstd.count() - 1, v["name"], Qt.ItemDataRole.ToolTipRole
+                                      if hasattr(Qt, "ItemDataRole") else Qt.ToolTipRole)
+        self.cmb_tstd.setToolTip("RDM 1.3 Tables 4.23 / 4.24, single carriageways")
+        self.btn_tstd = QPushButton("Use standard")
+        self.btn_tstd.setToolTip("Replace the ranges with one range of this standard section for the whole road")
+        tsr.addWidget(self.cmb_tstd, 1); tsr.addWidget(self.btn_tstd)
+        tl.addLayout(tsr)
+        self.tbl_ts = QTableWidget(0, 4)
+        self.tbl_ts.setHorizontalHeaderLabels(["From", "To", "Left", "Right"])
+        self.tbl_ts.setToolTip("One row per chainage range (blank From / To: the road's start / end). Left and "
+                               "right: elements from the centreline outwards as CODE width, e.g. "
+                               "ETW 3.5, EPS 2.0, Walkway 3.0")
+        hh = self.tbl_ts.horizontalHeader()
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive if hasattr(QHeaderView, "ResizeMode")
+                                else QHeaderView.Interactive)
+        hh.setStretchLastSection(True)
+        for col, cw in ((0, 52), (1, 52), (2, 110)):
+            self.tbl_ts.setColumnWidth(col, cw)
+        tl.addWidget(self.tbl_ts, 1)
+        trb = QHBoxLayout()
+        self.btn_tadd = QPushButton("Add range"); self.btn_tdel = QPushButton("Remove range")
+        trb.addWidget(self.btn_tadd); trb.addWidget(self.btn_tdel)
+        tl.addLayout(trb)
+        tf = QFormLayout()
+
+        def _spin(lo, hi, val, suffix, step, dec=2):
+            sp = QDoubleSpinBox(); sp.setRange(lo, hi); sp.setDecimals(dec); sp.setSingleStep(step)
+            sp.setSuffix(suffix); sp.setValue(val)
+            return sp
+        self.spn_ttrans = _spin(0, 500, 30, " m", 5, 0)
+        self.spn_tcross = _spin(0, 10, 2.5, " %", 0.5)
+        self.spn_tverge = _spin(0, 20, 4.0, " %", 0.5)
+        self.spn_tfill = _spin(0.5, 10, 2.0, " : 1", 0.5, 1)
+        self.spn_tcut = _spin(0.5, 10, 1.5, " : 1", 0.5, 1)
+        tf.addRow("Width changes over", self.spn_ttrans)
+        tf.addRow("Crossfall (paved)", self.spn_tcross)
+        tf.addRow("Verge fall", self.spn_tverge)
+        tf.addRow("Fill batter (H : V)", self.spn_tfill)
+        tf.addRow("Cut batter (H : V)", self.spn_tcut)
+        tl.addLayout(tf)
+        self.chk_tover = QCheckBox("Use it even where the LandXML has a corridor")
+        tl.addWidget(self.chk_tover)
+        tab_ = QHBoxLayout()
+        self.btn_tapply = QPushButton("Apply section"); self.btn_toff = QPushButton("Switch off")
+        tab_.addWidget(self.btn_tapply); tab_.addWidget(self.btn_toff)
+        tl.addLayout(tab_)
+        self.lbl_tinfo = QLabel("For a LandXML with only the alignment and its profiles: the edges (ETW, EPS ...) "
+                                "come from this section, so signs, markings, barriers, bays and junctions use "
+                                "them as they would a corridor's. Fill heights for barriers come from the design "
+                                "and existing ground profiles at the centreline and the fill batter.")
+        self.lbl_tinfo.setWordWrap(True)
+        tl.addWidget(self.lbl_tinfo)
+        tabs.addTab(tw, "Section")
+
         # ---------------- Signs tab (by chainage)
         sw = QWidget(); sl_ = QVBoxLayout(sw)
         self.tbl_signs = QTableWidget(0, 7)
@@ -555,6 +618,12 @@ class RsdDock(QDockWidget):
         self.lst_junctions.itemDoubleClicked.connect(self._zoom_junction)
         self._fill_junction_types()
         self.btn_zadd.clicked.connect(self.add_speed_zone)
+        self.btn_tstd.clicked.connect(self._ts_use_standard)
+        self.btn_tadd.clicked.connect(self._ts_add_row)
+        self.btn_tdel.clicked.connect(lambda: self.tbl_ts.removeRow(self.tbl_ts.currentRow())
+                                      if self.tbl_ts.currentRow() >= 0 else None)
+        self.btn_tapply.clicked.connect(self.apply_typical_section)
+        self.btn_toff.clicked.connect(self.switch_off_typical_section)
         self.btn_zsuggest.clicked.connect(self.suggest_speed_zones)
         self.btn_zdel.clicked.connect(self.remove_speed_zone)
         self.chk_lfix.toggled.connect(self.spn_loff.setEnabled)
@@ -656,8 +725,10 @@ class RsdDock(QDockWidget):
     def _set_enabled(self, on):
         for wdg in (self.btn_place, self.palette, self.btn_inv, self.btn_c3d, self.btn_rb, self.btn_recalc,
                     self.btn_renum, self.btn_legend, self.btn_propose, self.btn_accept, self.btn_reject,
-                    self.btn_report):
+                    self.btn_report, self.btn_tapply, self.btn_tstd, self.btn_tadd, self.btn_tdel):
             wdg.setEnabled(on)
+        if not on:
+            self.btn_toff.setEnabled(False)
 
     def settings(self):
         it = self.palette.currentItem()
@@ -673,6 +744,156 @@ class RsdDock(QDockWidget):
                 "edge_ref": self.cmb_ref.currentData(),
                 "restrict": self.chk_restrict.isChecked() and self.chk_restrict.isEnabled(),
                 "attach": self.chk_attach.isChecked()}
+
+    def _fill_project_info(self):
+        """Project summary and the edge-reference choices: again whenever the edges change."""
+        store, al = self.store, self.store.al
+        sp = ", ".join(f"{v:.0f} km/h from {format_station(al.display_station(s), 0)}" for s, v in al.speeds) \
+            or "<span style='color:#c0392b'>none in LandXML (80 km/h assumed; check the Civil 3D design criteria)</span>"
+        self.lbl_project.setText(
+            f"<b>{os.path.basename(store.gpkg)}</b><br>Alignment {al.name}: "
+            f"{al.sta_start:.0f}–{al.sta_end:.0f} m<br>Design speed: {sp}"
+            + (f"<br>Road edges: {', '.join(al.edges.codes())}"
+               + (" <span style='color:#b9770e'>(typical section, assumed)</span>"
+                  if store.edge_source == "typical section" else "") if al.edges
+               else "<br>Road edges: <span style='color:#c0392b'>none in LandXML (set a typical section on the Section tab)</span>")
+            + (f"<br>Vertical profile: {len(al.profile.curves)} curves" if al.profile
+               else "<br>Vertical profile: <span style='color:#c0392b'>none in LandXML (no grade or sight checks)</span>")
+            + (f"<br>Superelevation: {len(al.superelevation)} curves" if getattr(al, "superelevation", None)
+               else "<br>Superelevation: <span style='color:#c0392b'>none in LandXML (4 % assumed)</span>")
+            + f"<br>Catalogue {store.cat.version}")
+        self._fill_palette()
+        self.cmb_ref.clear()
+        self.cmb_ref.addItem("Centreline", None)
+        if al.edges:
+            for c in al.edges.codes():
+                self.cmb_ref.addItem(f"{c} (road edge)", c)
+            ref = store.default_edge_ref()
+            if ref:
+                self.cmb_ref.setCurrentIndex(self.cmb_ref.findData(ref))
+                self.spn_offset.setValue(1.0)
+
+    # ------------------------------------------------------------------ Section tab
+    @staticmethod
+    def _ts_side_text(side):
+        return ", ".join(f"{c} {w:g}" for c, w in side)
+
+    @staticmethod
+    def _ts_parse_side(text):
+        out = []
+        for part in (text or "").replace(";", ",").split(","):
+            bits = part.split()
+            if not bits:
+                continue
+            if len(bits) < 2:
+                raise ValueError(f"'{part.strip()}': give a code and a width, e.g. ETW 3.5")
+            out.append((" ".join(bits[:-1]), float(bits[-1])))
+        return out
+
+    def _ts_set_row(self, r, rng):
+        vals = ["" if rng.start is None else f"{self.store.al.display_station(rng.start):.0f}" if self.store
+                else f"{rng.start:.0f}",
+                "" if rng.end is None else f"{self.store.al.display_station(rng.end):.0f}" if self.store
+                else f"{rng.end:.0f}",
+                self._ts_side_text(rng.left), self._ts_side_text(rng.right)]
+        for c, v in enumerate(vals):
+            self.tbl_ts.setItem(r, c, QTableWidgetItem(v))
+
+    def _ts_add_row(self):
+        from .rfd.typical_section import STANDARD, SectionRange
+        side = STANDARD[self.cmb_tstd.currentData()]["side"]
+        r = self.tbl_ts.rowCount()
+        self.tbl_ts.insertRow(r)
+        self._ts_set_row(r, SectionRange(list(side), list(side)))
+
+    def _ts_use_standard(self):
+        self.tbl_ts.setRowCount(0)
+        self._ts_add_row()
+
+    def _fill_typical_section(self):
+        from .rfd.typical_section import TypicalSection
+        st = self.store
+        src = st.edge_source
+        has_corridor = bool(getattr(st.al, "corridor_edges", None))
+        self.lbl_tsource.setText(
+            "Road edges from the <b>corridor</b> in the LandXML." if src == "corridor" else
+            "Road edges from the <b>typical section</b> (assumed until a corridor comes back from Civil 3D)."
+            if src == "typical section" else
+            "<span style='color:#c0392b'>The LandXML has no corridor: set a typical section and apply it.</span>")
+        ts = st.typical or TypicalSection()
+        self.tbl_ts.setRowCount(0)
+        for rng in ts.ranges:
+            r = self.tbl_ts.rowCount(); self.tbl_ts.insertRow(r); self._ts_set_row(r, rng)
+        if not ts.ranges and not has_corridor:
+            self._ts_use_standard()
+        for sp, v in ((self.spn_ttrans, ts.transition), (self.spn_tcross, ts.crossfall),
+                      (self.spn_tverge, ts.verge_fall), (self.spn_tfill, ts.fill_batter),
+                      (self.spn_tcut, ts.cut_batter)):
+            sp.setValue(v)
+        self.chk_tover.setChecked(ts.use_over_corridor)
+        self.chk_tover.setEnabled(has_corridor)
+        self.btn_toff.setEnabled(st.typical is not None)
+
+    def typical_section(self):
+        """The section as set on the tab (ValueError with the row on a bad entry)."""
+        from .rfd.typical_section import SectionRange, TypicalSection
+        ranges = []
+        for r in range(self.tbl_ts.rowCount()):
+            cell = [(self.tbl_ts.item(r, c).text().strip() if self.tbl_ts.item(r, c) else "") for c in range(4)]
+            try:
+                a = self.store.al.internal_station(float(cell[0])) if cell[0] else None
+                b = self.store.al.internal_station(float(cell[1])) if cell[1] else None
+                ranges.append(SectionRange(self._ts_parse_side(cell[2]), self._ts_parse_side(cell[3]), a, b,
+                                           f"range {r + 1}"))
+            except ValueError as e:
+                raise ValueError(f"Row {r + 1}: {e}") from None
+        return TypicalSection(ranges, self.spn_ttrans.value(), self.spn_tcross.value(), self.spn_tverge.value(),
+                              self.spn_tfill.value(), self.spn_tcut.value(), self.chk_tover.isChecked())
+
+    def apply_typical_section(self):
+        if not self.store:
+            return
+        try:
+            ts = self.typical_section()
+        except ValueError as e:
+            self.iface.messageBar().pushMessage("Road Furniture Designer", str(e), MSG_WARNING, 8)
+            return
+        problems = ts.check(self.store.al)
+        if problems and any("no section range" in p or "overlap" in p for p in problems):
+            self.iface.messageBar().pushMessage("Road Furniture Designer", "; ".join(problems), MSG_WARNING, 10)
+            return
+        applied, problems = self.store.set_typical_section(ts)
+        self._after_edges_changed()
+        from .rfd.typical_section import compare
+        diff = compare(self.store.al, ts)
+        if applied:
+            msg = "Road edges rebuilt from the typical section"
+            msg += (": " + "; ".join(problems)) if problems else "."
+            if diff:
+                msg += " Against the corridor: " + "; ".join(diff)
+        else:
+            msg = ("Typical section saved; the corridor in the LandXML is used. Tick 'Use it even where the "
+                   "LandXML has a corridor' to use the section instead.")
+            if diff:
+                msg += " Corridor against the section: " + "; ".join(diff)
+        self.iface.messageBar().pushMessage("Road Furniture Designer", msg,
+                                            MSG_WARNING if problems else MSG_SUCCESS, 10)
+
+    def switch_off_typical_section(self):
+        if not self.store:
+            return
+        self.store.set_typical_section(None)
+        self._after_edges_changed()
+        self.iface.messageBar().pushMessage(
+            "Road Furniture Designer", "Typical section switched off" +
+            (": the corridor's edges are used." if self.store.al.edges else ": no road edges now."), MSG_INFO, 6)
+
+    def _after_edges_changed(self):
+        self.chk_restrict.setEnabled(bool(self.store.al.edges))
+        self._fill_project_info()
+        self._fill_typical_section()
+        self._fill_linear_controls()
+        self.refresh()
 
     def set_store(self, store):
         self.store = store
@@ -693,29 +914,9 @@ class RsdDock(QDockWidget):
                     f"add its file on the Auto tab.", MSG_WARNING, 8)
         store.message.connect(lambda t, l: self.iface.messageBar().pushMessage("Road Furniture Designer", t,
                                                                             MSG_LEVELS.get(l, MSG_INFO), 5))
+        self._fill_project_info()
+        self._fill_typical_section()
         al = store.al
-        sp = ", ".join(f"{v:.0f} km/h from {format_station(al.display_station(s), 0)}" for s, v in al.speeds) \
-            or "<span style='color:#c0392b'>none in LandXML (80 km/h assumed; check the Civil 3D design criteria)</span>"
-        self.lbl_project.setText(
-            f"<b>{os.path.basename(store.gpkg)}</b><br>Alignment {al.name}: "
-            f"{al.sta_start:.0f}–{al.sta_end:.0f} m<br>Design speed: {sp}"
-            + (f"<br>Road edges: {', '.join(al.edges.codes())}" if al.edges
-               else "<br>Road edges: <span style='color:#c0392b'>none in LandXML (offsets from the centreline)</span>")
-            + (f"<br>Vertical profile: {len(al.profile.curves)} curves" if al.profile
-               else "<br>Vertical profile: <span style='color:#c0392b'>none in LandXML (no grade or sight checks)</span>")
-            + (f"<br>Superelevation: {len(al.superelevation)} curves" if getattr(al, "superelevation", None)
-               else "<br>Superelevation: <span style='color:#c0392b'>none in LandXML (4 % assumed)</span>")
-            + f"<br>Catalogue {store.cat.version}")
-        self._fill_palette()
-        self.cmb_ref.clear()
-        self.cmb_ref.addItem("Centreline", None)
-        if al.edges:
-            for c in al.edges.codes():
-                self.cmb_ref.addItem(f"{c} (road edge)", c)
-            ref = store.default_edge_ref()
-            if ref:
-                self.cmb_ref.setCurrentIndex(self.cmb_ref.findData(ref))
-                self.spn_offset.setValue(1.0)
         self.spn_from.setValue(al.sta_start); self.spn_to.setValue(al.sta_end)
         self.chk_restrict.setEnabled(bool(al.edges))
         self.chk_restrict.setChecked(bool(al.edges))

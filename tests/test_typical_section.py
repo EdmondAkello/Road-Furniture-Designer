@@ -1,0 +1,87 @@
+"""Typical section: edges and simplified sections from user offsets for a centreline-only LandXML."""
+import pytest
+
+from rfd import barriers as B
+from rfd import typical_section as T
+from rfd.alignment import Alignment
+from rfd.corridor import Edges
+from rfd.profile import VerticalProfile
+
+
+def road(length=1000.0, ground=None):
+    al = Alignment.from_polyline("C", [(0, 0), (length, 0)])
+    al.speeds = [(0.0, 80.0)]
+    al.profile = VerticalProfile("p", [(0, 100, 0), (al.sta_end, 100, 0)])
+    al.ground = ground if ground is not None else [(0.0, 100.0), (length, 100.0)]
+    return al
+
+
+def test_standard_section_gives_corridor_like_edges():
+    al = road()
+    ts = T.TypicalSection.standard("R5")
+    assert T.apply(al, ts)
+    assert al.edge_source == T.SOURCE
+    assert al.edges.offset("ETW", "L", 500) == pytest.approx(3.50)
+    assert al.edges.offset("EPS", "R", 500) == pytest.approx(5.50)
+    assert al.edges.reference() == "EPS"
+    assert al.edges.codes() == ["ETW", "EPS"]
+
+
+def test_ranges_with_a_transition_and_checks():
+    al = road()
+    town = T.SectionRange([("ETW", 3.5), ("EPS", 1.5), ("Walkway", 3.0)], [("ETW", 3.5), ("EPS", 1.5)], 400, None, "U")
+    rural = T.SectionRange([("ETW", 3.0), ("EPS", 1.0)], [("ETW", 3.0), ("EPS", 1.0)], None, 400, "R7")
+    ts = T.TypicalSection([town, rural], transition=40.0)
+    assert ts.check(al) == []
+    T.apply(al, ts)
+    assert al.edges.offset("ETW", "L", 300) == pytest.approx(3.0)
+    assert al.edges.offset("ETW", "L", 420) == pytest.approx(3.25)          # half way through the 40 m change
+    assert al.edges.offset("ETW", "L", 500) == pytest.approx(3.5)
+    assert al.edges.offset("Walkway", "L", 500) == pytest.approx(8.0)
+    assert al.edges.offset("Walkway", "L", 300) is None                       # only in the town range
+    gap = T.TypicalSection([T.SectionRange([("ETW", 3)], [("ETW", 3)], 0, 300),
+                            T.SectionRange([("ETW", 3)], [("ETW", 3)], 350, None)])
+    assert any("no section from 300 to 350" in m for m in gap.check(al))
+
+
+def test_corridor_kept_unless_asked():
+    al = road()
+    al.edges = Edges({("ETW", "L"): [(0, 3.65), (1000, 3.65)], ("ETW", "R"): [(0, 3.65), (1000, 3.65)]})
+    ts = T.TypicalSection.standard("R7")
+    assert not T.apply(al, ts)
+    assert al.edge_source == "corridor" and al.edges.offset("ETW", "L", 10) == pytest.approx(3.65)
+    ts.use_over_corridor = True
+    assert T.apply(al, ts)
+    assert al.edges.offset("ETW", "L", 10) == pytest.approx(3.0)
+    assert any("ETW left" in m for m in T.compare(al, ts))
+    T.apply(al, None)                                                          # switched off: corridor back
+    assert al.edge_source == "corridor" and al.edges.offset("ETW", "L", 10) == pytest.approx(3.65)
+
+
+def test_round_trip_through_json():
+    ts = T.TypicalSection([T.SectionRange([("ETW", 3.65), ("EPS", 2.5)], [("ETW", 3.65)], 0, 500, "A")],
+                          crossfall=3.0, use_over_corridor=True)
+    back = T.TypicalSection.from_dict(ts.to_dict())
+    assert back == ts
+
+
+def test_sections_give_fill_heights_for_barriers():
+    # design 100 m all along; ground 92 m (8 m fill) from 300 to 500, level with the road elsewhere
+    g = [(0, 100.0), (280, 100.0), (300, 92.0), (500, 92.0), (520, 100.0), (1000, 100.0)]
+    al = road(ground=g)
+    T.apply(al, T.TypicalSection.standard("R5"))
+    f = B.side_fill(al, 400.0, "L", None)
+    assert f is not None and f.source == "daylight"
+    hinge_z = -5.5 * 0.025                                                  # paved shoulder at the crossfall
+    assert f.height == pytest.approx(hinge_z + 8.0, abs=1e-3)
+    assert f.slope_n == pytest.approx(2.0, abs=1e-3)                          # the fill batter
+    assert B.side_fill(al, 100.0, "L", None) is None                          # level ground: no fill
+    runs, _ = B.propose_barriers(al, B.BarrierConfig())
+    assert runs and {r.side for r in runs} == {"L", "R"} and all(r.sta_start < 400 < r.sta_end for r in runs)
+
+
+def test_no_ground_profile_no_daylight():
+    al = road(ground=[])
+    T.apply(al, T.TypicalSection.standard("R5"))
+    assert al.edges and al.sections
+    assert all(c != "Daylight" for *_, c in al.sections.side(500.0, "L"))

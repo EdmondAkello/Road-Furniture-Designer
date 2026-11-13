@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Centreline-only LandXML** (new **Section** tab): with only the alignment and its design and existing ground profiles in the LandXML, a typical section gives the road edges. Elements per side from the centreline outwards (ETW, EPS, NMT, Walkway, Parking or any code, with widths), by chainage range, with linear width changes between ranges; standard sections R4-R9, U5 and U6 from RDM 1.3 Tables 4.23 / 4.24. It produces the same edge table a corridor gives, so signs, clearances, markings, barriers, calming, bays and junctions use it unchanged, and the `RFD road edges` layer carries it for snapping (ETW dashed: assumed). Stored with the project.
+- Embankment barriers without a corridor: a simplified section (crossfall, verge fall, hinge at the outer edge, fill or cut batter to the existing ground level at the centreline) gives the fill heights; the report notes that edges and fills are assumed.
+- A corridor and a typical section side by side: tick **Use it even where the LandXML has a corridor** to use the section; applying it lists where the corridor's ETW / EPS differ from it by more than 0.3 m.
+
 ## 0.9.0 — 2026-11-13
 
 ### Changed
