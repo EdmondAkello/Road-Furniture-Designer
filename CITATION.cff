@@ -36,6 +36,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.24194738"
     description: "Version 0.10.0"
+  - type: doi
+    value: "10.5281/zenodo.24199986"
+    description: "Version 0.11.0"
 date-released: "2026-11-13"
 license: GPL-2.0-or-later
 type: software
