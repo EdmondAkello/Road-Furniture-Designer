@@ -330,7 +330,12 @@ class SignStore(QObject):
         ring = QgsSimpleMarkerSymbolLayer(GEOM_CIRCLE, 10.0)
         ring.setColor(QColor(255, 140, 0, 60)); ring.setStrokeColor(QColor(255, 120, 0)); ring.setStrokeWidth(0.6)
         ring.setDataDefinedProperty(PROP_ENABLED, QgsProperty.fromExpression("\"status\" = 'proposed'"))
-        sym = QgsMarkerSymbol([ring, arrow, svg])
+        # appendSymbolLayer() takes ownership; the QgsMarkerSymbol(list) constructor does not on
+        # QGIS 3.34, where the layers were then freed twice when the project closed
+        sym = QgsMarkerSymbol()
+        sym.deleteSymbolLayer(0)
+        for lyr in (ring, arrow, svg):
+            sym.appendSymbolLayer(lyr)
         self.signs.setRenderer(QgsSingleSymbolRenderer(sym))
         pal = QgsPalLayerSettings()
         pal.fieldName = "post_ref"
